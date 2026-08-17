@@ -11,6 +11,7 @@ import {
   LoadingState,
   ScrollScreen,
   SearchField,
+  Tag,
 } from '../../src/components/ui';
 import { dogSizeLabels, energyLabels } from '../../src/labels';
 import { useSession } from '../../src/session';
@@ -45,6 +46,10 @@ export default function DiscoverScreen() {
   );
 
   const activeFilterCount = [size, energy].filter(Boolean).length + (district ? 1 : 0);
+  // Eski/demo veride yinelenen kayıt olsa bile aynı köpek iki kez gösterilmez.
+  const visibleItems = loader.data
+    ? Array.from(new Map(loader.data.items.map((item) => [item.dog.id, item])).values())
+    : [];
 
   function clearFilters() {
     setSize(null);
@@ -85,6 +90,14 @@ export default function DiscoverScreen() {
         ) : null}
       </View>
 
+      {activeFilterCount > 0 && !filtersOpen ? (
+        <View style={styles.activeFilters}>
+          {district ? <Tag label={district} tone="primary" /> : null}
+          {size ? <Tag label={dogSizeLabels[size as keyof typeof dogSizeLabels]} tone="primary" /> : null}
+          {energy ? <Tag label={energyLabels[energy as keyof typeof energyLabels]} tone="accent" /> : null}
+        </View>
+      ) : null}
+
       {filtersOpen ? (
         <View style={styles.filters}>
           <ChoiceGroup
@@ -122,13 +135,13 @@ export default function DiscoverScreen() {
         <LoadingState label="Köpekler yükleniyor…" />
       ) : loader.error ? (
         <ErrorState message={loader.error} onRetry={loader.reload} />
-      ) : loader.data && loader.data.items.length > 0 ? (
+      ) : visibleItems.length > 0 ? (
         <View style={{ marginTop: spacing.md }}>
           <AppText variant="caption" color={colors.textSubtle} style={{ marginBottom: spacing.md }}>
-            {loader.data.items.length} köpek bulundu
+            {visibleItems.length} köpek bulundu
           </AppText>
 
-          {loader.data.items.map((item) => (
+          {visibleItems.map((item) => (
             <DogCard
               key={item.dog.id}
               item={item}
@@ -170,5 +183,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     marginBottom: spacing.md,
+  },
+  activeFilters: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
 });

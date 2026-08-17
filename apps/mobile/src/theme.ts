@@ -24,7 +24,8 @@ export const colors = {
   // Metin
   text: '#2A2430',
   textMuted: '#6E6577',
-  textSubtle: '#9A93A2',
+  // Yardımcı metinler krem ve beyaz zemin üzerinde erişilebilir kalmalı.
+  textSubtle: '#7F7787',
   textOnPrimary: '#FFFFFF',
 
   // Durumlar

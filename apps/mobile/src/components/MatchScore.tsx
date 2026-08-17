@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { MatchFactor, MatchScore as MatchScoreData } from '../api';
 import { colors, radius, spacing } from '../theme';
 import { AppText, Card } from './ui';
@@ -88,6 +88,8 @@ export function MatchBreakdownCard({
   targetDogName?: string;
 }) {
   const palette = levelColor(match.level);
+  const [expanded, setExpanded] = useState(false);
+  const visibleFactors = expanded ? match.factors : match.factors.slice(0, 3);
 
   return (
     <Card>
@@ -111,10 +113,23 @@ export function MatchBreakdownCard({
       </View>
 
       <View style={{ marginTop: spacing.lg }}>
-        {match.factors.map((factor) => (
+        {visibleFactors.map((factor) => (
           <FactorRow key={factor.key} factor={factor} />
         ))}
       </View>
+
+      {match.factors.length > 3 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          onPress={() => setExpanded((value) => !value)}
+          style={styles.expandButton}
+        >
+          <AppText variant="label" color={colors.primary}>
+            {expanded ? 'Ayrıntıları daralt' : `${match.factors.length - 3} ayrıntı daha göster`}
+          </AppText>
+        </Pressable>
+      ) : null}
 
       {match.missing.length > 0 ? (
         <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.md }}>
@@ -184,5 +199,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  expandButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.sm,
   },
 });

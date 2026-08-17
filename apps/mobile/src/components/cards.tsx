@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import type { DiscoverItem, EventSummary } from '../api';
 import {
   dogAgeLabel,
@@ -20,9 +20,13 @@ export function DogCard({ item, onPress }: { item: DiscoverItem; onPress: () => 
   const { dog, owner } = item;
 
   return (
-    <Card onPress={onPress} style={{ marginBottom: spacing.md }}>
+    <Card onPress={onPress} style={styles.dogCard}>
       <View style={styles.row}>
-        <Avatar name={dog.name} size={64} emoji="🐕" />
+        {dog.photoUrl ? (
+          <Image source={{ uri: dog.photoUrl }} style={styles.dogPhoto} />
+        ) : (
+          <Avatar name={dog.name} size={58} />
+        )}
 
         <View style={styles.rowBody}>
           <AppText variant="heading" numberOfLines={1}>
@@ -50,7 +54,7 @@ export function DogCard({ item, onPress }: { item: DiscoverItem; onPress: () => 
           variant="body"
           color={colors.textMuted}
           numberOfLines={2}
-          style={{ marginTop: spacing.md }}
+          style={{ marginTop: spacing.sm }}
         >
           {dog.bio}
         </AppText>
@@ -139,6 +143,16 @@ export function ActionCard({
 }
 
 const styles = StyleSheet.create({
+  dogCard: {
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+  },
+  dogPhoto: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: colors.surfaceMuted,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -151,7 +165,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   eventIcon: {
     width: 52,

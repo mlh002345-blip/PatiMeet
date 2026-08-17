@@ -117,6 +117,19 @@ export default function UserProfileScreen() {
         </Card>
       ) : null}
 
+      {/* Ana eylem uzun uyum açıklamalarından önce görünür. */}
+      {!isSelf ? (
+        <View style={styles.primaryActions}>
+          <Button label="Mesaj gönder" onPress={openChat} loading={opening} />
+          <Button
+            label="Etkinliğe davet et"
+            variant="secondary"
+            onPress={() => router.push('/event/create')}
+            style={{ marginTop: spacing.sm }}
+          />
+        </View>
+      ) : null}
+
       {/* Uyum skoru — en uyumlu köpek önce */}
       {matches.length > 0 ? (
         <>
@@ -194,16 +207,9 @@ export default function UserProfileScreen() {
         </>
       ) : null}
 
-      {/* Aksiyonlar — kendi profilinde gösterilmez */}
+      {/* Güvenlik eylemi ana aksiyonlardan ayrı ve daha düşük öncelikte. */}
       {!isSelf ? (
-        <View style={{ marginTop: spacing.xl }}>
-          <Button label="Mesaj gönder" onPress={openChat} loading={opening} />
-          <Button
-            label="Etkinliğe davet et"
-            variant="secondary"
-            onPress={() => router.push('/event/create')}
-            style={{ marginTop: spacing.sm }}
-          />
+        <View style={{ marginTop: spacing.md }}>
           <Button
             label="Şikâyet et veya engelle"
             variant="ghost"
@@ -248,5 +254,8 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: radius.pill,
     backgroundColor: colors.surfaceMuted,
+  },
+  primaryActions: {
+    marginTop: spacing.lg,
   },
 });

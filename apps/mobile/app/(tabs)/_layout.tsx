@@ -73,28 +73,28 @@ export default function TabsLayout() {
         name="home"
         options={{
           title: 'Ana Sayfa',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon glyph="⌂" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="discover"
         options={{
           title: 'Keşfet',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🐕" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon glyph="●" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="events"
         options={{
           title: 'Etkinlikler',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon glyph="▣" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="messages"
         options={{
           title: 'Mesajlar',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon glyph="▢" focused={focused} />,
           tabBarBadge: unread > 0 ? unread : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.accent, fontSize: 10 },
         }}
@@ -103,7 +103,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profil',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon glyph="○" focused={focused} />,
         }}
       />
     </Tabs>
@@ -111,9 +111,9 @@ export default function TabsLayout() {
 }
 
 /**
- * Sekme ikonları emoji ile çizildi — MVP'de ek ikon paketi bağımlılığı
- * getirmemek için bilinçli bir tercih. Aktif sekmede opaklık artar.
+ * Yeni paket gerektirmeyen, tek renkli ve platformlar arası tutarlı semboller.
  */
-function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
-  return <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.45 }}>{emoji}</Text>;
+function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
+  const color = focused ? colors.primary : colors.textSubtle;
+  return <Text style={{ color, fontSize: 22, fontWeight: '700' }}>{glyph}</Text>;
 }
