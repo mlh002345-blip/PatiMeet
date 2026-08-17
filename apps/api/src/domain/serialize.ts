@@ -1,4 +1,5 @@
-import { db } from '../db';
+import { getDb, type CountRow, type Db } from '../db';
+import { resolveMediaUrl } from '../storage';
 
 export interface DogRow {
   id: string;
@@ -10,7 +11,7 @@ export interface DogRow {
   energy: string;
   sociability: string;
   bio: string;
-  vaccinated: number;
+  vaccinated: boolean;
   photo_url: string | null;
   status: string;
   created_at: number;
@@ -33,6 +34,8 @@ export interface UserRow {
   deletion_requested_at: number | null;
   /** Google ile bağlanmış hesabın sağlayıcı kimliği. */
   google_id: string | null;
+  /** Apple ile bağlanmış hesabın sağlayıcı kimliği (Apple `sub`). */
+  apple_id: string | null;
   /** E-posta sahipliğinin kanıtlandığı an. */
   email_verified_at: number | null;
   /** Şifre girişinin kapatıldığı an (hesap eşleştirme güvenliği). */
@@ -46,7 +49,16 @@ function dogAge(birthYear: number | null): number | null {
   return age >= 0 ? age : null;
 }
 
-export function publicDog(row: DogRow) {
+/**
+ * Fotoğraf alanları veritabanında obje deposu anahtarı (`media/...`) veya
+ * doğrudan bir adres olarak durabilir. İstemciye her zaman görüntülenebilir
+ * bir adres döneriz.
+ */
+async function photoUrl(stored: string | null): Promise<string | null> {
+  return resolveMediaUrl(stored);
+}
+
+export async function publicDog(row: DogRow) {
   return {
     id: row.id,
     ownerId: row.owner_id,
@@ -58,33 +70,36 @@ export function publicDog(row: DogRow) {
     energy: row.energy,
     sociability: row.sociability,
     bio: row.bio,
-    vaccinated: row.vaccinated === 1,
-    photoUrl: row.photo_url,
+    vaccinated: row.vaccinated === true,
+    photoUrl: await photoUrl(row.photo_url),
   };
+}
+
+export function publicDogs(rows: DogRow[]) {
+  return Promise.all(rows.map(publicDog));
 }
 
 /**
  * Diğer kullanıcılara açık profil. Tam konum, e-posta ve hesap durumu gibi
  * alanlar bilinçli olarak dışarıda bırakıldı — yalnızca semt paylaşılır.
  */
-export function publicUser(row: UserRow) {
+export async function publicUser(row: UserRow) {
   return {
     id: row.id,
     name: row.name,
     district: row.district,
     bio: row.bio,
     purpose: row.purpose,
-    photoUrl: row.photo_url,
+    photoUrl: await photoUrl(row.photo_url),
   };
 }
 
 /** Kullanıcının kendi hesabı için dönen genişletilmiş görünüm. */
-export function privateUser(row: UserRow) {
-  const dogs = db
-    .prepare<[string], DogRow>(
-      `SELECT * FROM dogs WHERE owner_id = ? AND status = 'active' ORDER BY created_at`
-    )
-    .all(row.id);
+export async function privateUser(row: UserRow, db: Db = getDb()) {
+  const dogs = await db.query<DogRow>(
+    `SELECT * FROM dogs WHERE owner_id = $1 AND status = 'active' ORDER BY created_at`,
+    [row.id]
+  );
 
   return {
     id: row.id,
@@ -93,16 +108,17 @@ export function privateUser(row: UserRow) {
     district: row.district,
     bio: row.bio,
     purpose: row.purpose,
-    photoUrl: row.photo_url,
+    photoUrl: await photoUrl(row.photo_url),
     status: row.status,
     termsAcceptedAt: row.terms_accepted_at,
     privacyAcceptedAt: row.privacy_accepted_at,
     deletionRequestedAt: row.deletion_requested_at,
     /** Ayarlarda "Google ile bağlı" durumunu göstermek için. */
     googleLinked: row.google_id !== null,
+    appleLinked: row.apple_id !== null,
     hasPassword: row.password_hash !== null,
     passwordLoginDisabled: row.password_disabled_at !== null,
-    dogs: dogs.map(publicDog),
+    dogs: await publicDogs(dogs),
     /** İstemci profil tamamlama uyarısını bu bayraklara göre gösterir. */
     profileComplete: Boolean(row.name && row.district) && dogs.length > 0,
     hasDog: dogs.length > 0,
@@ -125,23 +141,19 @@ export interface EventRow {
   created_at: number;
 }
 
-export function publicEvent(row: EventRow, viewerId: string | null) {
-  const owner = db
-    .prepare<[string], UserRow>('SELECT * FROM users WHERE id = ?')
-    .get(row.owner_id);
+export async function publicEvent(row: EventRow, viewerId: string | null, db: Db = getDb()) {
+  const owner = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [row.owner_id]);
 
-  const count = db
-    .prepare<[string], { c: number }>(
-      'SELECT COUNT(*) AS c FROM event_participants WHERE event_id = ?'
-    )
-    .get(row.id);
+  const count = await db.one<CountRow>(
+    'SELECT COUNT(*)::int AS c FROM event_participants WHERE event_id = $1',
+    [row.id]
+  );
 
   const joined = viewerId
-    ? db
-        .prepare<[string, string], { c: number }>(
-          'SELECT COUNT(*) AS c FROM event_participants WHERE event_id = ? AND user_id = ?'
-        )
-        .get(row.id, viewerId)
+    ? await db.one<CountRow>(
+        'SELECT COUNT(*)::int AS c FROM event_participants WHERE event_id = $1 AND user_id = $2',
+        [row.id, viewerId]
+      )
     : { c: 0 };
 
   const participantCount = count?.c ?? 0;
@@ -163,6 +175,10 @@ export function publicEvent(row: EventRow, viewerId: string | null) {
     isFull: participantCount >= row.capacity,
     isOwner: viewerId === row.owner_id,
     hasJoined: (joined?.c ?? 0) > 0,
-    owner: owner ? publicUser(owner) : null,
+    owner: owner ? await publicUser(owner) : null,
   };
+}
+
+export function publicEvents(rows: EventRow[], viewerId: string | null, db: Db = getDb()) {
+  return Promise.all(rows.map((row) => publicEvent(row, viewerId, db)));
 }

@@ -4,20 +4,60 @@
  *
  *   npm test
  *
- * Geçici bir veritabanı dosyası kullanır; mevcut geliştirme verisine dokunmaz.
+ * Bellekte gömülü bir PostgreSQL (PGlite) kullanır: production ile aynı SQL
+ * diyalekti, ama sunucu kurmaya gerek yok ve geliştirme verisine dokunmaz.
+ * Depolama geçici bir dizine, bildirimler ise belleğe yönlendirilir.
  */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const tmpDb = path.join(os.tmpdir(), `patimeet-smoke-${Date.now()}.sqlite`);
-process.env.DB_FILE = tmpDb;
+const uploadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'patimeet-uploads-'));
+
+/**
+ * Varsayılan: gömülü PostgreSQL (bellekte) — sunucu gerekmez.
+ * TEST_DATABASE_URL verilirse gerçek PostgreSQL'e bağlanır; böylece production
+ * sürücüsü (`pg`) de aynı testlerle doğrulanabilir:
+ *
+ *   TEST_DATABASE_URL=postgresql://... npm test
+ */
+if (process.env.TEST_DATABASE_URL) {
+  process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+} else {
+  delete process.env.DATABASE_URL;
+  process.env.PGLITE_DATA_DIR = 'memory';
+}
 process.env.PORT = '0';
 process.env.JWT_SECRET = 'smoke-test-secret';
 process.env.ADMIN_TOKEN = 'smoke-admin-token';
+process.env.ADMIN_SESSION_SECRET = 'smoke-admin-session';
+process.env.STORAGE_DRIVER = 'local';
+process.env.STORAGE_LOCAL_DIR = uploadDir;
+process.env.PUSH_DRIVER = 'none';
+// Test sırasında hız sınırı kapalı: yüzlerce istek atıyoruz.
+process.env.RATE_LIMIT_ENABLED = 'false';
+process.env.LOG_LEVEL = 'silent';
 
 // Ortam değişkenleri config okunmadan önce ayarlanmalı.
 const { createApp } = require('./app') as typeof import('./app');
+const { getDb, runMigrations } = require('./db') as typeof import('./db');
+const { setPushSender } = require('./domain/push') as typeof import('./domain/push');
+const { createAdminUser } = require('./domain/moderation') as typeof import('./domain/moderation');
+
+/** Gönderilen bildirimleri yakalayan test göndericisi. */
+interface CapturedPush {
+  tokens: string[];
+  title: string;
+  body: string;
+}
+const sentPush: CapturedPush[] = [];
+setPushSender({
+  driver: 'none',
+  async send(tokens, message) {
+    sentPush.push({ tokens, title: message.title, body: message.body });
+    return tokens.map((token) => ({ token, ok: true, shouldRevoke: false }));
+  },
+});
 
 let passed = 0;
 let failed = 0;
@@ -38,6 +78,8 @@ function section(title: string): void {
 }
 
 async function main(): Promise<void> {
+  await runMigrations(getDb());
+
   const app = createApp();
   const server = app.listen(0);
   await new Promise<void>((resolve) => server.once('listening', () => resolve()));
@@ -559,9 +601,8 @@ async function main(): Promise<void> {
   );
 
   server.close();
-  fs.rmSync(tmpDb, { force: true });
-  fs.rmSync(`${tmpDb}-wal`, { force: true });
-  fs.rmSync(`${tmpDb}-shm`, { force: true });
+  await getDb().close();
+  fs.rmSync(uploadDir, { recursive: true, force: true });
 
   console.log(`\n${'='.repeat(48)}`);
   console.log(`Toplam: ${passed + failed}  |  Geçen: ${passed}  |  Başarısız: ${failed}`);

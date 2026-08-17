@@ -1,9 +1,18 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
-import { db, nowMs } from '../db';
+import { getDb, nowMs, type CountRow, type Db } from '../db';
 import { hiddenUserIds, isBlockedBetween } from '../domain/blocks';
-import { publicDog, publicEvent, publicUser, type DogRow, type EventRow, type UserRow } from '../domain/serialize';
+import { notifyUser } from '../domain/push';
+import {
+  publicDog,
+  publicEvent,
+  publicEvents,
+  publicUser,
+  type DogRow,
+  type EventRow,
+  type UserRow,
+} from '../domain/serialize';
 import { asyncRoute, badRequest, conflict, forbidden, notFound, parseBody } from '../http';
 import { newId } from '../ids';
 
@@ -51,56 +60,53 @@ const listQuerySchema = z.object({
 eventsRouter.get(
   '/',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
     const q = parseBody(listQuerySchema, req.query);
 
-    const hidden = hiddenUserIds(me.id);
-    const where: string[] = [`e.status = 'active'`];
+    const hidden = await hiddenUserIds(me.id, db);
     const params: unknown[] = [];
+    const push = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
 
-    if (hidden.length > 0) {
-      where.push(`e.owner_id NOT IN (${hidden.map(() => '?').join(', ')})`);
-      params.push(...hidden);
-    }
+    const where: string[] = [`e.status = 'active'`];
+
+    if (hidden.length > 0) where.push(`e.owner_id != ALL(${push(hidden)})`);
 
     if (q.scope === 'mine') {
-      where.push('e.owner_id = ?');
-      params.push(me.id);
+      where.push(`e.owner_id = ${push(me.id)}`);
     } else if (q.scope === 'joined') {
-      where.push('EXISTS (SELECT 1 FROM event_participants p WHERE p.event_id = e.id AND p.user_id = ?)');
-      params.push(me.id);
+      where.push(
+        `EXISTS (SELECT 1 FROM event_participants p WHERE p.event_id = e.id AND p.user_id = ${push(me.id)})`
+      );
     }
 
     // Liste her zaman gelecekteki etkinlikleri gösterir; geçmiş kayıtlar düşer.
-    where.push('e.starts_at > ?');
-    params.push(nowMs());
+    where.push(`e.starts_at > ${push(nowMs())}`);
 
-    if (q.district) {
-      where.push('e.district = ?');
-      params.push(q.district);
-    }
-    if (q.type) {
-      where.push('e.type = ?');
-      params.push(q.type);
-    }
+    if (q.district) where.push(`e.district = ${push(q.district)}`);
+    if (q.type) where.push(`e.type = ${push(q.type)}`);
     if (q.dogSize) {
       // 'hepsi' etkinlikleri her boyut filtresinde görünür.
-      where.push(`(e.dog_size = ? OR e.dog_size = 'hepsi')`);
-      params.push(q.dogSize);
+      where.push(`(e.dog_size = ${push(q.dogSize)} OR e.dog_size = 'hepsi')`);
     }
 
-    const rows = db
-      .prepare(
-        `SELECT e.* FROM events e
-          WHERE ${where.join(' AND ')}
-          ORDER BY e.starts_at ASC
-          LIMIT ? OFFSET ?`
-      )
-      .all(...params, q.limit, q.offset) as EventRow[];
+    const limit = push(q.limit);
+    const offset = push(q.offset);
+
+    const rows = await db.query<EventRow>(
+      `SELECT e.* FROM events e
+        WHERE ${where.join(' AND ')}
+        ORDER BY e.starts_at ASC
+        LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
 
     res.json({
-      events: rows.map((row) => publicEvent(row, me.id)),
+      events: await publicEvents(rows, me.id, db),
       limit: q.limit,
       offset: q.offset,
       hasMore: rows.length === q.limit,
@@ -108,63 +114,74 @@ eventsRouter.get(
   })
 );
 
+const createBodySchema = createEventSchema.extend({
+  /** Etkinliğe hangi köpekle katılacağı (çoklu köpek desteği). */
+  dogId: z.string().trim().min(1).optional(),
+});
+
 eventsRouter.post(
   '/',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
-    const input = parseBody(createEventSchema, req.body);
+    const input = parseBody(createBodySchema, req.body);
     assertFutureDate(input.startsAt);
 
     // İş kuralı: etkinlik oluşturmak için en az bir köpek profili gerekir.
-    const dogCount = db
-      .prepare<[string], { c: number }>(
-        `SELECT COUNT(*) AS c FROM dogs WHERE owner_id = ? AND status = 'active'`
-      )
-      .get(me.id);
-    if ((dogCount?.c ?? 0) === 0) {
-      throw badRequest('Etkinlik oluşturmak için önce köpek profilinizi tamamlayın.', 'dog_required');
+    const dogs = await db.query<DogRow>(
+      `SELECT * FROM dogs WHERE owner_id = $1 AND status = 'active' ORDER BY created_at`,
+      [me.id]
+    );
+    if (dogs.length === 0) {
+      throw badRequest(
+        'Etkinlik oluşturmak için önce köpek profilinizi tamamlayın.',
+        'dog_required'
+      );
     }
+
+    const chosen = input.dogId ? dogs.find((dog) => dog.id === input.dogId) : dogs[0];
+    if (!chosen) throw badRequest('Seçilen köpek profili bulunamadı.', 'dog_not_found');
 
     const ts = nowMs();
     const id = newId();
 
-    const tx = db.transaction(() => {
-      db.prepare(
+    await db.tx(async (t) => {
+      await t.exec(
         `INSERT INTO events
            (id, owner_id, title, type, starts_at, district, meeting_point, capacity, dog_size, description, rules, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        id,
-        me.id,
-        input.title,
-        input.type,
-        input.startsAt,
-        input.district,
-        input.meetingPoint,
-        input.capacity,
-        input.dogSize,
-        input.description ?? '',
-        input.rules ?? '',
-        ts,
-        ts
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+        [
+          id,
+          me.id,
+          input.title,
+          input.type,
+          input.startsAt,
+          input.district,
+          input.meetingPoint,
+          input.capacity,
+          input.dogSize,
+          input.description ?? '',
+          input.rules ?? '',
+          ts,
+        ]
       );
       // Etkinlik sahibi otomatik katılımcıdır; kontenjan hesabı buna göre işler.
-      db.prepare(
-        'INSERT INTO event_participants (id, event_id, user_id, created_at) VALUES (?, ?, ?, ?)'
-      ).run(newId(), id, me.id, ts);
+      await t.exec(
+        'INSERT INTO event_participants (id, event_id, user_id, dog_id, created_at) VALUES ($1, $2, $3, $4, $5)',
+        [newId(), id, me.id, chosen.id, ts]
+      );
     });
-    tx();
 
-    const row = db.prepare<[string], EventRow>('SELECT * FROM events WHERE id = ?').get(id)!;
-    res.status(201).json({ event: publicEvent(row, me.id) });
+    const row = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [id]);
+    res.status(201).json({ event: await publicEvent(row!, me.id, db) });
   })
 );
 
-function visibleEvent(eventId: string, viewerId: string): EventRow {
-  const row = db.prepare<[string], EventRow>('SELECT * FROM events WHERE id = ?').get(eventId);
+async function visibleEvent(db: Db, eventId: string, viewerId: string): Promise<EventRow> {
+  const row = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [eventId]);
   if (!row || row.status === 'removed') throw notFound('Etkinlik bulunamadı.');
-  if (row.owner_id !== viewerId && isBlockedBetween(viewerId, row.owner_id)) {
+  if (row.owner_id !== viewerId && (await isBlockedBetween(viewerId, row.owner_id, db))) {
     throw notFound('Etkinlik bulunamadı.');
   }
   return row;
@@ -173,33 +190,38 @@ function visibleEvent(eventId: string, viewerId: string): EventRow {
 eventsRouter.get(
   '/:id',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
-    const row = visibleEvent(req.params.id, me.id);
+    const row = await visibleEvent(db, req.params.id, me.id);
 
-    const hidden = hiddenUserIds(me.id);
-    const participants = db
-      .prepare<[string], UserRow & { dog_id: string | null }>(
-        `SELECT u.*, p.dog_id FROM event_participants p
-           JOIN users u ON u.id = p.user_id
-          WHERE p.event_id = ? AND u.status = 'active'
-          ORDER BY p.created_at`
-      )
-      .all(req.params.id);
+    const hidden = await hiddenUserIds(me.id, db);
+    const participants = await db.query<UserRow & { dog_id: string | null }>(
+      `SELECT u.*, p.dog_id FROM event_participants p
+         JOIN users u ON u.id = p.user_id
+        WHERE p.event_id = $1 AND u.status = 'active'
+        ORDER BY p.created_at`,
+      [req.params.id]
+    );
 
-    const visibleParticipants = participants
-      .filter((p) => !hidden.includes(p.id))
-      .map((p) => {
-        const dog = p.dog_id
-          ? db.prepare<[string], DogRow>('SELECT * FROM dogs WHERE id = ?').get(p.dog_id)
-          : undefined;
-        return {
-          user: publicUser(p),
-          dog: dog && dog.status === 'active' ? publicDog(dog) : null,
-        };
-      });
+    const visibleParticipants = await Promise.all(
+      participants
+        .filter((p) => !hidden.includes(p.id))
+        .map(async (p) => {
+          const dog = p.dog_id
+            ? await db.one<DogRow>('SELECT * FROM dogs WHERE id = $1', [p.dog_id])
+            : undefined;
+          return {
+            user: await publicUser(p),
+            dog: dog && dog.status === 'active' ? await publicDog(dog) : null,
+          };
+        })
+    );
 
-    res.json({ event: publicEvent(row, me.id), participants: visibleParticipants });
+    res.json({
+      event: await publicEvent(row!, me.id, db),
+      participants: visibleParticipants,
+    });
   })
 );
 
@@ -208,18 +230,20 @@ const joinSchema = z.object({ dogId: z.string().trim().min(1).optional() });
 eventsRouter.post(
   '/:id/join',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
     const input = parseBody(joinSchema, req.body ?? {});
-    const row = visibleEvent(req.params.id, me.id);
+    const row = await visibleEvent(db, req.params.id, me.id);
 
     if (row.status !== 'active') throw badRequest('Bu etkinlik iptal edilmiş.', 'event_inactive');
     if (row.starts_at <= nowMs()) {
       throw badRequest('Bu etkinliğin tarihi geçmiş.', 'event_past');
     }
 
+    let dogId: string | null = null;
     if (input.dogId) {
-      const dog = db.prepare<[string], DogRow>('SELECT * FROM dogs WHERE id = ?').get(input.dogId);
+      const dog = await db.one<DogRow>('SELECT * FROM dogs WHERE id = $1', [input.dogId]);
       if (!dog || dog.owner_id !== me.id || dog.status !== 'active') {
         throw badRequest('Seçilen köpek profili bulunamadı.', 'dog_not_found');
       }
@@ -230,48 +254,65 @@ eventsRouter.post(
           'dog_size_mismatch'
         );
       }
+      dogId = dog.id;
     }
 
     const ts = nowMs();
 
     // Kontenjan kontrolü ve ekleme aynı işlemde yapılır ki eşzamanlı
     // katılımlarda sınır aşılmasın.
-    const tx = db.transaction(() => {
-      const already = db
-        .prepare<[string, string], { c: number }>(
-          'SELECT COUNT(*) AS c FROM event_participants WHERE event_id = ? AND user_id = ?'
-        )
-        .get(row.id, me.id);
+    await db.tx(async (t) => {
+      const already = await t.one<CountRow>(
+        'SELECT COUNT(*)::int AS c FROM event_participants WHERE event_id = $1 AND user_id = $2',
+        [row.id, me.id]
+      );
       if ((already?.c ?? 0) > 0) {
         throw conflict('Bu etkinliğe zaten katıldınız.', 'already_joined');
       }
 
-      const count = db
-        .prepare<[string], { c: number }>(
-          'SELECT COUNT(*) AS c FROM event_participants WHERE event_id = ?'
-        )
-        .get(row.id);
+      /**
+       * `FOR UPDATE` etkinlik satırını kilitler: iki kişi aynı anda son
+       * kontenjana katılmaya çalıştığında ikincisi ilkini bekler ve sayımı
+       * güncel görür. Kilit olmadan kontenjan aşılabilirdi.
+       */
+      await t.one('SELECT id FROM events WHERE id = $1 FOR UPDATE', [row.id]);
+
+      const count = await t.one<CountRow>(
+        'SELECT COUNT(*)::int AS c FROM event_participants WHERE event_id = $1',
+        [row.id]
+      );
       if ((count?.c ?? 0) >= row.capacity) {
         throw conflict('Etkinlik kontenjanı doldu.', 'event_full');
       }
 
-      db.prepare(
-        'INSERT INTO event_participants (id, event_id, user_id, dog_id, created_at) VALUES (?, ?, ?, ?, ?)'
-      ).run(newId(), row.id, me.id, input.dogId ?? null, ts);
+      await t.exec(
+        'INSERT INTO event_participants (id, event_id, user_id, dog_id, created_at) VALUES ($1, $2, $3, $4, $5)',
+        [newId(), row.id, me.id, dogId, ts]
+      );
     });
-    tx();
 
-    const updated = db.prepare<[string], EventRow>('SELECT * FROM events WHERE id = ?').get(row.id)!;
-    res.json({ event: publicEvent(updated, me.id) });
+    // Etkinlik sahibine haber ver (kendi etkinliğine katılıyorsa gerek yok).
+    if (row.owner_id !== me.id) {
+      const joiner = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [me.id]);
+      await notifyUser(row.owner_id, 'events', {
+        title: 'Etkinliğine yeni katılım',
+        body: `${joiner?.name ?? 'Bir kullanıcı'}, "${row.title}" etkinliğine katıldı.`,
+        data: { type: 'event', eventId: row.id },
+      });
+    }
+
+    const updated = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [row.id]);
+    res.json({ event: await publicEvent(updated!, me.id, db) });
   })
 );
 
 eventsRouter.post(
   '/:id/leave',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
-    const row = visibleEvent(req.params.id, me.id);
+    const row = await visibleEvent(db, req.params.id, me.id);
 
     if (row.owner_id === me.id) {
       throw badRequest(
@@ -280,22 +321,23 @@ eventsRouter.post(
       );
     }
 
-    const result = db
-      .prepare('DELETE FROM event_participants WHERE event_id = ? AND user_id = ?')
-      .run(row.id, me.id);
+    const result = await db.exec(
+      'DELETE FROM event_participants WHERE event_id = $1 AND user_id = $2',
+      [row.id, me.id]
+    );
 
-    if (result.changes === 0) throw badRequest('Bu etkinliğe katılmamışsınız.', 'not_joined');
+    if (result.rowCount === 0) throw badRequest('Bu etkinliğe katılmamışsınız.', 'not_joined');
 
-    const updated = db.prepare<[string], EventRow>('SELECT * FROM events WHERE id = ?').get(row.id)!;
-    res.json({ event: publicEvent(updated, me.id) });
+    const updated = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [row.id]);
+    res.json({ event: await publicEvent(updated!, me.id, db) });
   })
 );
 
 const updateEventSchema = createEventSchema.partial();
 
 /** İş kuralı: yalnızca etkinlik sahibi düzenleyebilir veya iptal edebilir. */
-function ownedEvent(eventId: string, userId: string): EventRow {
-  const row = db.prepare<[string], EventRow>('SELECT * FROM events WHERE id = ?').get(eventId);
+async function ownedEvent(db: Db, eventId: string, userId: string): Promise<EventRow> {
+  const row = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [eventId]);
   if (!row || row.status === 'removed') throw notFound('Etkinlik bulunamadı.');
   if (row.owner_id !== userId) {
     throw forbidden('Yalnızca etkinlik sahibi bu işlemi yapabilir.');
@@ -306,18 +348,18 @@ function ownedEvent(eventId: string, userId: string): EventRow {
 eventsRouter.patch(
   '/:id',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
-    ownedEvent(req.params.id, me.id);
+    await ownedEvent(db, req.params.id, me.id);
     const input = parseBody(updateEventSchema, req.body);
     if (input.startsAt !== undefined) assertFutureDate(input.startsAt);
 
     if (input.capacity !== undefined) {
-      const count = db
-        .prepare<[string], { c: number }>(
-          'SELECT COUNT(*) AS c FROM event_participants WHERE event_id = ?'
-        )
-        .get(req.params.id);
+      const count = await db.one<CountRow>(
+        'SELECT COUNT(*)::int AS c FROM event_participants WHERE event_id = $1',
+        [req.params.id]
+      );
       if ((count?.c ?? 0) > input.capacity) {
         throw badRequest(
           'Katılımcı sınırı mevcut katılımcı sayısından az olamaz.',
@@ -326,56 +368,81 @@ eventsRouter.patch(
       }
     }
 
-    const columns: Record<string, string> = {
-      title: 'title',
-      type: 'type',
-      startsAt: 'starts_at',
-      district: 'district',
-      meetingPoint: 'meeting_point',
-      capacity: 'capacity',
-      dogSize: 'dog_size',
-      description: 'description',
-      rules: 'rules',
-    };
+    const mapping: Array<[keyof typeof input, string]> = [
+      ['title', 'title'],
+      ['type', 'type'],
+      ['startsAt', 'starts_at'],
+      ['district', 'district'],
+      ['meetingPoint', 'meeting_point'],
+      ['capacity', 'capacity'],
+      ['dogSize', 'dog_size'],
+      ['description', 'description'],
+      ['rules', 'rules'],
+    ];
 
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    for (const [key, column] of Object.entries(columns)) {
-      const value = (input as Record<string, unknown>)[key];
-      if (value !== undefined) {
-        sets.push(`${column} = ?`);
-        params.push(value);
+    const columns: Array<[string, unknown]> = [];
+    for (const [key, column] of mapping) {
+      const value = input[key];
+      if (value !== undefined) columns.push([column, value]);
+    }
+
+    if (columns.length > 0) {
+      const sets = columns.map(([column], index) => `${column} = $${index + 1}`);
+      const params = columns.map(([, value]) => value);
+      sets.push(`updated_at = $${params.length + 1}`);
+      params.push(nowMs(), req.params.id);
+
+      await db.exec(`UPDATE events SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+
+      // Katılımcılara değişikliği bildir — saat/yer değişimi kritik bilgi.
+      const participants = await db.query<{ user_id: string }>(
+        'SELECT user_id FROM event_participants WHERE event_id = $1 AND user_id != $2',
+        [req.params.id, me.id]
+      );
+      const updatedRow = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [
+        req.params.id,
+      ]);
+      for (const participant of participants) {
+        await notifyUser(participant.user_id, 'events', {
+          title: 'Etkinlik güncellendi',
+          body: `"${updatedRow?.title ?? 'Etkinlik'}" bilgileri değişti. Detayları kontrol edin.`,
+          data: { type: 'event', eventId: req.params.id },
+        });
       }
     }
 
-    if (sets.length > 0) {
-      sets.push('updated_at = ?');
-      params.push(nowMs(), req.params.id);
-      db.prepare(`UPDATE events SET ${sets.join(', ')} WHERE id = ?`).run(...params);
-    }
-
-    const row = db
-      .prepare<[string], EventRow>('SELECT * FROM events WHERE id = ?')
-      .get(req.params.id)!;
-    res.json({ event: publicEvent(row, me.id) });
+    const row = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [req.params.id]);
+    res.json({ event: await publicEvent(row!, me.id, db) });
   })
 );
 
 eventsRouter.post(
   '/:id/cancel',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
-    ownedEvent(req.params.id, me.id);
+    const existing = await ownedEvent(db, req.params.id, me.id);
 
-    db.prepare(`UPDATE events SET status = 'cancelled', updated_at = ? WHERE id = ?`).run(
+    await db.exec(`UPDATE events SET status = 'cancelled', updated_at = $1 WHERE id = $2`, [
       nowMs(),
-      req.params.id
-    );
+      req.params.id,
+    ]);
 
-    const row = db
-      .prepare<[string], EventRow>('SELECT * FROM events WHERE id = ?')
-      .get(req.params.id)!;
-    res.json({ event: publicEvent(row, me.id) });
+    // Katılımcıların boşa gitmemesi için iptal bildirimi önemlidir.
+    const participants = await db.query<{ user_id: string }>(
+      'SELECT user_id FROM event_participants WHERE event_id = $1 AND user_id != $2',
+      [req.params.id, me.id]
+    );
+    for (const participant of participants) {
+      await notifyUser(participant.user_id, 'events', {
+        title: 'Etkinlik iptal edildi',
+        body: `"${existing.title}" etkinliği iptal edildi.`,
+        data: { type: 'event', eventId: req.params.id },
+      });
+    }
+
+    const row = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [req.params.id]);
+    res.json({ event: await publicEvent(row!, me.id, db) });
   })
 );

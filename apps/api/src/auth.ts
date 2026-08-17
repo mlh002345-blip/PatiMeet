@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from './config';
-import { db } from './db';
+import { getDb } from './db';
 import { forbidden, unauthorized } from './http';
 
 export interface AuthUser {
@@ -37,7 +37,11 @@ function readBearer(req: Request): string | null {
  * Korumalı uçlar için zorunlu kimlik doğrulama. Pasife alınmış veya silinmiş
  * hesaplar geçerli token taşısa bile reddedilir.
  */
-export function requireAuth(req: Request, _res: Response, next: NextFunction): void {
+export async function requireAuth(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> {
   const token = readBearer(req);
   if (!token) return next(unauthorized());
 
@@ -48,21 +52,29 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
     return next(unauthorized('Oturumunuzun süresi doldu. Tekrar giriş yapın.'));
   }
 
-  const row = db
-    .prepare<[string], AuthUser>('SELECT id, email, status FROM users WHERE id = ?')
-    .get(String(payload.sub));
+  try {
+    const row = await getDb().one<AuthUser>(
+      'SELECT id, email, status FROM users WHERE id = $1',
+      [String(payload.sub)]
+    );
 
-  if (!row) return next(unauthorized('Hesap bulunamadı.'));
-  if (row.status !== 'active') {
-    return next(forbidden('Hesabınız aktif değil. Destek ile iletişime geçin.'));
+    if (!row) return next(unauthorized('Hesap bulunamadı.'));
+    if (row.status !== 'active') {
+      return next(forbidden('Hesabınız aktif değil. Destek ile iletişime geçin.'));
+    }
+
+    req.user = row;
+    next();
+  } catch (error) {
+    next(error);
   }
-
-  req.user = row;
-  next();
 }
 
-/** Moderasyon uçları paylaşılan bir admin anahtarı ile korunuyor. */
-export function requireAdmin(req: Request, _res: Response, next: NextFunction): void {
+/**
+ * Makineden makineye moderasyon erişimi (paylaşılan anahtar). İnsan
+ * kullanıcılar için oturum tabanlı panel girişi vardır (bkz. admin/).
+ */
+export function requireAdminToken(req: Request, _res: Response, next: NextFunction): void {
   const token = req.header('x-admin-token');
   if (!token || token !== config.adminToken) {
     return next(forbidden('Geçersiz yönetim anahtarı.'));

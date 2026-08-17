@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
-import { db, nowMs } from '../db';
+import { getDb, nowMs, type CountRow, type Db } from '../db';
 import { isBlockedBetween } from '../domain/blocks';
+import { notifyUser } from '../domain/push';
 import { publicUser, type UserRow } from '../domain/serialize';
 import { asyncRoute, badRequest, forbidden, notFound, parseBody } from '../http';
 import { newId } from '../ids';
@@ -22,22 +23,37 @@ function pairKey(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
 }
 
-function findOrCreateConversation(userId: string, otherId: string): ConversationRow {
+async function findOrCreateConversation(
+  db: Db,
+  userId: string,
+  otherId: string
+): Promise<ConversationRow> {
   const [a, b] = pairKey(userId, otherId);
 
-  const existing = db
-    .prepare<[string, string], ConversationRow>(
-      'SELECT * FROM conversations WHERE user_a_id = ? AND user_b_id = ?'
-    )
-    .get(a, b);
+  const existing = await db.one<ConversationRow>(
+    'SELECT * FROM conversations WHERE user_a_id = $1 AND user_b_id = $2',
+    [a, b]
+  );
   if (existing) return existing;
 
   const id = newId();
-  db.prepare(
-    'INSERT INTO conversations (id, user_a_id, user_b_id, created_at) VALUES (?, ?, ?, ?)'
-  ).run(id, a, b, nowMs());
+  /**
+   * Eşzamanlı iki istek aynı konuşmayı açmaya çalışabilir; tekil kısıt
+   * ihlalinde mevcut kaydı okuyup devam ediyoruz.
+   */
+  await db.exec(
+    `INSERT INTO conversations (id, user_a_id, user_b_id, created_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_a_id, user_b_id) DO NOTHING`,
+    [id, a, b, nowMs()]
+  );
 
-  return db.prepare<[string], ConversationRow>('SELECT * FROM conversations WHERE id = ?').get(id)!;
+  const row = await db.one<ConversationRow>(
+    'SELECT * FROM conversations WHERE user_a_id = $1 AND user_b_id = $2',
+    [a, b]
+  );
+  if (!row) throw new Error('Konuşma oluşturulamadı.');
+  return row;
 }
 
 function otherParticipant(conversation: ConversationRow, userId: string): string {
@@ -48,15 +64,15 @@ function otherParticipant(conversation: ConversationRow, userId: string): string
  * Mesajlaşma önkoşulları: hedef hesap aktif olmalı ve iki taraf arasında
  * engelleme bulunmamalı.
  */
-function assertCanMessage(userId: string, otherId: string): UserRow {
+async function assertCanMessage(db: Db, userId: string, otherId: string): Promise<UserRow> {
   if (userId === otherId) {
     throw badRequest('Kendinize mesaj gönderemezsiniz.', 'self_message');
   }
 
-  const other = db.prepare<[string], UserRow>('SELECT * FROM users WHERE id = ?').get(otherId);
+  const other = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [otherId]);
   if (!other || other.status !== 'active') throw notFound('Kullanıcı bulunamadı.');
 
-  if (isBlockedBetween(userId, otherId)) {
+  if (await isBlockedBetween(userId, otherId, db)) {
     throw forbidden('Bu kullanıcıyla mesajlaşamazsınız.');
   }
 
@@ -67,56 +83,95 @@ function assertCanMessage(userId: string, otherId: string): UserRow {
 messagesRouter.get(
   '/conversations',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
 
-    const rows = db
-      .prepare<[string, string], ConversationRow>(
-        `SELECT * FROM conversations
-          WHERE user_a_id = ? OR user_b_id = ?
-          ORDER BY COALESCE(last_message_at, created_at) DESC`
-      )
-      .all(me.id, me.id);
+    /**
+     * Konuşma listesi tek sorguda toplanır: karşı taraf, son mesaj ve
+     * okunmamış sayısı yan sorgularla getirilir. Böylece konuşma başına
+     * ayrı sorgu atmıyoruz (N+1 sorgu sorunu).
+     */
+    const rows = await db.query<{
+      id: string;
+      other_id: string;
+      other_name: string;
+      other_district: string | null;
+      other_bio: string;
+      other_purpose: string | null;
+      other_photo_url: string | null;
+      last_body: string | null;
+      last_created_at: number | null;
+      last_sender_id: string | null;
+      unread_count: number;
+      updated_at: number;
+    }>(
+      `SELECT c.id,
+              o.id            AS other_id,
+              o.name          AS other_name,
+              o.district      AS other_district,
+              o.bio           AS other_bio,
+              o.purpose       AS other_purpose,
+              o.photo_url     AS other_photo_url,
+              last.body       AS last_body,
+              last.created_at AS last_created_at,
+              last.sender_id  AS last_sender_id,
+              COALESCE(unread.c, 0)::int AS unread_count,
+              COALESCE(c.last_message_at, c.created_at) AS updated_at
+         FROM conversations c
+         JOIN users o
+           ON o.id = CASE WHEN c.user_a_id = $1 THEN c.user_b_id ELSE c.user_a_id END
+    LEFT JOIN LATERAL (
+              SELECT m.body, m.created_at, m.sender_id
+                FROM messages m
+               WHERE m.conversation_id = c.id
+               ORDER BY m.created_at DESC
+               LIMIT 1
+         ) last ON TRUE
+    LEFT JOIN LATERAL (
+              SELECT COUNT(*) AS c
+                FROM messages m
+               WHERE m.conversation_id = c.id
+                 AND m.sender_id <> $1
+                 AND m.read_at IS NULL
+         ) unread ON TRUE
+        WHERE (c.user_a_id = $1 OR c.user_b_id = $1)
+          AND o.status = 'active'
+          -- Engellenen kullanıcılar listede görünmez (her iki yön).
+          AND NOT EXISTS (
+                SELECT 1 FROM blocks b
+                 WHERE (b.blocker_id = $1 AND b.blocked_id = o.id)
+                    OR (b.blocker_id = o.id AND b.blocked_id = $1)
+              )
+        ORDER BY updated_at DESC`,
+      [me.id]
+    );
 
-    const items = rows
-      .map((row) => {
-        const otherId = otherParticipant(row, me.id);
-        const other = db
-          .prepare<[string], UserRow>('SELECT * FROM users WHERE id = ?')
-          .get(otherId);
+    const conversations = await Promise.all(
+      rows.map(async (row) => ({
+        id: row.id,
+        user: await publicUser({
+          id: row.other_id,
+          name: row.other_name,
+          district: row.other_district,
+          bio: row.other_bio,
+          purpose: row.other_purpose,
+          photo_url: row.other_photo_url,
+        } as UserRow),
+        lastMessage: row.last_created_at
+          ? {
+              body: row.last_body ?? '',
+              createdAt: row.last_created_at,
+              isMine: row.last_sender_id === me.id,
+            }
+          : null,
+        unreadCount: row.unread_count,
+        updatedAt: row.updated_at,
+      }))
+    );
 
-        // Pasif hesaplar ve engellenen kullanıcılar listede görünmez.
-        if (!other || other.status !== 'active') return null;
-        if (isBlockedBetween(me.id, otherId)) return null;
-
-        const last = db
-          .prepare<[string], { body: string; created_at: number; sender_id: string }>(
-            `SELECT body, created_at, sender_id FROM messages
-              WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1`
-          )
-          .get(row.id);
-
-        const unread = db
-          .prepare<[string, string], { c: number }>(
-            `SELECT COUNT(*) AS c FROM messages
-              WHERE conversation_id = ? AND sender_id != ? AND read_at IS NULL`
-          )
-          .get(row.id, me.id);
-
-        return {
-          id: row.id,
-          user: publicUser(other),
-          lastMessage: last
-            ? { body: last.body, createdAt: last.created_at, isMine: last.sender_id === me.id }
-            : null,
-          unreadCount: unread?.c ?? 0,
-          updatedAt: row.last_message_at ?? row.created_at,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
-
-    const totalUnread = items.reduce((sum, item) => sum + item.unreadCount, 0);
-    res.json({ conversations: items, totalUnread });
+    const totalUnread = conversations.reduce((sum, item) => sum + item.unreadCount, 0);
+    res.json({ conversations, totalUnread });
   })
 );
 
@@ -124,21 +179,26 @@ messagesRouter.get(
 messagesRouter.post(
   '/conversations',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
     const input = parseBody(z.object({ userId: z.string().trim().min(1) }), req.body);
 
-    const other = assertCanMessage(me.id, input.userId);
-    const conversation = findOrCreateConversation(me.id, input.userId);
+    const other = await assertCanMessage(db, me.id, input.userId);
+    const conversation = await findOrCreateConversation(db, me.id, input.userId);
 
-    res.json({ conversation: { id: conversation.id, user: publicUser(other) } });
+    res.json({ conversation: { id: conversation.id, user: await publicUser(other) } });
   })
 );
 
-function ownedConversation(conversationId: string, userId: string): ConversationRow {
-  const row = db
-    .prepare<[string], ConversationRow>('SELECT * FROM conversations WHERE id = ?')
-    .get(conversationId);
+async function ownedConversation(
+  db: Db,
+  conversationId: string,
+  userId: string
+): Promise<ConversationRow> {
+  const row = await db.one<ConversationRow>('SELECT * FROM conversations WHERE id = $1', [
+    conversationId,
+  ]);
   if (!row) throw notFound('Konuşma bulunamadı.');
   if (row.user_a_id !== userId && row.user_b_id !== userId) {
     throw forbidden('Bu konuşmaya erişiminiz yok.');
@@ -150,30 +210,36 @@ function ownedConversation(conversationId: string, userId: string): Conversation
 messagesRouter.get(
   '/conversations/:id/messages',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
-    const conversation = ownedConversation(req.params.id, me.id);
+    const conversation = await ownedConversation(db, req.params.id, me.id);
     const otherId = otherParticipant(conversation, me.id);
 
-    const other = db.prepare<[string], UserRow>('SELECT * FROM users WHERE id = ?').get(otherId);
+    const other = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [otherId]);
     if (!other || other.status !== 'active') throw notFound('Kullanıcı bulunamadı.');
 
-    const blocked = isBlockedBetween(me.id, otherId);
+    const blocked = await isBlockedBetween(me.id, otherId, db);
 
-    const rows = db
-      .prepare<[string], { id: string; sender_id: string; body: string; created_at: number }>(
-        `SELECT id, sender_id, body, created_at FROM messages
-          WHERE conversation_id = ? ORDER BY created_at ASC`
-      )
-      .all(conversation.id);
+    const rows = await db.query<{
+      id: string;
+      sender_id: string;
+      body: string;
+      created_at: number;
+    }>(
+      `SELECT id, sender_id, body, created_at FROM messages
+        WHERE conversation_id = $1 ORDER BY created_at ASC`,
+      [conversation.id]
+    );
 
-    db.prepare(
-      `UPDATE messages SET read_at = ?
-        WHERE conversation_id = ? AND sender_id != ? AND read_at IS NULL`
-    ).run(nowMs(), conversation.id, me.id);
+    await db.exec(
+      `UPDATE messages SET read_at = $1
+        WHERE conversation_id = $2 AND sender_id <> $3 AND read_at IS NULL`,
+      [nowMs(), conversation.id, me.id]
+    );
 
     res.json({
-      conversation: { id: conversation.id, user: publicUser(other) },
+      conversation: { id: conversation.id, user: await publicUser(other) },
       // Engelli durumda geçmiş okunabilir ama yeni mesaj gönderilemez.
       canSend: !blocked,
       blocked,
@@ -198,26 +264,44 @@ const sendSchema = z.object({
 messagesRouter.post(
   '/conversations/:id/messages',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
-    const conversation = ownedConversation(req.params.id, me.id);
+    const conversation = await ownedConversation(db, req.params.id, me.id);
     const otherId = otherParticipant(conversation, me.id);
-    assertCanMessage(me.id, otherId);
+    await assertCanMessage(db, me.id, otherId);
 
     const input = parseBody(sendSchema, req.body);
     const ts = nowMs();
     const id = newId();
 
-    const tx = db.transaction(() => {
-      db.prepare(
-        'INSERT INTO messages (id, conversation_id, sender_id, body, created_at) VALUES (?, ?, ?, ?, ?)'
-      ).run(id, conversation.id, me.id, input.body, ts);
-      db.prepare('UPDATE conversations SET last_message_at = ? WHERE id = ?').run(
-        ts,
-        conversation.id
+    await db.tx(async (t) => {
+      await t.exec(
+        'INSERT INTO messages (id, conversation_id, sender_id, body, created_at) VALUES ($1, $2, $3, $4, $5)',
+        [id, conversation.id, me.id, input.body, ts]
       );
+      await t.exec('UPDATE conversations SET last_message_at = $1 WHERE id = $2', [
+        ts,
+        conversation.id,
+      ]);
     });
-    tx();
+
+    // Alıcıya bildirim: okunmamış toplamı simge sayacına yazılır.
+    const sender = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [me.id]);
+    const unread = await db.one<CountRow>(
+      `SELECT COUNT(*)::int AS c FROM messages m
+         JOIN conversations c ON c.id = m.conversation_id
+        WHERE m.read_at IS NULL AND m.sender_id <> $1
+          AND (c.user_a_id = $1 OR c.user_b_id = $1)`,
+      [otherId]
+    );
+
+    await notifyUser(otherId, 'messages', {
+      title: sender?.name || 'Yeni mesaj',
+      body: input.body.length > 120 ? `${input.body.slice(0, 117)}…` : input.body,
+      data: { type: 'chat', conversationId: conversation.id },
+      badge: unread?.c ?? undefined,
+    });
 
     res.status(201).json({
       message: { id, body: input.body, createdAt: ts, isMine: true },
@@ -229,16 +313,15 @@ messagesRouter.post(
 messagesRouter.get(
   '/unread-count',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
     const me = currentUser(req);
-    const row = db
-      .prepare<[string, string, string], { c: number }>(
-        `SELECT COUNT(*) AS c FROM messages m
-           JOIN conversations c ON c.id = m.conversation_id
-          WHERE m.read_at IS NULL AND m.sender_id != ?
-            AND (c.user_a_id = ? OR c.user_b_id = ?)`
-      )
-      .get(me.id, me.id, me.id);
+    const row = await getDb().one<CountRow>(
+      `SELECT COUNT(*)::int AS c FROM messages m
+         JOIN conversations c ON c.id = m.conversation_id
+        WHERE m.read_at IS NULL AND m.sender_id <> $1
+          AND (c.user_a_id = $1 OR c.user_b_id = $1)`,
+      [me.id]
+    );
     res.json({ unreadCount: row?.c ?? 0 });
   })
 );

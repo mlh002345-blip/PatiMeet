@@ -8,18 +8,30 @@
  * (`normalizeGooglePayload`) doğrudan test ediyoruz — imza doğrulaması
  * google-auth-library'nin sorumluluğunda, iş kuralları bizim.
  */
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-
-const tmpDb = path.join(os.tmpdir(), `patimeet-google-${Date.now()}.sqlite`);
-process.env.DB_FILE = tmpDb;
+/**
+ * Varsayılan: gömülü PostgreSQL (bellekte) — sunucu gerekmez.
+ * TEST_DATABASE_URL verilirse gerçek PostgreSQL'e bağlanır; böylece production
+ * sürücüsü (`pg`) de aynı testlerle doğrulanabilir:
+ *
+ *   TEST_DATABASE_URL=postgresql://... npm test
+ */
+if (process.env.TEST_DATABASE_URL) {
+  process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+} else {
+  delete process.env.DATABASE_URL;
+  process.env.PGLITE_DATA_DIR = 'memory';
+}
 process.env.JWT_SECRET = 'google-test-secret';
 process.env.ADMIN_TOKEN = 'google-test-admin';
+process.env.ADMIN_SESSION_SECRET = 'google-test-session';
+process.env.PUSH_DRIVER = 'none';
+process.env.RATE_LIMIT_ENABLED = 'false';
+process.env.LOG_LEVEL = 'silent';
 
-import type { GoogleIdentity, GoogleVerifier } from './domain/google';
+import type { SocialIdentity, SocialVerifier } from './domain/social';
 
 const { createApp } = require('./app') as typeof import('./app');
+const { getDb, runMigrations } = require('./db') as typeof import('./db');
 const googleDomain = require('./domain/google') as typeof import('./domain/google');
 const { ApiError } = require('./http') as typeof import('./http');
 
@@ -40,16 +52,17 @@ function check(label: string, condition: boolean, extra?: unknown): void {
 const section = (title: string) => console.log(`\n${title}`);
 
 /** Testlerin kontrol ettiği sahte doğrulayıcı. */
-class FakeVerifier implements GoogleVerifier {
-  identities = new Map<string, GoogleIdentity>();
+class FakeVerifier implements SocialVerifier {
+  readonly provider = 'google' as const;
+  identities = new Map<string, SocialIdentity>();
   /** Bu token'lar geçersiz sayılır (imza/süre hatası taklidi). */
   invalid = new Set<string>();
 
-  register(token: string, identity: GoogleIdentity): void {
+  register(token: string, identity: SocialIdentity): void {
     this.identities.set(token, identity);
   }
 
-  async verify(idToken: string): Promise<GoogleIdentity> {
+  async verify(idToken: string): Promise<SocialIdentity> {
     if (this.invalid.has(idToken)) {
       throw new ApiError(401, 'invalid_google_token', 'Google oturumu doğrulanamadı.');
     }
@@ -77,7 +90,7 @@ async function main(): Promise<void> {
   };
 
   const normalized = googleDomain.normalizeGooglePayload(validPayload);
-  check('Geçerli payload kabul edilir', normalized.googleId === '1234567890');
+  check('Geçerli payload kabul edilir', normalized.subject === '1234567890');
   check('E-posta küçük harfe çevrilir', normalized.email === 'kullanici@gmail.com', normalized.email);
   check('Ad ve fotoğraf taşınır', normalized.name === 'Deniz Yılmaz' && Boolean(normalized.picture));
 
@@ -114,7 +127,7 @@ async function main(): Promise<void> {
   );
   check(
     'accounts.google.com (şemasız) issuer kabul edilir',
-    googleDomain.normalizeGooglePayload({ ...validPayload, iss: 'accounts.google.com' }).googleId ===
+    googleDomain.normalizeGooglePayload({ ...validPayload, iss: 'accounts.google.com' }).subject ===
       '1234567890'
   );
 
@@ -153,6 +166,8 @@ async function main(): Promise<void> {
   // 3. Hesap akışları
   // ---------------------------------------------------------------------
   const verifier = new FakeVerifier();
+  await runMigrations(getDb());
+
   const app = createApp({ googleVerifier: verifier });
   const server = app.listen(0);
   await new Promise<void>((r) => server.once('listening', () => r()));
@@ -183,7 +198,8 @@ async function main(): Promise<void> {
   check('Yapılandırma varsa enabled=true', enabledConfig.body.enabled === true);
 
   verifier.register('token-deniz', {
-    googleId: 'google-deniz',
+    provider: 'google' as const,
+    subject: 'google-deniz',
     email: 'deniz@gmail.com',
     emailVerified: true,
     name: 'Deniz',
@@ -218,6 +234,7 @@ async function main(): Promise<void> {
   );
 
   const denizToken = created.body.token as string;
+  const denizId = created.body.user.id as string;
 
   section('4. Mevcut Google kullanıcısı tekrar giriş');
 
@@ -264,7 +281,8 @@ async function main(): Promise<void> {
   });
 
   verifier.register('token-ortak', {
-    googleId: 'google-ortak',
+    provider: 'google' as const,
+    subject: 'google-ortak',
     email: 'ortak@gmail.com',
     emailVerified: true,
     name: 'Ortak Google',
@@ -306,7 +324,8 @@ async function main(): Promise<void> {
   section('6. Google tarafında e-posta değişimi');
 
   verifier.register('token-deniz-yeni-eposta', {
-    googleId: 'google-deniz',
+    provider: 'google' as const,
+    subject: 'google-deniz',
     email: 'deniz.yeni@gmail.com',
     emailVerified: true,
     name: 'Deniz',
@@ -320,7 +339,8 @@ async function main(): Promise<void> {
 
   // Yeni e-posta başkasına aitse hesabın e-postası değiştirilmez.
   verifier.register('token-deniz-cakisan', {
-    googleId: 'google-deniz',
+    provider: 'google' as const,
+    subject: 'google-deniz',
     email: 'ortak@gmail.com',
     emailVerified: true,
     name: 'Deniz',
@@ -380,11 +400,37 @@ async function main(): Promise<void> {
   });
   check('Hesap silindi', deleted.status === 200);
 
+  /**
+   * Hesap silmede KVKK gereği kişisel alanlar temizlenir: google_id kaldırılır
+   * ve e-posta yer tutucuya çevrilir. Bu yüzden aynı Google hesabıyla tekrar
+   * girmek eski hesabı DİRİLTMEZ — sıfırdan yeni bir hesap açılır ve bu yeni
+   * hesap için sözleşme onayı istenir.
+   */
   const deletedGoogle = await req('POST', '/api/auth/google', { body: { idToken: 'token-deniz' } });
-  check('Silinen hesap Google ile giriş yapamaz', deletedGoogle.status === 401, deletedGoogle.body);
+  check(
+    'Silinen hesap Google ile diriltilemez, onay istenir',
+    deletedGoogle.status === 409 && deletedGoogle.body?.error?.code === 'consent_required',
+    deletedGoogle.body
+  );
+
+  const afterDeleteSignup = await req('POST', '/api/auth/google', {
+    body: { idToken: 'token-deniz', acceptTerms: true, acceptPrivacy: true },
+  });
+  check(
+    'Onay verilince yeni hesap açılır',
+    afterDeleteSignup.status === 201 && afterDeleteSignup.body?.isNewUser === true,
+    afterDeleteSignup.body
+  );
+  check(
+    'Yeni hesap silinen hesabın verisini taşımaz',
+    afterDeleteSignup.body?.user?.id !== denizId &&
+      afterDeleteSignup.body?.user?.dogs?.length === 0 &&
+      afterDeleteSignup.body?.user?.district === null,
+    afterDeleteSignup.body?.user
+  );
 
   server.close();
-  for (const suffix of ['', '-wal', '-shm']) fs.rmSync(`${tmpDb}${suffix}`, { force: true });
+  await getDb().close();
 
   console.log(`\n${'='.repeat(52)}`);
   console.log(`Toplam: ${passed + failed}  |  Geçen: ${passed}  |  Başarısız: ${failed}`);

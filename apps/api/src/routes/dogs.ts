@@ -1,14 +1,21 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
-import { db, nowMs } from '../db';
-import { publicDog, type DogRow } from '../domain/serialize';
+import { getDb, nowMs, type CountRow, type Db } from '../db';
+import { normalizePhotoInput } from '../domain/media';
+import { publicDog, publicDogs, type DogRow } from '../domain/serialize';
 import { asyncRoute, badRequest, forbidden, notFound, parseBody } from '../http';
 import { newId } from '../ids';
 
 export const dogsRouter = Router();
 
 const CURRENT_YEAR = new Date().getUTCFullYear();
+
+/**
+ * MVP sonrası: bir kullanıcı birden fazla köpek profiline sahip olabilir.
+ * Sınır, kötüye kullanımı önlemek için makul bir üst değerde tutuluyor.
+ */
+const MAX_DOGS_PER_USER = 5;
 
 /**
  * İlk kullanımda yalnızca gerekli alanlar zorunlu: ad, boyut, enerji ve
@@ -43,99 +50,106 @@ const updateDogSchema = createDogSchema.partial();
 dogsRouter.get(
   '/',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
     const me = currentUser(req);
-    const dogs = db
-      .prepare<[string], DogRow>(
-        `SELECT * FROM dogs WHERE owner_id = ? AND status = 'active' ORDER BY created_at`
-      )
-      .all(me.id);
-    res.json({ dogs: dogs.map(publicDog) });
+    const dogs = await getDb().query<DogRow>(
+      `SELECT * FROM dogs WHERE owner_id = $1 AND status = 'active' ORDER BY created_at`,
+      [me.id]
+    );
+    res.json({ dogs: await publicDogs(dogs) });
   })
 );
 
 dogsRouter.post(
   '/',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
     const input = parseBody(createDogSchema, req.body);
 
+    const count = await db.one<CountRow>(
+      `SELECT COUNT(*)::int AS c FROM dogs WHERE owner_id = $1 AND status = 'active'`,
+      [me.id]
+    );
+    if ((count?.c ?? 0) >= MAX_DOGS_PER_USER) {
+      throw badRequest(
+        `En fazla ${MAX_DOGS_PER_USER} köpek profili ekleyebilirsiniz.`,
+        'dog_limit_reached'
+      );
+    }
+
+    const photo = await normalizePhotoInput(me.id, input.photoUrl, db);
+
     const ts = nowMs();
     const id = newId();
-    db.prepare(
+    await db.exec(
       `INSERT INTO dogs
          (id, owner_id, name, breed, birth_year, size, energy, sociability, bio, vaccinated, photo_url, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      id,
-      me.id,
-      input.name,
-      input.breed ?? null,
-      input.birthYear ?? null,
-      input.size,
-      input.energy,
-      input.sociability,
-      input.bio ?? '',
-      input.vaccinated ? 1 : 0,
-      input.photoUrl ?? null,
-      ts,
-      ts
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+      [
+        id,
+        me.id,
+        input.name,
+        input.breed ?? null,
+        input.birthYear ?? null,
+        input.size,
+        input.energy,
+        input.sociability,
+        input.bio ?? '',
+        input.vaccinated === true,
+        photo ?? null,
+        ts,
+      ]
     );
 
-    const row = db.prepare<[string], DogRow>('SELECT * FROM dogs WHERE id = ?').get(id)!;
-    res.status(201).json({ dog: publicDog(row) });
+    const row = await db.one<DogRow>('SELECT * FROM dogs WHERE id = $1', [id]);
+    res.status(201).json({ dog: await publicDog(row!) });
   })
 );
 
-function ownedDog(dogId: string, userId: string): DogRow {
-  const row = db.prepare<[string], DogRow>('SELECT * FROM dogs WHERE id = ?').get(dogId);
+async function ownedDog(db: Db, dogId: string, userId: string): Promise<DogRow> {
+  const row = await db.one<DogRow>('SELECT * FROM dogs WHERE id = $1', [dogId]);
   if (!row || row.status === 'deleted') throw notFound('Köpek profili bulunamadı.');
-  if (row.owner_id !== userId) throw forbidden('Yalnızca kendi köpek profilinizi düzenleyebilirsiniz.');
+  if (row.owner_id !== userId) {
+    throw forbidden('Yalnızca kendi köpek profilinizi düzenleyebilirsiniz.');
+  }
   return row;
 }
 
 dogsRouter.patch(
   '/:id',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
-    ownedDog(req.params.id, me.id);
+    await ownedDog(db, req.params.id, me.id);
     const input = parseBody(updateDogSchema, req.body);
 
-    const columns: Record<string, string> = {
-      name: 'name',
-      breed: 'breed',
-      birthYear: 'birth_year',
-      size: 'size',
-      energy: 'energy',
-      sociability: 'sociability',
-      bio: 'bio',
-      photoUrl: 'photo_url',
-    };
+    const photo = await normalizePhotoInput(me.id, input.photoUrl, db);
 
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    for (const [key, column] of Object.entries(columns)) {
-      const value = (input as Record<string, unknown>)[key];
-      if (value !== undefined) {
-        sets.push(`${column} = ?`);
-        params.push(value);
-      }
-    }
-    if (input.vaccinated !== undefined) {
-      sets.push('vaccinated = ?');
-      params.push(input.vaccinated ? 1 : 0);
-    }
+    const columns: Array<[string, unknown]> = [];
+    if (input.name !== undefined) columns.push(['name', input.name]);
+    if (input.breed !== undefined) columns.push(['breed', input.breed]);
+    if (input.birthYear !== undefined) columns.push(['birth_year', input.birthYear]);
+    if (input.size !== undefined) columns.push(['size', input.size]);
+    if (input.energy !== undefined) columns.push(['energy', input.energy]);
+    if (input.sociability !== undefined) columns.push(['sociability', input.sociability]);
+    if (input.bio !== undefined) columns.push(['bio', input.bio]);
+    if (input.vaccinated !== undefined) columns.push(['vaccinated', input.vaccinated]);
+    if (photo !== undefined) columns.push(['photo_url', photo]);
 
-    if (sets.length > 0) {
-      sets.push('updated_at = ?');
+    if (columns.length > 0) {
+      const sets = columns.map(([column], index) => `${column} = $${index + 1}`);
+      const params = columns.map(([, value]) => value);
+      sets.push(`updated_at = $${params.length + 1}`);
       params.push(nowMs(), req.params.id);
-      db.prepare(`UPDATE dogs SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+
+      await db.exec(`UPDATE dogs SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
     }
 
-    const row = db.prepare<[string], DogRow>('SELECT * FROM dogs WHERE id = ?').get(req.params.id)!;
-    res.json({ dog: publicDog(row) });
+    const row = await db.one<DogRow>('SELECT * FROM dogs WHERE id = $1', [req.params.id]);
+    res.json({ dog: await publicDog(row!) });
   })
 );
 
@@ -146,15 +160,15 @@ dogsRouter.patch(
 dogsRouter.delete(
   '/:id',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
-    ownedDog(req.params.id, me.id);
+    await ownedDog(db, req.params.id, me.id);
 
-    const count = db
-      .prepare<[string], { c: number }>(
-        `SELECT COUNT(*) AS c FROM dogs WHERE owner_id = ? AND status = 'active'`
-      )
-      .get(me.id);
+    const count = await db.one<CountRow>(
+      `SELECT COUNT(*)::int AS c FROM dogs WHERE owner_id = $1 AND status = 'active'`,
+      [me.id]
+    );
 
     if ((count?.c ?? 0) <= 1) {
       throw badRequest(
@@ -163,10 +177,10 @@ dogsRouter.delete(
       );
     }
 
-    db.prepare(`UPDATE dogs SET status = 'deleted', updated_at = ? WHERE id = ?`).run(
+    await db.exec(`UPDATE dogs SET status = 'deleted', updated_at = $1 WHERE id = $2`, [
       nowMs(),
-      req.params.id
-    );
+      req.params.id,
+    ]);
     res.json({ ok: true });
   })
 );

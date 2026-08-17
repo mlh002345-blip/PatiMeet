@@ -1,9 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
-import { db, nowMs } from '../db';
+import { getDb, nowMs } from '../db';
 import { isBlockedBetween } from '../domain/blocks';
-import { privateUser, publicDog, publicUser, type DogRow, type UserRow } from '../domain/serialize';
+import { normalizePhotoInput } from '../domain/media';
+import {
+  privateUser,
+  publicDogs,
+  publicUser,
+  type DogRow,
+  type UserRow,
+} from '../domain/serialize';
 import { asyncRoute, notFound, parseBody } from '../http';
 
 export const usersRouter = Router();
@@ -13,6 +20,7 @@ const profileSchema = z.object({
   district: z.string().trim().min(2, 'Semt seçin.').max(80).nullable().optional(),
   bio: z.string().trim().max(300, 'Açıklama en fazla 300 karakter olabilir.').optional(),
   purpose: z.enum(['yuruyus', 'oyun', 'sosyal', 'egitim']).nullable().optional(),
+  /** Yüklenmiş görselin depo anahtarı (`media/...`) veya kaldırmak için null. */
   photoUrl: z.string().trim().max(2000).nullable().optional(),
 });
 
@@ -20,36 +28,35 @@ const profileSchema = z.object({
 usersRouter.patch(
   '/me',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
     const input = parseBody(profileSchema, req.body);
 
-    const columns: Record<string, string> = {
-      name: 'name',
-      district: 'district',
-      bio: 'bio',
-      purpose: 'purpose',
-      photoUrl: 'photo_url',
-    };
+    // Fotoğraf alanı yalnızca kullanıcının kendi yüklediği görseli işaret edebilir.
+    const photo = await normalizePhotoInput(me.id, input.photoUrl, db);
 
-    const sets: string[] = [];
-    const params: unknown[] = [];
-    for (const [key, column] of Object.entries(columns)) {
-      const value = (input as Record<string, unknown>)[key];
-      if (value !== undefined) {
-        sets.push(`${column} = ?`);
-        params.push(value);
-      }
-    }
+    const columns: Array<[string, unknown]> = [];
+    if (input.name !== undefined) columns.push(['name', input.name]);
+    if (input.district !== undefined) columns.push(['district', input.district]);
+    if (input.bio !== undefined) columns.push(['bio', input.bio]);
+    if (input.purpose !== undefined) columns.push(['purpose', input.purpose]);
+    if (photo !== undefined) columns.push(['photo_url', photo]);
 
-    if (sets.length > 0) {
-      sets.push('updated_at = ?');
+    if (columns.length > 0) {
+      const sets = columns.map(([column], index) => `${column} = $${index + 1}`);
+      const params = columns.map(([, value]) => value);
+      sets.push(`updated_at = $${params.length + 1}`);
       params.push(nowMs(), me.id);
-      db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+
+      await db.exec(
+        `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length}`,
+        params
+      );
     }
 
-    const row = db.prepare<[string], UserRow>('SELECT * FROM users WHERE id = ?').get(me.id)!;
-    res.json({ user: privateUser(row) });
+    const row = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [me.id]);
+    res.json({ user: await privateUser(row!, db) });
   })
 );
 
@@ -60,28 +67,26 @@ usersRouter.patch(
 usersRouter.get(
   '/:id',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
     const targetId = req.params.id;
 
-    const row = db
-      .prepare<[string], UserRow>('SELECT * FROM users WHERE id = ?')
-      .get(targetId);
+    const row = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [targetId]);
 
     if (!row || row.status !== 'active') throw notFound('Profil bulunamadı.');
-    if (targetId !== me.id && isBlockedBetween(me.id, targetId)) {
+    if (targetId !== me.id && (await isBlockedBetween(me.id, targetId, db))) {
       throw notFound('Profil bulunamadı.');
     }
 
-    const dogs = db
-      .prepare<[string], DogRow>(
-        `SELECT * FROM dogs WHERE owner_id = ? AND status = 'active' ORDER BY created_at`
-      )
-      .all(targetId);
+    const dogs = await db.query<DogRow>(
+      `SELECT * FROM dogs WHERE owner_id = $1 AND status = 'active' ORDER BY created_at`,
+      [targetId]
+    );
 
     res.json({
-      user: publicUser(row),
-      dogs: dogs.map(publicDog),
+      user: await publicUser(row),
+      dogs: await publicDogs(dogs),
       isSelf: targetId === me.id,
     });
   })

@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
-import { db, nowMs } from '../db';
+import { getDb, nowMs } from '../db';
+import { notifyUser } from '../domain/push';
 import { publicUser, type UserRow } from '../domain/serialize';
 import { asyncRoute, badRequest, notFound, parseBody } from '../http';
 import { newId } from '../ids';
@@ -43,7 +44,8 @@ safetyRouter.get(
 safetyRouter.post(
   '/reports',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
     const input = parseBody(reportSchema, req.body);
 
@@ -51,22 +53,23 @@ safetyRouter.post(
       if (input.targetId === me.id) {
         throw badRequest('Kendinizi şikâyet edemezsiniz.', 'self_report');
       }
-      const exists = db
-        .prepare<[string], { id: string }>('SELECT id FROM users WHERE id = ?')
-        .get(input.targetId);
+      const exists = await db.one<{ id: string }>('SELECT id FROM users WHERE id = $1', [
+        input.targetId,
+      ]);
       if (!exists) throw notFound('Kullanıcı bulunamadı.');
     } else {
-      const exists = db
-        .prepare<[string], { id: string }>('SELECT id FROM events WHERE id = ?')
-        .get(input.targetId);
+      const exists = await db.one<{ id: string }>('SELECT id FROM events WHERE id = $1', [
+        input.targetId,
+      ]);
       if (!exists) throw notFound('Etkinlik bulunamadı.');
     }
 
     const id = newId();
-    db.prepare(
+    await db.exec(
       `INSERT INTO reports (id, reporter_id, target_type, target_id, reason, details, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, me.id, input.targetType, input.targetId, input.reason, input.details ?? '', nowMs());
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, me.id, input.targetType, input.targetId, input.reason, input.details ?? '', nowMs()]
+    );
 
     res.status(201).json({
       ok: true,
@@ -78,13 +81,13 @@ safetyRouter.post(
 
 /**
  * Kullanıcı engelleme. Engelleme sonrası iki taraf birbirinin profilini
- * göremez ve mesaj gönderemez; ayrıca ortak etkinlik katılımı temizlenmez
- * ancak katılımcı listelerinde birbirlerini görmezler.
+ * göremez ve mesaj gönderemez.
  */
 safetyRouter.post(
   '/blocks',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
+    const db = getDb();
     const me = currentUser(req);
     const input = parseBody(z.object({ userId: z.string().trim().min(1) }), req.body);
 
@@ -92,14 +95,15 @@ safetyRouter.post(
       throw badRequest('Kendinizi engelleyemezsiniz.', 'self_block');
     }
 
-    const target = db
-      .prepare<[string], UserRow>('SELECT * FROM users WHERE id = ?')
-      .get(input.userId);
+    const target = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [input.userId]);
     if (!target) throw notFound('Kullanıcı bulunamadı.');
 
-    db.prepare(
-      `INSERT OR IGNORE INTO blocks (id, blocker_id, blocked_id, created_at) VALUES (?, ?, ?, ?)`
-    ).run(newId(), me.id, input.userId, nowMs());
+    await db.exec(
+      `INSERT INTO blocks (id, blocker_id, blocked_id, created_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (blocker_id, blocked_id) DO NOTHING`,
+      [newId(), me.id, input.userId, nowMs()]
+    );
 
     res.status(201).json({ ok: true, message: 'Kullanıcı engellendi.' });
   })
@@ -108,12 +112,12 @@ safetyRouter.post(
 safetyRouter.delete(
   '/blocks/:userId',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
     const me = currentUser(req);
-    db.prepare('DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?').run(
+    await getDb().exec('DELETE FROM blocks WHERE blocker_id = $1 AND blocked_id = $2', [
       me.id,
-      req.params.userId
-    );
+      req.params.userId,
+    ]);
     res.json({ ok: true, message: 'Engel kaldırıldı.' });
   })
 );
@@ -121,14 +125,27 @@ safetyRouter.delete(
 safetyRouter.get(
   '/blocks',
   requireAuth,
-  asyncRoute((req, res) => {
+  asyncRoute(async (req, res) => {
     const me = currentUser(req);
-    const rows = db
-      .prepare<[string], UserRow>(
-        `SELECT u.* FROM blocks b JOIN users u ON u.id = b.blocked_id
-          WHERE b.blocker_id = ? ORDER BY b.created_at DESC`
-      )
-      .all(me.id);
-    res.json({ blocked: rows.map(publicUser) });
+    const rows = await getDb().query<UserRow>(
+      `SELECT u.* FROM blocks b JOIN users u ON u.id = b.blocked_id
+        WHERE b.blocker_id = $1 ORDER BY b.created_at DESC`,
+      [me.id]
+    );
+    res.json({ blocked: await Promise.all(rows.map(publicUser)) });
   })
 );
+
+/**
+ * Güvenlik olayı bildirimi.
+ *
+ * Şikâyet sonucunda bir hesap kapatıldığında veya içerik kaldırıldığında
+ * şikâyet edeni bilgilendirmek için moderasyon panelinden kullanılır.
+ */
+export async function notifySafetyOutcome(
+  userId: string,
+  title: string,
+  body: string
+): Promise<void> {
+  await notifyUser(userId, 'safety', { title, body, data: { type: 'safety' } });
+}

@@ -1,6 +1,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import { config } from '../config';
 import { ApiError, badRequest } from '../http';
+import { SocialNotConfiguredError, type SocialIdentity, type SocialVerifier } from './social';
 
 /**
  * Google ID token doğrulama.
@@ -11,45 +12,22 @@ import { ApiError, badRequest } from '../http';
  * Google olmalıdır. Bu doğrulama olmadan herhangi biri istediği e-posta ile
  * oturum açabilirdi.
  */
-export interface GoogleIdentity {
-  /** Google'ın kalıcı kullanıcı kimliği (`sub`). E-posta değişse bile sabit. */
-  googleId: string;
-  email: string;
-  emailVerified: boolean;
-  name?: string;
-  picture?: string;
-}
-
-export interface GoogleVerifier {
-  verify(idToken: string): Promise<GoogleIdentity>;
-}
-
-/** Yapılandırma eksikse istemciye anlaşılır bir mesaj dönmek için. */
-export class GoogleNotConfiguredError extends ApiError {
-  constructor() {
-    super(
-      503,
-      'google_not_configured',
-      'Google ile giriş bu sunucuda yapılandırılmamış. Lütfen e-posta ile giriş yapın.'
-    );
-  }
-}
-
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 
 /**
  * Gerçek doğrulayıcı. `google-auth-library` Google'ın imza sertifikalarını
  * çekip önbellekler ve süre/imza kontrollerini yapar.
  */
-export class LiveGoogleVerifier implements GoogleVerifier {
+export class LiveGoogleVerifier implements SocialVerifier {
+  readonly provider = 'google' as const;
   private readonly client: OAuth2Client;
 
   constructor(private readonly audiences: string[]) {
-    if (audiences.length === 0) throw new GoogleNotConfiguredError();
+    if (audiences.length === 0) throw new SocialNotConfiguredError('google');
     this.client = new OAuth2Client();
   }
 
-  async verify(idToken: string): Promise<GoogleIdentity> {
+  async verify(idToken: string): Promise<SocialIdentity> {
     let payload;
     try {
       const ticket = await this.client.verifyIdToken({
@@ -58,7 +36,7 @@ export class LiveGoogleVerifier implements GoogleVerifier {
         audience: this.audiences,
       });
       payload = ticket.getPayload();
-    } catch (error) {
+    } catch {
       // İmza, süre veya audience uyuşmazlığı — hepsi geçersiz token demektir.
       throw new ApiError(
         401,
@@ -86,7 +64,7 @@ export function normalizeGooglePayload(payload: {
   email_verified?: boolean;
   name?: string;
   picture?: string;
-}): GoogleIdentity {
+}): SocialIdentity {
   if (!payload.iss || !GOOGLE_ISSUERS.includes(payload.iss)) {
     throw new ApiError(401, 'invalid_google_token', 'Google oturumu doğrulanamadı.');
   }
@@ -114,11 +92,12 @@ export function normalizeGooglePayload(payload: {
   }
 
   return {
-    googleId: payload.sub,
+    provider: 'google',
+    subject: payload.sub,
     email: payload.email.toLowerCase(),
     emailVerified: true,
-    name: payload.name,
-    picture: payload.picture,
+    name: payload.name ?? null,
+    picture: payload.picture ?? null,
   };
 }
 
@@ -127,7 +106,7 @@ export function googleAudiences(): string[] {
   return config.googleClientIds;
 }
 
-export function createGoogleVerifier(): GoogleVerifier | null {
+export function createGoogleVerifier(): SocialVerifier | null {
   const audiences = googleAudiences();
   if (audiences.length === 0) return null;
   return new LiveGoogleVerifier(audiences);

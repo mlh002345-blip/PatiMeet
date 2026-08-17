@@ -1,33 +1,16 @@
 /**
- * Demo veri üretir. Boş başlangıç durumlarını da test edebilmek için
- * `npm run seed -- --reset` ile mevcut veriyi temizleyebilirsiniz.
+ * Demo veri üretir.
+ *
+ *   npm run seed
+ *   npm run seed -- --reset    (mevcut veriyi temizler)
+ *
+ * Boş başlangıç durumlarını test etmek için `--reset` kullanın.
  */
 import bcrypt from 'bcryptjs';
-import { db, migrate, nowMs } from './db';
+import { getDb, nowMs, runMigrations } from './db';
 import { newId } from './ids';
 
-migrate();
-
-const reset = process.argv.includes('--reset');
-if (reset) {
-  for (const table of [
-    'messages',
-    'conversations',
-    'event_participants',
-    'events',
-    'blocks',
-    'reports',
-    'dogs',
-    'users',
-  ]) {
-    db.prepare(`DELETE FROM ${table}`).run();
-  }
-  console.log('[seed] mevcut veri temizlendi');
-}
-
 const DAY = 24 * 60 * 60 * 1000;
-const ts = nowMs();
-const passwordHash = bcrypt.hashSync('patimeet123', 10);
 
 interface SeedUser {
   email: string;
@@ -129,199 +112,218 @@ const users: SeedUser[] = [
   },
 ];
 
-const insertUser = db.prepare(
-  `INSERT INTO users
-     (id, email, password_hash, provider, name, district, bio, purpose, terms_accepted_at, privacy_accepted_at, created_at, updated_at)
-   VALUES (?, ?, ?, 'email', ?, ?, ?, ?, ?, ?, ?, ?)`
-);
+async function main(): Promise<void> {
+  const db = getDb();
+  await runMigrations(db);
 
-const insertDog = db.prepare(
-  `INSERT INTO dogs
-     (id, owner_id, name, breed, birth_year, size, energy, sociability, bio, vaccinated, created_at, updated_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`
-);
+  const reset = process.argv.includes('--reset');
+  if (reset) {
+    // Sıra önemli: yabancı anahtar bağımlılıkları önce silinir.
+    for (const table of [
+      'messages',
+      'conversations',
+      'event_participants',
+      'events',
+      'blocks',
+      'reports',
+      'media_objects',
+      'push_tokens',
+      'notification_preferences',
+      'dogs',
+      'users',
+    ]) {
+      await db.exec(`DELETE FROM ${table}`);
+    }
+    console.log('[seed] mevcut veri temizlendi');
+  }
 
-const created: Array<{ userId: string; dogId: string; seed: SeedUser }> = [];
+  const ts = nowMs();
+  const passwordHash = bcrypt.hashSync('patimeet123', 10);
+  const created: Array<{ userId: string; dogId: string; seed: SeedUser }> = [];
 
-const seedTx = db.transaction(() => {
   for (const seed of users) {
-    const exists = db
-      .prepare<[string], { id: string }>('SELECT id FROM users WHERE email = ?')
-      .get(seed.email);
+    const exists = await db.one<{ id: string }>('SELECT id FROM users WHERE email = $1', [
+      seed.email,
+    ]);
     if (exists) {
       console.log(`[seed] ${seed.email} zaten var, atlanıyor`);
       continue;
     }
 
     const userId = newId();
-    insertUser.run(
-      userId,
-      seed.email,
-      passwordHash,
-      seed.name,
-      seed.district,
-      seed.bio,
-      seed.purpose,
-      ts,
-      ts,
-      ts,
-      ts
+    await db.exec(
+      `INSERT INTO users
+         (id, email, password_hash, provider, name, district, bio, purpose,
+          email_verified_at, terms_accepted_at, privacy_accepted_at, created_at, updated_at)
+       VALUES ($1, $2, $3, 'email', $4, $5, $6, $7, $8, $8, $8, $8, $8)`,
+      [userId, seed.email, passwordHash, seed.name, seed.district, seed.bio, seed.purpose, ts]
     );
 
     const dogId = newId();
-    insertDog.run(
-      dogId,
-      userId,
-      seed.dog.name,
-      seed.dog.breed,
-      seed.dog.birthYear,
-      seed.dog.size,
-      seed.dog.energy,
-      seed.dog.sociability,
-      seed.dog.bio,
-      ts,
-      ts
+    await db.exec(
+      `INSERT INTO dogs
+         (id, owner_id, name, breed, birth_year, size, energy, sociability, bio, vaccinated, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, $10, $10)`,
+      [
+        dogId,
+        userId,
+        seed.dog.name,
+        seed.dog.breed,
+        seed.dog.birthYear,
+        seed.dog.size,
+        seed.dog.energy,
+        seed.dog.sociability,
+        seed.dog.bio,
+        ts,
+      ]
     );
 
     created.push({ userId, dogId, seed });
   }
 
-  if (created.length === 0) return;
+  if (created.length > 0) {
+    const events = [
+      {
+        owner: 0,
+        title: 'Yoğurtçu Parkı akşam yürüyüşü',
+        type: 'yuruyus',
+        startsAt: ts + 2 * DAY,
+        district: 'Kadıköy',
+        meetingPoint: 'Yoğurtçu Parkı ana giriş, köpek alanı tarafı',
+        capacity: 8,
+        dogSize: 'hepsi',
+        description: 'Bir saatlik sakin bir tur atıp parkta biraz oyun molası veriyoruz.',
+        rules: 'Tasma zorunlu. Aşıları eksik köpekleri getirmeyin. Poşetinizi unutmayın.',
+      },
+      {
+        owner: 1,
+        title: 'Sabah koşusu ve serbest oyun',
+        type: 'oyun',
+        startsAt: ts + 4 * DAY,
+        district: 'Beşiktaş',
+        meetingPoint: 'Sahil yolu, köpek parkı girişi',
+        capacity: 6,
+        dogSize: 'orta',
+        description: 'Enerjisi yüksek köpekler için hızlı tempolu bir buluşma.',
+        rules: 'Enerjik köpekler için uygundur. Su getirin.',
+      },
+      {
+        owner: 3,
+        title: 'Hafta sonu uzun rota',
+        type: 'yuruyus',
+        startsAt: ts + 6 * DAY,
+        district: 'Şişli',
+        meetingPoint: 'Park girişindeki bilgi panosu önü',
+        capacity: 10,
+        dogSize: 'buyuk',
+        description: 'Yaklaşık iki saatlik daha uzun bir rota. Dayanıklı köpekler için.',
+        rules: 'Tasma zorunlu. Mola noktalarında su verilecek.',
+      },
+      {
+        owner: 2,
+        title: 'Çekingen köpekler için sakin tanışma',
+        type: 'sosyal',
+        startsAt: ts + 3 * DAY,
+        district: 'Kadıköy',
+        meetingPoint: 'Sahil parkı, sakin taraf',
+        capacity: 5,
+        dogSize: 'kucuk',
+        description: 'Yeni sosyalleşen köpekler için baskısız, kısa bir tanışma buluşması.',
+        rules: 'Sabırlı olun, köpekleri zorlamayın. Tasma zorunlu.',
+      },
+    ];
 
-  const events = [
-    {
-      owner: 0,
-      title: 'Yoğurtçu Parkı akşam yürüyüşü',
-      type: 'yuruyus',
-      startsAt: ts + 2 * DAY,
-      district: 'Kadıköy',
-      meetingPoint: 'Yoğurtçu Parkı ana giriş, köpek alanı tarafı',
-      capacity: 8,
-      dogSize: 'hepsi',
-      description: 'Bir saatlik sakin bir tur atıp parkta biraz oyun molası veriyoruz.',
-      rules: 'Tasma zorunlu. Aşıları eksik köpekleri getirmeyin. Poşetinizi unutmayın.',
-    },
-    {
-      owner: 1,
-      title: 'Sabah koşusu ve serbest oyun',
-      type: 'oyun',
-      startsAt: ts + 4 * DAY,
-      district: 'Beşiktaş',
-      meetingPoint: 'Sahil yolu, köpek parkı girişi',
-      capacity: 6,
-      dogSize: 'orta',
-      description: 'Enerjisi yüksek köpekler için hızlı tempolu bir buluşma.',
-      rules: 'Enerjik köpekler için uygundur. Su getirin.',
-    },
-    {
-      owner: 3,
-      title: 'Hafta sonu uzun rota',
-      type: 'yuruyus',
-      startsAt: ts + 6 * DAY,
-      district: 'Şişli',
-      meetingPoint: 'Park girişindeki bilgi panosu önü',
-      capacity: 10,
-      dogSize: 'buyuk',
-      description: 'Yaklaşık iki saatlik daha uzun bir rota. Dayanıklı köpekler için.',
-      rules: 'Tasma zorunlu. Mola noktalarında su verilecek.',
-    },
-    {
-      owner: 2,
-      title: 'Çekingen köpekler için sakin tanışma',
-      type: 'sosyal',
-      startsAt: ts + 3 * DAY,
-      district: 'Kadıköy',
-      meetingPoint: 'Sahil parkı, sakin taraf',
-      capacity: 5,
-      dogSize: 'kucuk',
-      description: 'Yeni sosyalleşen köpekler için baskısız, kısa bir tanışma buluşması.',
-      rules: 'Sabırlı olun, köpekleri zorlamayın. Tasma zorunlu.',
-    },
-  ];
+    for (const event of events) {
+      const owner = created[event.owner];
+      if (!owner) continue;
 
-  const insertEvent = db.prepare(
-    `INSERT INTO events
-       (id, owner_id, title, type, starts_at, district, meeting_point, capacity, dog_size, description, rules, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  );
-  const insertParticipant = db.prepare(
-    'INSERT OR IGNORE INTO event_participants (id, event_id, user_id, dog_id, created_at) VALUES (?, ?, ?, ?, ?)'
-  );
+      const eventId = newId();
+      await db.exec(
+        `INSERT INTO events
+           (id, owner_id, title, type, starts_at, district, meeting_point, capacity, dog_size, description, rules, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+        [
+          eventId,
+          owner.userId,
+          event.title,
+          event.type,
+          event.startsAt,
+          event.district,
+          event.meetingPoint,
+          event.capacity,
+          event.dogSize,
+          event.description,
+          event.rules,
+          ts,
+        ]
+      );
 
-  for (const event of events) {
-    const owner = created[event.owner];
-    if (!owner) continue;
+      await db.exec(
+        `INSERT INTO event_participants (id, event_id, user_id, dog_id, created_at)
+         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (event_id, user_id) DO NOTHING`,
+        [newId(), eventId, owner.userId, owner.dogId, ts]
+      );
 
-    const eventId = newId();
-    insertEvent.run(
-      eventId,
-      owner.userId,
-      event.title,
-      event.type,
-      event.startsAt,
-      event.district,
-      event.meetingPoint,
-      event.capacity,
-      event.dogSize,
-      event.description,
-      event.rules,
-      ts,
-      ts
-    );
-    insertParticipant.run(newId(), eventId, owner.userId, owner.dogId, ts);
+      // Sahibi dışında bir katılımcı daha ekleyerek katılımcı listesini doldur.
+      const guest = created.find((c) => c.userId !== owner.userId);
+      if (guest) {
+        await db.exec(
+          `INSERT INTO event_participants (id, event_id, user_id, dog_id, created_at)
+           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (event_id, user_id) DO NOTHING`,
+          [newId(), eventId, guest.userId, guest.dogId, ts]
+        );
+      }
+    }
 
-    // Sahibi dışında bir katılımcı daha ekleyerek katılımcı listesini doldur.
-    const guest = created.find((c) => c.userId !== owner.userId);
-    if (guest) insertParticipant.run(newId(), eventId, guest.userId, guest.dogId, ts);
+    // Örnek bir konuşma ve okunmamış mesaj.
+    if (created.length >= 2) {
+      const [first, second] = created;
+      const [a, b] =
+        first.userId < second.userId
+          ? [first.userId, second.userId]
+          : [second.userId, first.userId];
+
+      const conversationId = newId();
+      await db.exec(
+        'INSERT INTO conversations (id, user_a_id, user_b_id, last_message_at, created_at) VALUES ($1, $2, $3, $4, $4)',
+        [conversationId, a, b, ts]
+      );
+
+      const messages: Array<[string, string, number | null, number]> = [
+        [
+          second.userId,
+          'Merhaba! Pati ile bu hafta sonu parkta buluşmak ister misiniz?',
+          null,
+          ts - 3600_000,
+        ],
+        [
+          first.userId,
+          'Merhaba, çok isteriz! Cumartesi sabahı uygun olur mu?',
+          ts - 1800_000,
+          ts - 1800_000,
+        ],
+        [second.userId, 'Cumartesi 10:00 bize uyar, görüşmek üzere!', null, ts - 600_000],
+      ];
+
+      for (const [senderId, body, readAt, createdAt] of messages) {
+        await db.exec(
+          'INSERT INTO messages (id, conversation_id, sender_id, body, read_at, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+          [newId(), conversationId, senderId, body, readAt, createdAt]
+        );
+      }
+    }
   }
 
-  // Örnek bir konuşma ve okunmamış mesaj.
-  if (created.length >= 2) {
-    const [first, second] = created;
-    const [a, b] =
-      first.userId < second.userId
-        ? [first.userId, second.userId]
-        : [second.userId, first.userId];
-
-    const conversationId = newId();
-    db.prepare(
-      'INSERT INTO conversations (id, user_a_id, user_b_id, last_message_at, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(conversationId, a, b, ts, ts);
-
-    const insertMessage = db.prepare(
-      'INSERT INTO messages (id, conversation_id, sender_id, body, read_at, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-    );
-    insertMessage.run(
-      newId(),
-      conversationId,
-      second.userId,
-      'Merhaba! Pati ile bu hafta sonu parkta buluşmak ister misiniz?',
-      null,
-      ts - 3600_000
-    );
-    insertMessage.run(
-      newId(),
-      conversationId,
-      first.userId,
-      'Merhaba, çok isteriz! Cumartesi sabahı uygun olur mu?',
-      ts - 1800_000,
-      ts - 1800_000
-    );
-    insertMessage.run(
-      newId(),
-      conversationId,
-      second.userId,
-      'Cumartesi 10:00 bize uyar, görüşmek üzere!',
-      null,
-      ts - 600_000
-    );
+  console.log(`[seed] ${created.length} kullanıcı ve köpek profili oluşturuldu`);
+  if (created.length > 0) {
+    console.log('[seed] Demo giriş bilgileri (tüm hesaplar için şifre: patimeet123):');
+    for (const c of created) console.log(`         ${c.seed.email}`);
   }
-});
 
-seedTx();
-
-console.log(`[seed] ${created.length} kullanıcı ve köpek profili oluşturuldu`);
-if (created.length > 0) {
-  console.log('[seed] Demo giriş bilgileri (tüm hesaplar için şifre: patimeet123):');
-  for (const c of created) console.log(`         ${c.seed.email}`);
+  await db.close();
 }
+
+main().catch((error) => {
+  console.error('[seed] hata:', error);
+  process.exit(1);
+});
