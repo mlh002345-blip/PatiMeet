@@ -1,34 +1,47 @@
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, View } from 'react-native';
+import { api, ApiError } from '../api';
 import { colors, radius, spacing } from '../theme';
 import { AppText, Avatar } from './ui';
 
 /**
- * Fotoğraf seçici.
+ * Fotoğraf seçici ve yükleyici.
  *
- * MVP kapsamında sunucu tarafı dosya yükleme yok (bkz. MVP 11. bölüm: fotoğraf
- * gönderme kapsam dışı). Bu yüzden seçilen görselin cihaz üzerindeki URI'si
- * saklanır ve yalnızca o cihazda görüntülenir. Yükleme altyapısı eklendiğinde
- * `onChange` içinde yüklenip dönen kalıcı URL kaydedilecek.
+ * Seçilen görsel obje deposuna yüklenir ve sunucudan dönen kalıcı **depo
+ * anahtarı** (`media/...`) kaydedilir. Cihaz üzerindeki geçici URI saklanmaz;
+ * böylece fotoğraf tüm cihazlarda ve diğer kullanıcılarda görünür.
+ *
+ * `value`      : kaydedilecek anahtar (veya sunucudan gelen mevcut değer)
+ * `previewUrl` : gösterilecek adres (sunucunun döndürdüğü görüntüleme adresi)
  */
 export function PhotoPicker({
   label,
   value,
+  previewUrl,
+  purpose,
   onChange,
   fallbackName,
   emoji,
 }: {
   label: string;
   value: string | null;
-  onChange: (uri: string | null) => void;
+  previewUrl?: string | null;
+  purpose: 'user_photo' | 'dog_photo';
+  /** Yükleme tamamlandığında anahtar ve görüntüleme adresi ile çağrılır. */
+  onChange: (next: { key: string; url: string } | null) => void;
   fallbackName: string;
   emoji?: string;
 }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  /** Yükleme sürerken hemen yerel önizleme gösteriyoruz. */
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+
+  const shownImage = localPreview ?? previewUrl ?? null;
 
   async function pick() {
-    setBusy(true);
+    setError(null);
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -43,17 +56,42 @@ export function PhotoPicker({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
+        // Yükleme boyutunu makul tutmak için sıkıştırıyoruz.
         quality: 0.7,
       });
 
-      if (!result.canceled && result.assets?.[0]?.uri) {
-        onChange(result.assets[0].uri);
-      }
-    } catch {
-      Alert.alert('Fotoğraf seçilemedi', 'Beklenmeyen bir hata oluştu. Tekrar deneyin.');
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      const asset = result.assets[0];
+      setLocalPreview(asset.uri);
+      setBusy(true);
+
+      /**
+       * Dosyayı bayta çeviriyoruz. `fetch` yerel dosya URI'lerini okuyabilir;
+       * böylece ek bir dosya sistemi bağımlılığı gerekmiyor.
+       */
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+
+      const contentType = asset.mimeType || blob.type || 'image/jpeg';
+      const uploaded = await api.uploadPhoto(purpose, blob, contentType);
+
+      onChange({ key: uploaded.key, url: uploaded.url });
+      setLocalPreview(null);
+    } catch (err) {
+      setLocalPreview(null);
+      setError(
+        err instanceof ApiError ? err.message : 'Fotoğraf yüklenemedi. Tekrar deneyin.'
+      );
     } finally {
       setBusy(false);
     }
+  }
+
+  function remove() {
+    setLocalPreview(null);
+    setError(null);
+    onChange(null);
   }
 
   return (
@@ -64,23 +102,31 @@ export function PhotoPicker({
 
       <View style={styles.row}>
         <Pressable onPress={pick} disabled={busy} accessibilityRole="button">
-          {value ? (
-            <Image source={{ uri: value }} style={styles.preview} />
-          ) : (
-            <Avatar name={fallbackName} size={80} emoji={emoji} />
-          )}
+          <View>
+            {shownImage ? (
+              <Image source={{ uri: shownImage }} style={styles.preview} />
+            ) : (
+              <Avatar name={fallbackName} size={80} emoji={emoji} />
+            )}
+
+            {busy ? (
+              <View style={styles.overlay}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : null}
+          </View>
         </Pressable>
 
         <View style={{ marginLeft: spacing.lg, flex: 1 }}>
           <Pressable onPress={pick} disabled={busy} accessibilityRole="button" hitSlop={8}>
-            <AppText variant="bodyStrong" color={colors.primary}>
-              {value ? 'Fotoğrafı değiştir' : 'Fotoğraf seç'}
+            <AppText variant="bodyStrong" color={busy ? colors.textSubtle : colors.primary}>
+              {busy ? 'Yükleniyor…' : value ? 'Fotoğrafı değiştir' : 'Fotoğraf seç'}
             </AppText>
           </Pressable>
 
-          {value ? (
+          {value && !busy ? (
             <Pressable
-              onPress={() => onChange(null)}
+              onPress={remove}
               accessibilityRole="button"
               hitSlop={8}
               style={{ marginTop: spacing.sm }}
@@ -89,11 +135,17 @@ export function PhotoPicker({
                 Kaldır
               </AppText>
             </Pressable>
-          ) : (
+          ) : !value && !busy ? (
             <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.xs }}>
               İsteğe bağlı, sonra da ekleyebilirsin.
             </AppText>
-          )}
+          ) : null}
+
+          {error ? (
+            <AppText variant="caption" color={colors.danger} style={{ marginTop: spacing.xs }}>
+              {error}
+            </AppText>
+          ) : null}
         </View>
       </View>
     </View>
@@ -110,5 +162,16 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: radius.pill,
     backgroundColor: colors.surfaceMuted,
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

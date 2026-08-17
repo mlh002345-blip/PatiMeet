@@ -51,24 +51,37 @@ interface RequestOptions {
   body?: unknown;
   /** Bazı uçlar (yasal metinler) oturum gerektirmez. */
   skipAuth?: boolean;
+  /**
+   * Ham bayt gövdesi (görsel yükleme). Verildiğinde JSON serileştirme
+   * yapılmaz ve `content-type` bu değere göre ayarlanır.
+   */
+  raw?: { data: Blob | ArrayBuffer; contentType: string };
+  /** Yükleme gibi uzun süren istekler için özel zaman aşımı. */
+  timeoutMs?: number;
 }
 
 const TIMEOUT_MS = 15000;
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  const headers: Record<string, string> = {};
+  if (!options.raw) headers['content-type'] = 'application/json';
+  else headers['content-type'] = options.raw.contentType;
   if (authToken && !options.skipAuth) headers.authorization = `Bearer ${authToken}`;
 
   // Bağlantı hatalarında ekranın süresiz "yükleniyor" kalmaması için zaman aşımı.
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? TIMEOUT_MS);
 
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method: options.method ?? 'GET',
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body: options.raw
+        ? (options.raw.data as BodyInit)
+        : options.body === undefined
+          ? undefined
+          : JSON.stringify(options.body),
       signal: controller.signal,
     });
   } catch (error) {
@@ -152,6 +165,8 @@ export interface CurrentUser {
   privacyAcceptedAt: number | null;
   /** Hesap bir Google kimliğine bağlı mı? */
   googleLinked: boolean;
+  /** Hesap bir Apple kimliğine bağlı mı? */
+  appleLinked: boolean;
   hasPassword: boolean;
   /** Hesap eşleştirmesi sırasında şifre girişi kapatıldı mı? */
   passwordLoginDisabled: boolean;
@@ -195,6 +210,12 @@ export interface ChatMessage {
 export interface DiscoverItem {
   dog: Dog;
   owner: PublicUser;
+}
+
+export interface NotificationPreferences {
+  messages: boolean;
+  events: boolean;
+  safety: boolean;
 }
 
 /** Köpek profili oluşturma/güncelleme gövdesi — DogForm çıktısıyla eşleşir. */
@@ -252,6 +273,86 @@ export const api = {
     apiRequest<{ enabled: boolean; configuredClientCount: number }>('/api/auth/google/config', {
       skipAuth: true,
     }),
+
+  /**
+   * Apple kimlik token'ını sunucuya doğrulatır ve oturum açar.
+   *
+   * Apple adı yalnızca ilk yetkilendirmede ve token dışında verir; varsa
+   * `fullName` ile iletilir.
+   */
+  appleSignIn: (body: {
+    idToken: string;
+    fullName?: string;
+    acceptTerms?: boolean;
+    acceptPrivacy?: boolean;
+  }) =>
+    apiRequest<{
+      token: string;
+      user: CurrentUser;
+      isNewUser: boolean;
+      linkedExistingAccount: boolean;
+      passwordLoginDisabled: boolean;
+    }>('/api/auth/apple', { method: 'POST', body, skipAuth: true }),
+
+  /** Sunucu tarafında Apple ile girişin açık olup olmadığı. */
+  appleConfig: () =>
+    apiRequest<{ enabled: boolean; configuredClientCount: number }>('/api/auth/apple/config', {
+      skipAuth: true,
+    }),
+
+  // --- Görsel yükleme ---
+
+  /**
+   * Görseli obje deposuna yükler ve kalıcı bir depo anahtarı döner.
+   *
+   * Dönen `key` değeri profil veya köpek güncellemesinde `photoUrl` alanına
+   * yazılır. Cihaz üzerindeki geçici URI yerine bu anahtar saklandığı için
+   * fotoğraf tüm cihazlarda görünür.
+   */
+  uploadPhoto: (
+    purpose: 'user_photo' | 'dog_photo',
+    data: Blob,
+    contentType: string
+  ) =>
+    apiRequest<{ key: string; url: string; mediaId: string }>(`/api/media/${purpose}`, {
+      method: 'POST',
+      raw: { data, contentType },
+      // Yükleme mobil bağlantıda uzun sürebilir.
+      timeoutMs: 60000,
+    }),
+
+  deletePhoto: (mediaId: string) =>
+    apiRequest<{ ok: boolean }>(`/api/media/${mediaId}`, { method: 'DELETE' }),
+
+  uploadLimits: () =>
+    apiRequest<{ contentTypes: string[]; maxBytes: number }>('/api/media/allowed-types', {
+      skipAuth: true,
+    }),
+
+  // --- Push bildirimleri ---
+
+  registerPushToken: (body: { token: string; platform: 'ios' | 'android' }) =>
+    apiRequest<{ ok: boolean; pushEnabled: boolean }>('/api/push/tokens', {
+      method: 'POST',
+      body,
+    }),
+
+  unregisterPushToken: (token: string) =>
+    apiRequest<{ ok: boolean }>('/api/push/tokens', { method: 'DELETE', body: { token } }),
+
+  notificationPreferences: () =>
+    apiRequest<{ preferences: NotificationPreferences; pushEnabled: boolean }>(
+      '/api/push/preferences'
+    ),
+
+  updateNotificationPreferences: (body: Partial<NotificationPreferences>) =>
+    apiRequest<{ preferences: NotificationPreferences }>('/api/push/preferences', {
+      method: 'PATCH',
+      body,
+    }),
+
+  /** KVKK erişim hakkı: kullanıcının kendi verisinin özeti. */
+  myData: () => apiRequest<Record<string, unknown>>('/api/auth/my-data'),
 
   me: () => apiRequest<{ user: CurrentUser }>('/api/auth/me'),
 

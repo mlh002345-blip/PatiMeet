@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, ApiError, setAuthToken, type CurrentUser } from './api';
+import { unregisterPush } from './push';
 
 const TOKEN_KEY = 'patimeet.token';
 
@@ -63,6 +64,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Cihaz jetonunu önce sil: token geçersizleşince istek yetkisiz kalır ve
+    // bildirimler eski hesaba gitmeye devam ederdi.
+    await unregisterPush();
+
     try {
       await api.logout();
     } catch {

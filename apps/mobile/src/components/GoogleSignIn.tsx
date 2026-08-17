@@ -1,11 +1,13 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Link } from 'expo-router';
 import { googleConfigStatus, useGoogleSignIn } from '../googleAuth';
 import { useSession } from '../session';
 import { colors, radius, spacing, typography } from '../theme';
-import { AppText, Banner, BottomSheet, Button, Checkbox } from './ui';
+import { AppText } from './ui';
+import { ConsentSheet } from './ConsentSheet';
+import { AppleSignInButton } from './AppleSignIn';
+import { useAppleAvailability } from '../appleAuth';
 
 /**
  * "Google ile devam et" düğmesi.
@@ -150,52 +152,18 @@ export function GoogleSignInButton({
         </Text>
       </Pressable>
 
-      {/* Yeni hesap için sözleşme onayı — tasarım dilindeki alt panel biçimi */}
-      <BottomSheet visible={consentToken !== null} onClose={() => setConsentToken(null)}>
-        <View>
-          <AppText variant="title">Son bir adım</AppText>
-          <AppText
-            variant="body"
-            color={colors.textMuted}
-            style={{ marginTop: spacing.xs, marginBottom: spacing.xl }}
-          >
-            PatiMeet hesabın oluşturulmadan önce aşağıdaki onayları vermen gerekiyor.
-          </AppText>
-
-          {consentError ? <Banner tone="error" message={consentError} /> : null}
-
-          <Checkbox checked={acceptTerms} onToggle={() => setAcceptTerms((v) => !v)}>
-            <AppText variant="caption" color={colors.textMuted}>
-              <Link href="/legal/terms">
-                <Text style={styles.link}>Kullanıcı Sözleşmesi</Text>
-              </Link>
-              'ni okudum ve onaylıyorum.
-            </AppText>
-          </Checkbox>
-
-          <Checkbox checked={acceptPrivacy} onToggle={() => setAcceptPrivacy((v) => !v)}>
-            <AppText variant="caption" color={colors.textMuted}>
-              <Link href="/legal/privacy">
-                <Text style={styles.link}>KVKK Aydınlatma Metni</Text>
-              </Link>
-              'ni okudum ve onaylıyorum.
-            </AppText>
-          </Checkbox>
-
-          <Button
-            label="Hesabımı oluştur"
-            onPress={submitConsent}
-            loading={busy}
-            style={{ marginTop: spacing.lg }}
-          />
-          <Button
-            label="Vazgeç"
-            variant="ghost"
-            onPress={() => setConsentToken(null)}
-            style={{ marginTop: spacing.sm }}
-          />
-        </View>
-      </BottomSheet>
+      <ConsentSheet
+        visible={consentToken !== null}
+        onClose={() => setConsentToken(null)}
+        providerLabel="Google"
+        acceptTerms={acceptTerms}
+        acceptPrivacy={acceptPrivacy}
+        onToggleTerms={() => setAcceptTerms((v) => !v)}
+        onTogglePrivacy={() => setAcceptPrivacy((v) => !v)}
+        error={consentError}
+        busy={busy}
+        onSubmit={submitConsent}
+      />
     </>
   );
 }
@@ -229,22 +197,31 @@ function AuthDivider({ label = 'veya' }: { label?: string }) {
 }
 
 /**
- * Ayırıcı çizgi + Google düğmesi.
+ * Ayırıcı çizgi + sağlayıcı düğmeleri.
  *
- * Google yapılandırılmamışsa ikisi birlikte gizlenir; aksi halde ekranda
- * anlamsız bir "veya" çizgisi kalırdı.
+ * Hiçbir sağlayıcı kullanılabilir değilse bölüm tamamen gizlenir; aksi halde
+ * ekranda anlamsız bir "veya" çizgisi kalırdı.
+ *
+ * Sıra bilinçli: Apple, iOS'ta kendi platformunun beklediği yerde en üstte.
  */
-export function GoogleAuthSection(props: {
+export function SocialAuthSection(props: {
   presetConsents?: { acceptTerms: boolean; acceptPrivacy: boolean };
   onError?: (message: string | null) => void;
 }) {
-  const { configured } = googleConfigStatus();
-  if (!configured) return null;
+  const google = googleConfigStatus();
+  const apple = useAppleAvailability();
+
+  if (!google.configured && !apple.available) return null;
 
   return (
     <>
       <AuthDivider />
-      <GoogleSignInButton {...props} />
+      {apple.available ? (
+        <View style={{ marginBottom: google.configured ? spacing.md : 0 }}>
+          <AppleSignInButton {...props} />
+        </View>
+      ) : null}
+      {google.configured ? <GoogleSignInButton {...props} /> : null}
     </>
   );
 }

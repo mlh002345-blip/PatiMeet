@@ -24,7 +24,9 @@ export default function OnboardingProfileScreen() {
   const [name, setName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
   const [purpose, setPurpose] = useState<string | null>(user?.purpose ?? null);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(user?.photoUrl ?? null);
+  // Kaydedilecek depo anahtarı ile gösterilecek adresi ayrı tutuyoruz.
+  const [photoKey, setPhotoKey] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(user?.photoUrl ?? null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ export default function OnboardingProfileScreen() {
         name: name.trim(),
         bio: bio.trim(),
         purpose,
-        photoUrl,
+        photoUrl: photoKey,
       });
       setUser(res.user);
       router.push('/(onboarding)/select-district');
@@ -75,8 +77,13 @@ export default function OnboardingProfileScreen() {
 
           <PhotoPicker
             label="Profil fotoğrafı"
-            value={photoUrl}
-            onChange={setPhotoUrl}
+            purpose="user_photo"
+            value={photoKey}
+            previewUrl={photoPreview}
+            onChange={(next) => {
+              setPhotoKey(next?.key ?? null);
+              setPhotoPreview(next?.url ?? null);
+            }}
             fallbackName={name || 'P'}
           />
 

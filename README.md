@@ -17,7 +17,7 @@ besleyen bir REST API.
 | Paket | Teknoloji | Açıklama |
 |---|---|---|
 | `apps/mobile` | Expo SDK 57 · React Native 0.86 · expo-router · TypeScript | iOS + Android uygulaması, 14 ekran |
-| `apps/api` | Node · Express · SQLite · JWT · zod · TypeScript | REST API, iş kuralları ve moderasyon uçları |
+| `apps/api` | Node · Express · **PostgreSQL** · JWT · zod · TypeScript | REST API, iş kuralları, moderasyon paneli, yasal metinler |
 | `e2e` | Playwright | Uçtan uca akış testleri (mobil ölçüde tarayıcı) |
 
 Tek kod tabanı hem iOS hem Android'e derlenir; ayrı Swift/Kotlin projesi yoktur.
@@ -33,6 +33,7 @@ Gereksinim: Node 22+.
 cd apps/api
 cp .env.example .env          # geliştirmede boş bırakabilirsiniz
 npm install
+npm run migrate               # şemayı oluştur
 npm run seed                  # demo veri (5 kullanıcı, 5 köpek, 4 etkinlik)
 npm run dev                   # http://localhost:4000
 
@@ -41,6 +42,11 @@ cd apps/mobile
 npm install
 npx expo start
 ```
+
+> **Veritabanı:** geliştirmede ek kurulum gerekmez. `DATABASE_URL` boşsa
+> gömülü PostgreSQL (PGlite) kullanılır — production ile **aynı SQL diyalekti**,
+> ama sunucu kurmaya gerek yok. Production'da `DATABASE_URL` zorunludur;
+> ayrıntılar için [DEPLOYMENT.md](DEPLOYMENT.md).
 
 Ardından:
 
@@ -223,69 +229,109 @@ sayısının altına düşürülememesi, etkinlik sahibinin katılımdan ayrıla
 
 ## Moderasyon
 
-MVP'de özel admin paneli geliştirilmedi (belge 10. bölüm). Yayın öncesi gereken
-işlemler `x-admin-token` başlığıyla korunan uçlardan yapılır:
+### Web paneli
+
+Oturum korumalı moderasyon arayüzü API ile aynı adreste çalışır:
+
+```
+http://localhost:4000/admin
+```
+
+İlk yöneticiyi oluşturun:
+
+```bash
+cd apps/api
+npm run create-admin -- moderator@patimeet.app "GucluSifre123" "Moderatör"
+```
+
+Panel yapabildikleri:
+
+- Bekleyen şikâyetleri inceleme (açık / inceleniyor / çözüldü)
+- Kullanıcı arama; pasife alma, geri açma, verilerini silme
+- Etkinlik arama; kaldırma ve geri alma
+- Köpek profilini gizleme
+- Tüm işlemlerin denetim kaydı (kim, ne zaman, hangi kayıt)
+
+Hakkında şikâyet olan kullanıcı ve etkinlikler listelerin en üstünde gösterilir.
+
+### Otomasyon API'si
+
+İnsan olmayan erişim için `x-admin-token` başlığıyla korunan uçlar:
 
 ```bash
 TOKEN=<ADMIN_TOKEN degeri>
 
 curl -H "x-admin-token: $TOKEN" localhost:4000/api/admin/stats
 curl -H "x-admin-token: $TOKEN" "localhost:4000/api/admin/reports?status=open"
+curl -H "x-admin-token: $TOKEN" localhost:4000/api/admin/audit
 
-# Şikâyeti incelendi olarak işaretle
+# Şikâyeti çözüldü olarak işaretle
 curl -X PATCH -H "x-admin-token: $TOKEN" -H 'content-type: application/json' \
-  -d '{"status":"resolved"}' localhost:4000/api/admin/reports/<id>
+  -d '{"status":"resolved","note":"incelendi"}' localhost:4000/api/admin/reports/<id>
 
 # Kullanıcıyı pasife al
 curl -X PATCH -H "x-admin-token: $TOKEN" -H 'content-type: application/json' \
-  -d '{"status":"suspended"}' localhost:4000/api/admin/users/<id>
+  -d '{"status":"suspended","note":"kural ihlali"}' localhost:4000/api/admin/users/<id>
 
 # Etkinliği kaldır
 curl -X PATCH -H "x-admin-token: $TOKEN" -H 'content-type: application/json' \
   -d '{"status":"removed"}' localhost:4000/api/admin/events/<id>
-
-# İçeriği gizle
-curl -X PATCH -H "x-admin-token: $TOKEN" -H 'content-type: application/json' \
-  -d '{"status":"hidden"}' localhost:4000/api/admin/dogs/<id>
 ```
 
----
+Her iki yol da denetim kaydına yazar.
 
 ## Test
 
 ```bash
-# API iş kuralları — gerçek HTTP üzerinden 89 kontrol
-cd apps/api && npm test
-
-# Google ile giriş — token doğrulama ve hesap eşleştirme, 52 kontrol
-cd apps/api && npm run test:google
+# Sunucu — üç paket, 245 kontrol
+cd apps/api
+npm run test            # iş kuralları (89)
+npm run test:google     # Google ile giriş (54)
+npm run test:platform   # yayın altyapısı (102)
+npm run test:all        # hepsi
 
 # Tip denetimi
 cd apps/api && npm run typecheck
 cd apps/mobile && npx tsc --noEmit
 
-# Uçtan uca akışlar (API + web hedefi çalışırken)
+# Uçtan uca akışlar (API + web hedefi çalışırken) — 72 kontrol
 cd e2e && npm install && npm test
-
-# Google arayüz akışı — iki durum ayrı ayrı sınanır
-cd e2e && GOOGLE_EXPECTED=absent  node 04-google-giris.js   # kimlik tanımsız: düğme gizli
-cd e2e && GOOGLE_EXPECTED=present node 04-google-giris.js   # kimlik tanımlı: düğme görünür
 ```
 
-`npm test` (API) geçici bir veritabanı kullanır; geliştirme verinize dokunmaz.
-Google testleri doğrulayıcıyı enjekte ederek çalışır — gerçek Google servisine
-çıkılmaz, bu yüzden ağ erişimi veya gerçek kimlik gerekmez. Production yolunda
-hiçbir atlama (bypass) yoktur; doğrulayıcı yalnızca testte değiştirilir.
+Testler varsayılan olarak **gömülü PostgreSQL** (bellekte) kullanır; ayrı bir
+sunucu gerekmez ve geliştirme verinize dokunulmaz.
 
-Gerçek Google OAuth turu (kullanıcının hesap seçip izin verdiği adım) otomatik
-sürülemez: geçerli bir istemci kimliği ve insan etkileşimi gerektirir. Bu adım
-gerçek cihazda/emülatörde elle doğrulanmalıdır.
+Production sürücüsünü (`pg`) de aynı testlerle doğrulamak için gerçek bir
+PostgreSQL verin:
 
-Uçtan uca testler uygulamayı 390×844 (telefon) ölçüsünde gerçek bir tarayıcıda
-sürer ve kayıt, onboarding, keşfet, etkinlik oluşturma/katılma, mesajlaşma,
-şikâyet ve engelleme akışlarını doğrular.
+```bash
+TEST_DATABASE_URL=postgresql://postgres@localhost:5432/patimeet_test npm run test:all
+```
 
----
+> Bu depodaki tüm sunucu testleri hem gömülü hem gerçek PostgreSQL 16 üzerinde
+> geçer. Verdiğiniz test veritabanı değiştirilir — ayrı bir veritabanı kullanın.
+
+Kapsam:
+
+| Paket | Ne doğrulanıyor |
+|---|---|
+| `test` | Kayıt, profil, keşfet, etkinlik, mesaj, şikâyet/engelleme, hesap silme iş kuralları |
+| `test:google` | Token doğrulama kuralları, hesap eşleştirme, ele geçirme senaryoları |
+| `test:platform` | Migration'lar, sağlık kontrolleri, görsel yükleme ve yetkilendirme, Apple girişi, push altyapısı, moderasyon paneli, hız sınırı |
+| `e2e` | Gerçek tarayıcıda telefon ölçüsünde kullanıcı yolculukları |
+
+Uçtan uca testler Google düğmesinin görünürlüğünü de sınar. Beklenti, web
+sunucusunun başlatıldığı ortamla uyumlu olmalı:
+
+```bash
+# Google yapılandırılmamış (varsayılan)
+cd apps/mobile && npx expo start --web
+cd e2e && npm test
+
+# Google yapılandırılmış
+cd apps/mobile && EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=... npx expo start --web
+cd e2e && GOOGLE_EXPECTED=present npm test
+```
 
 ## Production derlemesi
 
@@ -306,42 +352,42 @@ metinleri `infoPlist` ve Android `permissions` altında ayarlandı.
 
 ### Yayın öncesi kontrol listesi
 
-- [ ] `apps/api/.env` içinde `JWT_SECRET` ve `ADMIN_TOKEN` rastgele değerlerle dolu
+Ayrıntılı adımlar ve mağaza gereklilikleri için: **[DEPLOYMENT.md](DEPLOYMENT.md)**
+
+Kısa özet:
+
+- [ ] `DATABASE_URL` yönetilen bir PostgreSQL'e ayarlandı, yedekleme açık
+- [ ] `JWT_SECRET`, `ADMIN_TOKEN`, `ADMIN_SESSION_SECRET` rastgele değerlerle dolu
       (production'da boş bırakılırsa sunucu açılmaz)
-- [ ] `CORS_ORIGIN` daraltıldı
+- [ ] `STORAGE_DRIVER=s3` ve kova kimlik bilgileri tanımlı
 - [ ] `EXPO_PUBLIC_API_URL` yayın API adresine ayarlandı
-- [ ] Google OAuth istemcileri oluşturuldu ve iki `.env` dosyasına yazıldı
-      (bkz. "Google OAuth kurulumu"); OAuth consent screen dolduruldu
-- [ ] Google ile giriş gerçek cihazda iOS ve Android'de elle denendi
+- [ ] `CORS_ORIGIN` daraltıldı, `TRUST_PROXY` ters vekile göre ayarlandı
+- [ ] Apple ile Giriş etkin (iOS'ta Google sunuluyorsa **zorunlu**)
+- [ ] EAS projesi oluşturuldu; APNs ve FCM kimlik bilgileri yüklendi
+- [ ] İlk moderatör hesabı oluşturuldu (`npm run create-admin`)
+- [ ] Gizlilik politikası herkese açık adreste (`/legal/privacy.html`)
+- [ ] Yasal metinler hukuk onayından geçti
 - [ ] Google'ın marka kılavuzuna uygun resmî "G" görseli eklendi
       (`src/components/GoogleSignIn.tsx` içindeki `GoogleMark`)
-- [ ] Yasal metinler (`apps/api/src/routes/legal.ts`) hukuk onayından geçti
-- [ ] SQLite yerine yönetilen bir veritabanı değerlendirildi (aşağıya bakın)
+- [ ] Gerçek cihaz testleri yapıldı (DEPLOYMENT.md bölüm 10)
 
 ---
 
 ## Bilinen sınırlar
 
-Bunlar MVP kapsamı dışında bırakıldı veya bilinçli olarak basit tutuldu:
-
-- **Fotoğraf yükleme sunucusu yok.** Belge 11. bölümde fotoğraf gönderme kapsam
-  dışı olduğu için seçilen görselin yalnızca cihaz üzerindeki URI'si saklanır ve
-  o cihazda görünür. Yükleme altyapısı eklendiğinde `PhotoPicker` içinde dönen
-  kalıcı URL kaydedilecek.
-- **Apple ile giriş** henüz yok. Google akışı (`POST /api/auth/google`) tam
-  doğrulamalı olarak çalışıyor; Apple aynı desenle eklenebilir. Not: iOS
-  uygulaması üçüncü taraf girişi sunduğu için App Store, Apple ile girişi de
-  şart koşabilir — mağaza gönderiminden önce değerlendirilmeli.
-- **Google düğmesindeki "G" işareti** bir yer tutucudur; mağaza gönderimi
-  öncesi Google'ın marka kılavuzuna uygun resmî görsel eklenmelidir.
 - **Oturum token'ı** `AsyncStorage`'da tutuluyor. Yayın öncesi
   `expo-secure-store`'a taşınması önerilir (cihaz anahtar zinciri).
-- **Anlık bildirim yok** (belge 11. bölüm). Okunmamış mesaj göstergesi ve sohbet
-  ekranı düzenli aralıklarla yoklama yapar; websocket bağlantısı yoktur.
-- **SQLite** tek sunucu için uygundur. Şema, Postgres'e taşınabilecek biçimde
-  (metin UUID anahtarlar, epoch ms zaman damgaları) yazıldı.
-- **Çoklu köpek yönetimi** kapsam dışı: veri modeli birden fazla köpeği destekler,
-  arayüz ilk köpeği düzenler.
+- **Google düğmesindeki "G" işareti** bir yer tutucudur; mağaza gönderimi
+  öncesi Google'ın marka kılavuzuna uygun resmî görsel eklenmelidir.
+- **Anlık mesaj iletimi yok.** Bildirimler push ile gerçek zamanlı gider, ancak
+  sohbet ekranı açıkken yeni mesajlar için düzenli yoklama yapılır; websocket
+  bağlantısı yoktur.
+- **Apple ile Giriş yalnızca iOS'ta** gösterilir (platform kısıtı). Android ve
+  web'de Google ve e-posta seçenekleri kullanılır.
+- **Push jetonu gerçek cihaz gerektirir**; simülatör/emülatörde uygulama
+  bildirim olmadan sorunsuz çalışır.
+- **Moderasyon paneli** temel işlemleri kapsar; toplu işlem, ekip rolleri ve
+  gelişmiş filtreler yok.
 
 ---
 
@@ -351,19 +397,32 @@ Bunlar MVP kapsamı dışında bırakıldı veya bilinçli olarak basit tutuldu:
 apps/
   api/
     src/
-      routes/        auth, users, dogs, discover, events, messages, safety, legal, admin
-      domain/        engelleme mantığı ve API çıktı biçimleri
-      db.ts          şema ve göç
+      db/            sürücü soyutlaması (pg + PGlite), migration'lar
+      storage/       obje deposu (S3 uyumlu + yerel geliştirme sürücüsü)
+      admin/         moderasyon paneli (router, oturum, şablonlar)
+      cli/           migrate, create-admin
+      routes/        auth, users, dogs, discover, events, messages,
+                     safety, media, push, legal, admin
+      domain/        sosyal giriş, google, apple, medya, push, moderasyon,
+                     engelleme, API çıktı biçimleri
       config.ts      ortam değişkenleri
+      logger.ts      yapılandırılmış günlükleme
       seed.ts        demo veri
-      smoke-test.ts  uçtan uca API testleri
+      smoke-test.ts    iş kuralı testleri
+      google-test.ts   Google ile giriş testleri
+      platform-test.ts yayın altyapısı testleri
   mobile/
     app/             expo-router ekranları (dosya tabanlı yönlendirme)
     src/
-      components/    ui, kartlar, formlar, güvenlik paneli
+      components/    ui, kartlar, formlar, güvenlik paneli, sağlayıcı düğmeleri
       api.ts         API istemcisi ve tipler
       session.tsx    oturum yönetimi
+      googleAuth.ts  Google ile giriş akışı
+      appleAuth.ts   Apple ile giriş akışı
+      push.ts        bildirim kaydı ve derin bağlantı
       theme.ts       tasarım dili
       labels.ts      Türkçe etiketler ve tarih biçimlendirme
 e2e/                 Playwright akış testleri
+
+DEPLOYMENT.md        yayın rehberi ve mağaza kontrol listesi
 ```

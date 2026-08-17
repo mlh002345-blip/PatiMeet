@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, ApiError } from '../../src/api';
-import { GoogleAuthSection } from '../../src/components/GoogleSignIn';
+import { SocialAuthSection } from '../../src/components/GoogleSignIn';
 import { AppText, Banner, Button, Field, Screen } from '../../src/components/ui';
 import { useSession } from '../../src/session';
 import { colors, spacing, typography } from '../../src/theme';
@@ -89,7 +89,7 @@ export default function SignInScreen() {
           <Button label="Giriş yap" onPress={onSubmit} loading={loading} />
 
           {/* Google ile giriş — yapılandırılmamışsa bu blok hiç görünmez. */}
-          <GoogleAuthSection onError={setFormError} />
+          <SocialAuthSection onError={setFormError} />
 
           <View style={styles.footer}>
             <AppText variant="body" color={colors.textMuted}>

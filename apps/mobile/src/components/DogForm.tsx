@@ -15,7 +15,11 @@ export interface DogFormValues {
   sociability: string;
   bio: string;
   vaccinated: boolean;
-  photoUrl: string | null;
+  /**
+   * Depo anahtarı, kaldırmak için `null`, dokunulmadıysa `undefined`.
+   * Düzenlemede alan hiç gönderilmezse sunucudaki mevcut fotoğraf korunur.
+   */
+  photoUrl?: string | null;
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -49,7 +53,9 @@ export function DogForm({
   const [sociability, setSociability] = useState<string | null>(initial?.sociability ?? null);
   const [bio, setBio] = useState(initial?.bio ?? '');
   const [vaccinated, setVaccinated] = useState(initial?.vaccinated ?? false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(initial?.photoUrl ?? null);
+  const [photoKey, setPhotoKey] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(initial?.photoUrl ?? null);
+  const [photoTouched, setPhotoTouched] = useState(false);
 
   const [errors, setErrors] = useState<{
     name?: string;
@@ -90,7 +96,7 @@ export function DogForm({
       sociability: sociability!,
       bio: bio.trim(),
       vaccinated,
-      photoUrl,
+      photoUrl: photoTouched ? photoKey : undefined,
     });
   }
 
@@ -100,8 +106,14 @@ export function DogForm({
 
       <PhotoPicker
         label="Köpek fotoğrafı"
-        value={photoUrl}
-        onChange={setPhotoUrl}
+        purpose="dog_photo"
+        value={photoKey ?? (photoPreview ? 'mevcut' : null)}
+        previewUrl={photoPreview}
+        onChange={(next) => {
+          setPhotoTouched(true);
+          setPhotoKey(next?.key ?? null);
+          setPhotoPreview(next?.url ?? null);
+        }}
         fallbackName={name || 'K'}
         emoji="🐕"
       />

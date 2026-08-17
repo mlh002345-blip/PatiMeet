@@ -1,9 +1,10 @@
-import { Redirect, Tabs } from 'expo-router';
+import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { api } from '../../src/api';
 import { LoadingState } from '../../src/components/ui';
 import { useSession } from '../../src/session';
+import { usePushRegistration } from '../../src/push';
 import { colors } from '../../src/theme';
 
 /**
@@ -14,7 +15,22 @@ import { colors } from '../../src/theme';
  */
 export default function TabsLayout() {
   const { initializing, user } = useSession();
+  const router = useRouter();
   const [unread, setUnread] = useState(0);
+
+  /**
+   * Cihazı bildirimlere kaydeder ve bildirime dokunulduğunda ilgili ekrana
+   * götürür. İzin verilmezse uygulama normal çalışmaya devam eder.
+   */
+  usePushRegistration(Boolean(user), (data) => {
+    if (data.type === 'chat' && typeof data.conversationId === 'string') {
+      router.push(`/chat/${data.conversationId}`);
+    } else if (data.type === 'event' && typeof data.eventId === 'string') {
+      router.push(`/event/${data.eventId}`);
+    } else if (data.type === 'safety') {
+      router.push('/(tabs)/profile');
+    }
+  });
 
   const loadUnread = useCallback(() => {
     api

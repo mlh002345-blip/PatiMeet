@@ -17,6 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.patimeet.app",
       "buildNumber": "1",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Profil ve köpek fotoğrafınızı seçebilmeniz için fotoğraf galerinize erişim izni gerekiyor.",
         "NSCameraUsageDescription": "Profil ve köpek fotoğrafınızı çekebilmeniz için kamera izni gerekiyor.",
@@ -34,7 +35,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "permissions": ["READ_MEDIA_IMAGES", "CAMERA"]
+      "permissions": ["READ_MEDIA_IMAGES", "CAMERA", "POST_NOTIFICATIONS"]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -43,11 +44,20 @@
     },
     "plugins": [
       "expo-router",
+      "expo-apple-authentication",
       [
         "expo-image-picker",
         {
           "photosPermission": "Profil ve köpek fotoğrafınızı seçebilmeniz için fotoğraf galerinize erişim izni gerekiyor.",
           "cameraPermission": "Profil ve köpek fotoğrafınızı çekebilmeniz için kamera izni gerekiyor."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#5B3E8E",
+          "defaultChannel": "default"
         }
       ]
     ],

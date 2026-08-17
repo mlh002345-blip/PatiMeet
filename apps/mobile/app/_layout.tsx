@@ -30,6 +30,7 @@ export default function RootLayout() {
           <Stack.Screen name="chat/[id]" options={{ title: 'Sohbet' }} />
           <Stack.Screen name="legal/[slug]" options={{ title: 'Belge' }} />
           <Stack.Screen name="settings/blocked" options={{ title: 'Engellenen kullanıcılar' }} />
+          <Stack.Screen name="settings/notifications" options={{ title: 'Bildirimler' }} />
           <Stack.Screen name="settings/edit-profile" options={{ title: 'Profili düzenle' }} />
           <Stack.Screen name="settings/edit-dog" options={{ title: 'Köpek profilini düzenle' }} />
         </Stack>

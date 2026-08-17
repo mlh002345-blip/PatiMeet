@@ -25,7 +25,14 @@ export default function EditProfileScreen() {
   const [districts, setDistricts] = useState<string[]>([]);
   const [bio, setBio] = useState(user?.bio ?? '');
   const [purpose, setPurpose] = useState<string | null>(user?.purpose ?? null);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(user?.photoUrl ?? null);
+  /**
+   * Mevcut fotoğraf sunucudan görüntüleme adresi olarak gelir; yeni bir
+   * fotoğraf yüklenmedikçe alanı hiç göndermiyoruz ki adres, anahtarın
+   * üzerine yazılmasın.
+   */
+  const [photoKey, setPhotoKey] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(user?.photoUrl ?? null);
+  const [photoTouched, setPhotoTouched] = useState(false);
 
   const [nameError, setNameError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -58,7 +65,7 @@ export default function EditProfileScreen() {
         district,
         bio: bio.trim(),
         purpose,
-        photoUrl,
+        ...(photoTouched ? { photoUrl: photoKey } : {}),
       });
       setUser(res.user);
       setSuccess('Profilin güncellendi.');
@@ -84,8 +91,14 @@ export default function EditProfileScreen() {
 
           <PhotoPicker
             label="Profil fotoğrafı"
-            value={photoUrl}
-            onChange={setPhotoUrl}
+            purpose="user_photo"
+            value={photoKey ?? (photoPreview ? 'mevcut' : null)}
+            previewUrl={photoPreview}
+            onChange={(next) => {
+              setPhotoTouched(true);
+              setPhotoKey(next?.key ?? null);
+              setPhotoPreview(next?.url ?? null);
+            }}
             fallbackName={name || 'P'}
           />
 

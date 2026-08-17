@@ -155,6 +155,18 @@ export default function ProfileScreen() {
         </Card>
       ) : null}
 
+      {/* Tercihler */}
+      <AppText variant="heading" style={{ marginTop: spacing.xl, marginBottom: spacing.md }}>
+        Tercihler
+      </AppText>
+      <View style={styles.group}>
+        <SettingsRow
+          label="Bildirimler"
+          onPress={() => router.push('/settings/notifications')}
+          last
+        />
+      </View>
+
       {/* Güvenlik */}
       <AppText variant="heading" style={{ marginTop: spacing.xl, marginBottom: spacing.md }}>
         Güvenlik
@@ -203,12 +215,14 @@ export default function ProfileScreen() {
         </AppText>
         <View style={styles.methodRow}>
           {user?.googleLinked ? <Tag label="Google ile bağlı" tone="primary" /> : null}
+          {user?.appleLinked ? <Tag label="Apple ile bağlı" tone="primary" /> : null}
           {user?.hasPassword ? <Tag label="E-posta ve şifre" tone="neutral" /> : null}
         </View>
 
         {user?.passwordLoginDisabled ? (
           <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.sm }}>
-            Hesabın Google ile bağlandığı için şifre ile giriş kapatıldı.
+            Hesabın {user?.appleLinked ? 'Apple' : 'Google'} ile bağlandığı için şifre ile giriş
+            kapatıldı.
           </AppText>
         ) : null}
 
