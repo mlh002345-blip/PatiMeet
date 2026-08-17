@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import type { DiscoverItem, EventSummary } from '../api';
@@ -6,6 +6,7 @@ import {
   dogAgeLabel,
   dogSizeLabels,
   energyLabels,
+  eventTypeEmoji,
   eventTypeLabels,
   formatEventDate,
   labelFor,
@@ -77,6 +78,8 @@ export function EventCard({
   onJoin?: () => void;
   joining?: boolean;
 }) {
+  const [imageFailed, setImageFailed] = useState(false);
+
   const eventImage = event.type === 'yuruyus'
     ? 'https://images.unsplash.com/photo-1558788353-f76d92427f16?w=600&auto=format&fit=crop'
     : event.type === 'egitim'
@@ -86,10 +89,33 @@ export function EventCard({
   const day = date.toLocaleDateString('tr-TR', { day: 'numeric' });
   const month = date.toLocaleDateString('tr-TR', { month: 'short' });
 
+  /**
+   * Kart tıklanabilir bir kabuk DEĞİL: içinde "Katıl" düğmesi var ve iç içe
+   * dokunma hedefi web'de geçersiz HTML (<button> içinde <button>) üretip
+   * hydration hatası veriyordu. Bunun yerine yalnızca bilgi alanı tıklanabilir;
+   * "Katıl" kardeş öğe olarak duruyor. Böylece tek dokunuşun hem katılma hem
+   * detaya gitme tetikleme riski de ortadan kalkıyor.
+   */
   return (
-    <Card onPress={onPress} style={styles.eventCard}>
-      <View style={styles.eventContent}>
-        <Image source={{ uri: eventImage }} style={styles.eventPhoto} />
+    <Card style={styles.eventCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${event.title} etkinliğinin ayrıntıları`}
+        onPress={onPress}
+        style={({ pressed }) => [styles.eventContent, pressed && { opacity: 0.9 }]}
+      >
+        {imageFailed ? (
+          // Uzak görsel yüklenemezse boş boşluk bırakmıyoruz.
+          <View style={[styles.eventPhoto, styles.eventPhotoFallback]}>
+            <AppText variant="title">{eventTypeEmoji[event.type] ?? '🐾'}</AppText>
+          </View>
+        ) : (
+          <Image
+            source={{ uri: eventImage }}
+            style={styles.eventPhoto}
+            onError={() => setImageFailed(true)}
+          />
+        )}
         <View style={styles.dateBlock}>
           <AppText variant="title">{day}</AppText>
           <AppText variant="caption" color={colors.textMuted}>{month}</AppText>
@@ -112,7 +138,7 @@ export function EventCard({
             <AppText variant="caption" color={colors.textMuted}>{event.participantCount}/{event.capacity}</AppText>
           </View>
         </View>
-      </View>
+      </Pressable>
 
       {!compact ? (
         <View style={styles.eventFooter}>
@@ -124,7 +150,7 @@ export function EventCard({
           {onJoin ? (
             <Pressable
               accessibilityRole="button"
-              onPress={(e) => { e.stopPropagation(); onJoin(); }}
+              onPress={onJoin}
               disabled={joining}
               style={({ pressed }) => [styles.joinButton, pressed && { opacity: 0.82 }]}
             >
@@ -209,6 +235,10 @@ const styles = StyleSheet.create({
     height: 82,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceMuted,
+  },
+  eventPhotoFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dateBlock: {
     width: 42,
