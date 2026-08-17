@@ -9,6 +9,7 @@ import {
   Banner,
   Button,
   Card,
+  ChoiceGroup,
   ErrorState,
   LoadingState,
   ScrollScreen,
@@ -38,7 +39,12 @@ export default function EventDetailScreen() {
 
   const loader = useLoader(() => api.event(id), [id]);
 
-  const dog = user?.dogs?.[0];
+  const dogs = user?.dogs ?? [];
+  /**
+   * Hangi köpekle katılınacağı. Tek köpek varsa otomatik seçilir; birden
+   * fazlaysa kullanıcı seçer (etkinliğin boyut kısıtı sunucuda doğrulanır).
+   */
+  const [selectedDogId, setSelectedDogId] = useState<string | null>(dogs[0]?.id ?? null);
 
   async function runAction(action: () => Promise<unknown>, successMessage?: string) {
     setActionError(null);
@@ -209,6 +215,19 @@ export default function EventDetailScreen() {
           </>
         ) : (
           <>
+            {/* Çoklu köpek: hangisiyle katılınacağı seçilir */}
+            {!event.hasJoined && dogs.length > 1 ? (
+              <ChoiceGroup
+                label="Hangi köpeğinle katılıyorsun?"
+                options={dogs.map((item) => ({
+                  value: item.id,
+                  label: `${item.name} (${labelFor(dogSizeLabels, item.size)})`,
+                }))}
+                value={selectedDogId}
+                onChange={setSelectedDogId}
+              />
+            ) : null}
+
             {event.hasJoined ? (
               <Button
                 label="Katılımdan ayrıl"
@@ -220,7 +239,12 @@ export default function EventDetailScreen() {
             ) : (
               <Button
                 label={event.isFull ? 'Kontenjan doldu' : 'Etkinliğe katıl'}
-                onPress={() => runAction(() => api.joinEvent(id, dog?.id), 'Etkinliğe katıldın!')}
+                onPress={() =>
+                  runAction(
+                    () => api.joinEvent(id, selectedDogId ?? undefined),
+                    'Etkinliğe katıldın!'
+                  )
+                }
                 loading={busy}
                 disabled={event.isFull || isCancelled}
               />

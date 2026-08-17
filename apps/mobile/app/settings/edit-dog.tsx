@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
@@ -12,8 +12,15 @@ export default function EditDogScreen() {
   const router = useRouter();
   const { user, refresh } = useSession();
 
-  // MVP'de çoklu köpek yönetimi kapsam dışı; ilk köpek düzenlenir.
-  const dog = user?.dogs?.[0] ?? null;
+  /**
+   * Hangi köpek düzenleniyor: `dogId` verilmişse o, yoksa ilk köpek.
+   * Profil ekranındaki kısayol parametresiz gelir; Köpeklerim ekranı belirli
+   * bir köpeği açar.
+   */
+  const params = useLocalSearchParams<{ dogId?: string }>();
+  const dog = params.dogId
+    ? (user?.dogs?.find((item) => item.id === params.dogId) ?? null)
+    : (user?.dogs?.[0] ?? null);
 
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);

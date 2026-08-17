@@ -207,9 +207,34 @@ export interface ChatMessage {
   isMine: boolean;
 }
 
+/** Açıklanabilir uyum skoru — alt kırılımlarıyla. */
+export interface MatchFactor {
+  key: 'energy' | 'sociability' | 'size' | 'district' | 'purpose' | 'age';
+  label: string;
+  points: number;
+  max: number;
+  note: string;
+}
+
+export interface MatchScore {
+  score: number;
+  level: 'yuksek' | 'orta' | 'dusuk';
+  factors: MatchFactor[];
+  /** Bilgi eksikliği nedeniyle hesaplanamayan etkenler. */
+  missing: string[];
+}
+
+export interface MatchBreakdown extends MatchScore {
+  viewerDogId: string;
+  viewerDogName: string;
+  targetDogId: string;
+}
+
 export interface DiscoverItem {
   dog: Dog;
   owner: PublicUser;
+  /** İzleyenin köpeği yoksa null. */
+  match: (MatchScore & { viewerDogId: string }) | null;
 }
 
 export interface NotificationPreferences {
@@ -372,8 +397,14 @@ export const api = {
     photoUrl?: string | null;
   }) => apiRequest<{ user: CurrentUser }>('/api/users/me', { method: 'PATCH', body }),
 
-  userProfile: (id: string) =>
-    apiRequest<{ user: PublicUser; dogs: Dog[]; isSelf: boolean }>(`/api/users/${id}`),
+  userProfile: (id: string, dogId?: string) =>
+    apiRequest<{
+      user: PublicUser;
+      dogs: Dog[];
+      isSelf: boolean;
+      /** İzleyenin her köpeği için uyum kırılımı; en uyumlu ilk sırada. */
+      matches: MatchBreakdown[];
+    }>(`/api/users/${id}${dogId ? `?dogId=${encodeURIComponent(dogId)}` : ''}`),
 
   myDogs: () => apiRequest<{ dogs: Dog[] }>('/api/dogs'),
 
@@ -381,6 +412,9 @@ export const api = {
 
   updateDog: (id: string, body: Partial<DogPayload>) =>
     apiRequest<{ dog: Dog }>(`/api/dogs/${id}`, { method: 'PATCH', body }),
+
+  /** Köpek profili silme. Son köpek silinemez (sunucu 400 döner). */
+  deleteDog: (id: string) => apiRequest<{ ok: boolean }>(`/api/dogs/${id}`, { method: 'DELETE' }),
 
   discover: (params: { district?: string; size?: string; energy?: string; search?: string }) => {
     const query = new URLSearchParams();

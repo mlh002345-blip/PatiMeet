@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
 import { getDb, nowMs } from '../db';
 import { isBlockedBetween } from '../domain/blocks';
+import { computeMatchScore } from '../domain/matching';
 import { normalizePhotoInput } from '../domain/media';
 import {
   privateUser,
@@ -84,10 +85,53 @@ usersRouter.get(
       [targetId]
     );
 
+    /**
+     * Uyum skoru kırılımları.
+     *
+     * Profil detayında hangi köpeğin öne çıkarıldığı istemciden `dogId` ile
+     * gelebilir; skoru o köpek için hesaplıyoruz. İzleyenin her köpeği için
+     * ayrı skor döneriz ki çoklu köpek durumunda hangi köpeğinin daha uyumlu
+     * olduğunu görebilsin.
+     */
+    let matches: Array<{ viewerDogId: string; viewerDogName: string; targetDogId: string } & ReturnType<typeof computeMatchScore>> = [];
+
+    if (targetId !== me.id) {
+      const [viewer, viewerDogs] = await Promise.all([
+        db.one<UserRow>('SELECT * FROM users WHERE id = $1', [me.id]),
+        db.query<DogRow>(
+          `SELECT * FROM dogs WHERE owner_id = $1 AND status = 'active' ORDER BY created_at`,
+          [me.id]
+        ),
+      ]);
+
+      const focused = dogs.find((dog) => dog.id === req.query.dogId) ?? dogs[0];
+
+      if (viewer && focused) {
+        matches = viewerDogs
+          .map((viewerDog) => {
+            const result = computeMatchScore(
+              { user: viewer, dog: viewerDog },
+              { user: row, dog: focused }
+            );
+            return result
+              ? {
+                  viewerDogId: viewerDog.id,
+                  viewerDogName: viewerDog.name,
+                  targetDogId: focused.id,
+                  ...result,
+                }
+              : null;
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null)
+          .sort((a, b) => b.score - a.score);
+      }
+    }
+
     res.json({
       user: await publicUser(row),
       dogs: await publicDogs(dogs),
       isSelf: targetId === me.id,
+      matches,
     });
   })
 );

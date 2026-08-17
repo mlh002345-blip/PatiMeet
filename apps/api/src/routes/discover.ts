@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
 import { getDb } from '../db';
 import { hiddenUserIds } from '../domain/blocks';
+import { bestMatchScore } from '../domain/matching';
 import { publicDog, publicUser, type DogRow, type UserRow } from '../domain/serialize';
 import { asyncRoute, parseBody } from '../http';
 
@@ -42,6 +43,15 @@ discoverRouter.get(
 
     const excluded = [me.id, ...(await hiddenUserIds(me.id, db))];
 
+    // Uyum skoru için izleyenin kendi profili ve köpekleri gerekiyor.
+    const [viewer, viewerDogs] = await Promise.all([
+      db.one<UserRow>('SELECT * FROM users WHERE id = $1', [me.id]),
+      db.query<DogRow>(
+        `SELECT * FROM dogs WHERE owner_id = $1 AND status = 'active' ORDER BY created_at`,
+        [me.id]
+      ),
+    ]);
+
     const where: string[] = [
       `d.status = 'active'`,
       `u.status = 'active'`,
@@ -78,18 +88,35 @@ discoverRouter.get(
     );
 
     const items = await Promise.all(
-      rows.map(async (row) => ({
-        dog: await publicDog(row),
-        owner: await publicUser({
+      rows.map(async (row) => {
+        const owner = {
           id: row.u_id,
           name: row.u_name,
           district: row.u_district,
           bio: row.u_bio,
           purpose: row.u_purpose,
           photo_url: row.u_photo_url,
-        } as UserRow),
-      }))
+        } as UserRow;
+
+        return {
+          dog: await publicDog(row),
+          owner: await publicUser(owner),
+          /**
+           * Uyum skoru. İzleyenin köpeği yoksa `null` döner ve istemci
+           * skoru göstermez.
+           */
+          match: viewer ? bestMatchScore(viewer, viewerDogs, { user: owner, dog: row }) : null,
+        };
+      })
     );
+
+    /**
+     * Sıralama: uyumu yüksek olanlar önce. Skor hesaplanamıyorsa (izleyenin
+     * köpeği yok) eklenme sırası korunur.
+     */
+    if (viewerDogs.length > 0) {
+      items.sort((a, b) => (b.match?.score ?? 0) - (a.match?.score ?? 0));
+    }
 
     res.json({ items, limit: q.limit, offset: q.offset, hasMore: items.length === q.limit });
   })

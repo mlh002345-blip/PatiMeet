@@ -33,6 +33,8 @@ export default function RootLayout() {
           <Stack.Screen name="settings/notifications" options={{ title: 'Bildirimler' }} />
           <Stack.Screen name="settings/edit-profile" options={{ title: 'Profili düzenle' }} />
           <Stack.Screen name="settings/edit-dog" options={{ title: 'Köpek profilini düzenle' }} />
+          <Stack.Screen name="settings/dogs" options={{ title: 'Köpeklerim' }} />
+          <Stack.Screen name="settings/add-dog" options={{ title: 'Köpek ekle' }} />
         </Stack>
       </SessionProvider>
     </SafeAreaProvider>

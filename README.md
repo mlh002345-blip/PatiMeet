@@ -22,6 +22,21 @@ besleyen bir REST API.
 
 Tek kod tabanı hem iOS hem Android'e derlenir; ayrı Swift/Kotlin projesi yoktur.
 
+### Öne çıkan özellikler
+
+- **Açıklanabilir uyum skoru** — boyut, enerji, sosyallik, yaş, semt ve kullanım
+  amacına dayanan 0–100 skor. Kullanıcı yalnızca sayıyı değil, her etkenin
+  puanını ve gerekçesini görür. Sağlık veya güvenlik garantisi olarak
+  sunulmaz; bu uyarı kartın içinde her zaman yer alır.
+- **Çoklu köpek profili** — bir kullanıcı en fazla 5 köpek ekleyebilir; keşfet
+  skoru en uyumlu köpeğe göre hesaplanır, etkinliğe hangi köpekle katılacağı
+  seçilir.
+- **Üç giriş yöntemi** — e-posta, Google ve Apple. Sağlayıcı yapılandırılmamışsa
+  ilgili düğme hiç gösterilmez.
+- **Push bildirimleri** — mesaj, etkinlik ve güvenlik olayları; kategori
+  tercihleri kullanıcıda.
+- **Moderasyon paneli** — şikâyet inceleme, hesap ve içerik yönetimi, denetim kaydı.
+
 ---
 
 ## Hızlı başlangıç
@@ -283,11 +298,12 @@ Her iki yol da denetim kaydına yazar.
 ## Test
 
 ```bash
-# Sunucu — üç paket, 245 kontrol
+# Sunucu — dört paket, 279 kontrol
 cd apps/api
 npm run test            # iş kuralları (89)
 npm run test:google     # Google ile giriş (54)
 npm run test:platform   # yayın altyapısı (102)
+npm run test:matching   # uyum skoru ve çoklu köpek (34)
 npm run test:all        # hepsi
 
 # Tip denetimi
@@ -318,6 +334,7 @@ Kapsam:
 | `test` | Kayıt, profil, keşfet, etkinlik, mesaj, şikâyet/engelleme, hesap silme iş kuralları |
 | `test:google` | Token doğrulama kuralları, hesap eşleştirme, ele geçirme senaryoları |
 | `test:platform` | Migration'lar, sağlık kontrolleri, görsel yükleme ve yetkilendirme, Apple girişi, push altyapısı, moderasyon paneli, hız sınırı |
+| `test:matching` | Skor kuralları, eksik bilgi davranışı, keşfet sıralaması, çoklu köpek iş kuralları |
 | `e2e` | Gerçek tarayıcıda telefon ölçüsünde kullanıcı yolculukları |
 
 Uçtan uca testler Google düğmesinin görünürlüğünü de sınar. Beklenti, web

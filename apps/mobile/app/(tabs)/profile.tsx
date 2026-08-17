@@ -29,7 +29,7 @@ export default function ProfileScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const dog = user?.dogs?.[0];
+  const dogs = user?.dogs ?? [];
 
   function confirmSignOut() {
     Alert.alert('Oturumu kapat', 'Çıkmak istediğinden emin misin?', [
@@ -115,9 +115,9 @@ export default function ProfileScreen() {
         />
       </Card>
 
-      {/* Köpek kartı */}
-      {dog ? (
-        <Card style={{ marginTop: spacing.md }}>
+      {/* Köpek kartları — çoklu köpek desteklenir */}
+      {dogs.map((dog) => (
+        <Card key={dog.id} style={{ marginTop: spacing.md }}>
           <View style={styles.headerRow}>
             {dog.photoUrl ? (
               <Image source={{ uri: dog.photoUrl }} style={styles.photo} />
@@ -149,11 +149,18 @@ export default function ProfileScreen() {
           <Button
             label="Köpek profilini düzenle"
             variant="secondary"
-            onPress={() => router.push('/settings/edit-dog')}
+            onPress={() => router.push(`/settings/edit-dog?dogId=${dog.id}`)}
             style={{ marginTop: spacing.lg }}
           />
         </Card>
-      ) : null}
+      ))}
+
+      <Button
+        label={dogs.length > 1 ? 'Köpeklerimi yönet' : '+ Köpek ekle'}
+        variant="secondary"
+        onPress={() => router.push(dogs.length > 1 ? '/settings/dogs' : '/settings/add-dog')}
+        style={{ marginTop: spacing.md }}
+      />
 
       {/* Tercihler */}
       <AppText variant="heading" style={{ marginTop: spacing.xl, marginBottom: spacing.md }}>

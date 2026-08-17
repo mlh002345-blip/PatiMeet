@@ -15,7 +15,8 @@
     "migrate": "tsx --env-file-if-exists=.env src/cli/migrate.ts",
     "create-admin": "tsx --env-file-if-exists=.env src/cli/create-admin.ts",
     "test:platform": "tsx src/platform-test.ts",
-    "test:all": "npm run test && npm run test:google && npm run test:platform"
+    "test:all": "npm run test && npm run test:google && npm run test:platform && npm run test:matching",
+    "test:matching": "tsx src/matching-test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1111.0",

@@ -24,6 +24,7 @@ import {
 } from '../../src/labels';
 import { colors, radius, spacing } from '../../src/theme';
 import { useLoader } from '../../src/useLoader';
+import { MatchBreakdownCard } from '../../src/components/MatchScore';
 
 /**
  * Köpek ve sahip profil detayı (8/14).
@@ -41,8 +42,8 @@ export default function UserProfileScreen() {
 
   const loader = useLoader(async () => {
     if (!params.id) throw new ApiError(400, 'bad_request', 'Profil bilgisi eksik.');
-    return api.userProfile(params.id);
-  }, [params.id]);
+    return api.userProfile(params.id, params.dogId);
+  }, [params.id, params.dogId]);
 
   async function openChat() {
     if (!params.id) return;
@@ -65,6 +66,11 @@ export default function UserProfileScreen() {
   if (!loader.data) return <ErrorState message="Profil bulunamadı." />;
 
   const { user: owner, dogs, isSelf } = loader.data;
+  /**
+   * Eski bir sunucu sürümü bu alanı göndermeyebilir; ekran bu yüzden
+   * çökmemeli. Boş liste, uyum bölümünün hiç gösterilmemesi anlamına gelir.
+   */
+  const matches = loader.data.matches ?? [];
   // `dogId` verilmişse o köpeği öne çıkar, yoksa ilk köpeği göster.
   const focused = dogs.find((d) => d.id === params.dogId) ?? dogs[0];
 
@@ -109,6 +115,25 @@ export default function UserProfileScreen() {
             </AppText>
           ) : null}
         </Card>
+      ) : null}
+
+      {/* Uyum skoru — en uyumlu köpek önce */}
+      {matches.length > 0 ? (
+        <>
+          <AppText variant="heading" style={{ marginTop: spacing.xl, marginBottom: spacing.md }}>
+            {matches.length > 1 ? 'Köpeklerinizle uyum' : 'Uyum'}
+          </AppText>
+
+          {matches.map((match) => (
+            <View key={match.viewerDogId} style={{ marginBottom: spacing.md }}>
+              <MatchBreakdownCard
+                match={match}
+                viewerDogName={matches.length > 1 ? match.viewerDogName : undefined}
+                targetDogName={matches.length > 1 ? focused?.name : undefined}
+              />
+            </View>
+          ))}
+        </>
       ) : null}
 
       {/* Sahip bilgisi */}

@@ -13,6 +13,7 @@ import {
 } from '../labels';
 import { colors, spacing } from '../theme';
 import { AppText, Avatar, Card, Tag } from './ui';
+import { MatchBadge } from './MatchScore';
 
 /** Keşfet listesindeki köpek kartı. Köpek görsel olarak ön planda. */
 export function DogCard({ item, onPress }: { item: DiscoverItem; onPress: () => void }) {
@@ -37,6 +38,7 @@ export function DogCard({ item, onPress }: { item: DiscoverItem; onPress: () => 
       </View>
 
       <View style={styles.tagRow}>
+        {item.match ? <MatchBadge match={item.match} /> : null}
         <Tag label={labelFor(dogSizeLabels, dog.size)} tone="primary" />
         <Tag label={labelFor(energyLabels, dog.energy)} tone="accent" />
         <Tag label={labelFor(sociabilityLabels, dog.sociability)} />
