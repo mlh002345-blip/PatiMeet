@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { SafetySheet } from '../../src/components/SafetySheet';
 import {
@@ -110,6 +110,10 @@ export default function EventDetailScreen() {
       {actionSuccess ? <Banner tone="success" message={actionSuccess} /> : null}
       {isCancelled ? (
         <Banner tone="warning" message="Bu etkinlik iptal edildi." />
+      ) : null}
+
+      {event.coverPhotoUrl ? (
+        <Image source={{ uri: event.coverPhotoUrl }} style={styles.coverPhoto} />
       ) : null}
 
       <Card>
@@ -338,6 +342,13 @@ function DetailRow({
 }
 
 const styles = StyleSheet.create({
+  coverPhoto: {
+    width: '100%',
+    height: 210,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surfaceMuted,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',

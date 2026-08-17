@@ -137,6 +137,7 @@ export interface EventRow {
   dog_size: string;
   description: string;
   rules: string;
+  cover_photo_url: string | null;
   status: string;
   created_at: number;
 }
@@ -169,6 +170,7 @@ export async function publicEvent(row: EventRow, viewerId: string | null, db: Db
     dogSize: row.dog_size,
     description: row.description,
     rules: row.rules,
+    coverPhotoUrl: await photoUrl(row.cover_photo_url),
     status: row.status,
     participantCount,
     spotsLeft: Math.max(0, row.capacity - participantCount),

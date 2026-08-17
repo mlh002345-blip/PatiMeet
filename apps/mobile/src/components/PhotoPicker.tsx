@@ -27,7 +27,7 @@ export function PhotoPicker({
   label: string;
   value: string | null;
   previewUrl?: string | null;
-  purpose: 'user_photo' | 'dog_photo';
+  purpose: 'user_photo' | 'dog_photo' | 'event_photo';
   /** Yükleme tamamlandığında anahtar ve görüntüleme adresi ile çağrılır. */
   onChange: (next: { key: string; url: string } | null) => void;
   fallbackName: string;
@@ -55,7 +55,7 @@ export function PhotoPicker({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        aspect: [1, 1],
+        aspect: purpose === 'event_photo' ? [16, 9] : [1, 1],
         // Yükleme boyutunu makul tutmak için sıkıştırıyoruz.
         quality: 0.7,
       });
@@ -104,7 +104,7 @@ export function PhotoPicker({
         <Pressable onPress={pick} disabled={busy} accessibilityRole="button">
           <View>
             {shownImage ? (
-              <Image source={{ uri: shownImage }} style={styles.preview} />
+              <Image source={{ uri: shownImage }} style={[styles.preview, purpose === 'event_photo' && styles.eventPreview]} />
             ) : (
               <Avatar name={fallbackName} size={80} emoji={emoji} />
             )}
@@ -162,6 +162,10 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: radius.pill,
     backgroundColor: colors.surfaceMuted,
+  },
+  eventPreview: {
+    width: 144,
+    borderRadius: radius.md,
   },
   overlay: {
     position: 'absolute',

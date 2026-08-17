@@ -255,6 +255,12 @@ CREATE TABLE IF NOT EXISTS event_reviews (
 CREATE INDEX IF NOT EXISTS idx_event_reviews_event ON event_reviews(event_id, created_at DESC);
 `,
   },
+  {
+    id: '0007_event_cover_photos',
+    sql: `
+ALTER TABLE events ADD COLUMN IF NOT EXISTS cover_photo_url TEXT;
+`,
+  },
 ];
 
 export interface MigrationResult {

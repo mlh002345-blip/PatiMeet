@@ -183,6 +183,7 @@ export interface EventSummary {
   dogSize: string;
   description: string;
   rules: string;
+  coverPhotoUrl: string | null;
   status: string;
   participantCount: number;
   spotsLeft: number;
@@ -341,7 +342,7 @@ export const api = {
    * fotoğraf tüm cihazlarda görünür.
    */
   uploadPhoto: (
-    purpose: 'user_photo' | 'dog_photo',
+    purpose: 'user_photo' | 'dog_photo' | 'event_photo',
     data: Blob,
     contentType: string
   ) =>
@@ -458,6 +459,7 @@ export const api = {
     dogSize?: string;
     description?: string;
     rules?: string;
+    coverPhotoUrl?: string | null;
   }) => apiRequest<{ event: EventSummary }>('/api/events', { method: 'POST', body }),
 
   joinEvent: (id: string, dogId?: string) =>

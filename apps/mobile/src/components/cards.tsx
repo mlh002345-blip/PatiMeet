@@ -80,11 +80,6 @@ export function EventCard({
 }) {
   const [imageFailed, setImageFailed] = useState(false);
 
-  const eventImage = event.type === 'yuruyus'
-    ? 'https://images.unsplash.com/photo-1558788353-f76d92427f16?w=600&auto=format&fit=crop'
-    : event.type === 'egitim'
-      ? 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600&auto=format&fit=crop'
-      : 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=600&auto=format&fit=crop';
   const date = new Date(event.startsAt);
   const day = date.toLocaleDateString('tr-TR', { day: 'numeric' });
   const month = date.toLocaleDateString('tr-TR', { month: 'short' });
@@ -104,14 +99,13 @@ export function EventCard({
         onPress={onPress}
         style={({ pressed }) => [styles.eventContent, pressed && { opacity: 0.9 }]}
       >
-        {imageFailed ? (
-          // Uzak görsel yüklenemezse boş boşluk bırakmıyoruz.
+        {!event.coverPhotoUrl || imageFailed ? (
           <View style={[styles.eventPhoto, styles.eventPhotoFallback]}>
             <AppText variant="title">{eventTypeEmoji[event.type] ?? '🐾'}</AppText>
           </View>
         ) : (
           <Image
-            source={{ uri: eventImage }}
+            source={{ uri: event.coverPhotoUrl }}
             style={styles.eventPhoto}
             onError={() => setImageFailed(true)}
           />

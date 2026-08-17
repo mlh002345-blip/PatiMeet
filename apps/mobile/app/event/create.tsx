@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { DateTimeField } from '../../src/components/DateTimeField';
+import { PhotoPicker } from '../../src/components/PhotoPicker';
 import {
   AppText,
   Banner,
@@ -36,6 +37,8 @@ export default function CreateEventScreen() {
   const [dogSize, setDogSize] = useState<string>('hepsi');
   const [description, setDescription] = useState('');
   const [rules, setRules] = useState('Tasma zorunlu. Aşıları eksik köpekleri getirmeyin.');
+  const [coverPhotoKey, setCoverPhotoKey] = useState<string | null>(null);
+  const [coverPhotoPreview, setCoverPhotoPreview] = useState<string | null>(null);
 
   const [errors, setErrors] = useState<{
     title?: string;
@@ -94,6 +97,7 @@ export default function CreateEventScreen() {
         dogSize,
         description: description.trim(),
         rules: rules.trim(),
+        coverPhotoUrl: coverPhotoKey,
       });
       // Oluşturulan etkinliğe git; geri tuşu listeye döner.
       router.replace(`/event/${res.event.id}`);
@@ -141,6 +145,19 @@ export default function CreateEventScreen() {
             value={type}
             onChange={setType}
             error={errors.type}
+          />
+
+          <PhotoPicker
+            label="Etkinlik kapak fotoğrafı"
+            value={coverPhotoKey}
+            previewUrl={coverPhotoPreview}
+            purpose="event_photo"
+            fallbackName="Etkinlik"
+            emoji="📷"
+            onChange={(next) => {
+              setCoverPhotoKey(next?.key ?? null);
+              setCoverPhotoPreview(next?.url ?? null);
+            }}
           />
 
           <DateTimeField
