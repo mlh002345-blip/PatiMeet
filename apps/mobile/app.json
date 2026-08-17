@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "PatiMeet",
+    "slug": "patimeet",
+    "version": "1.0.0",
+    "scheme": "patimeet",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FBF6EF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.patimeet.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Profil ve köpek fotoğrafınızı seçebilmeniz için fotoğraf galerinize erişim izni gerekiyor.",
+        "NSCameraUsageDescription": "Profil ve köpek fotoğrafınızı çekebilmeniz için kamera izni gerekiyor.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.patimeet.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#FBF6EF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["READ_MEDIA_IMAGES", "CAMERA"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Profil ve köpek fotoğrafınızı seçebilmeniz için fotoğraf galerinize erişim izni gerekiyor.",
+          "cameraPermission": "Profil ve köpek fotoğrafınızı çekebilmeniz için kamera izni gerekiyor."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:4000"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@patimeet/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PatiMeet uçtan uca akış testleri (Playwright, mobil ölçüde tarayıcı)",
+  "scripts": {
+    "test": "node run-all.js",
+    "test:temel": "node 01-temel-akislar.js",
+    "test:guvenlik": "node 02-guvenlik-ve-katilim.js",
+    "test:yeni-kullanici": "node 03-yeni-kullanici.js"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

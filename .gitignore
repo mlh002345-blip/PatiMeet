@@ -1,0 +1,33 @@
+# Bağımlılıklar
+node_modules/
+
+# Ortam değişkenleri — asla depoya girmemeli
+.env
+.env.local
+.env.*.local
+
+# Derleme çıktıları
+dist/
+build/
+.expo/
+web-build/
+*.tsbuildinfo
+
+# Veritabanı dosyaları (SQLite)
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Test çıktıları
+e2e/screenshots/
+
+# Günlükler
+*.log
+npm-debug.log*
+
+# Editör ve işletim sistemi
+.DS_Store
+.idea/
+.vscode/
+*.swp
