@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { api, ApiError } from '../api';
-import { colors, radius, spacing } from '../theme';
-import { AppText, Banner, Button, ChoiceGroup, Field } from './ui';
+import { colors, spacing } from '../theme';
+import { AppText, Banner, BottomSheet, Button, ChoiceGroup, Field } from './ui';
 
 /**
  * Şikâyet ve engelleme, ayrı tam ekranlar yerine alt panel olarak uygulandı
@@ -107,12 +107,8 @@ export function SafetySheet({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-
-      <View style={styles.sheet}>
-        <View style={styles.handle} />
-
+    <BottomSheet visible={visible} onClose={onClose}>
+      <View>
         {success ? (
           <Banner tone="success" message={success} />
         ) : (
@@ -215,28 +211,7 @@ export function SafetySheet({
           </>
         )}
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(42, 36, 48, 0.45)',
-  },
-  sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl + spacing.lg,
-  },
-  handle: {
-    width: 44,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderStrong,
-    alignSelf: 'center',
-    marginBottom: spacing.lg,
-  },
-});

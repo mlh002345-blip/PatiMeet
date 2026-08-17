@@ -20,6 +20,8 @@ export interface DogRow {
 export interface UserRow {
   id: string;
   email: string;
+  password_hash: string | null;
+  provider: string;
   name: string;
   district: string | null;
   bio: string;
@@ -29,6 +31,12 @@ export interface UserRow {
   terms_accepted_at: number | null;
   privacy_accepted_at: number | null;
   deletion_requested_at: number | null;
+  /** Google ile bağlanmış hesabın sağlayıcı kimliği. */
+  google_id: string | null;
+  /** E-posta sahipliğinin kanıtlandığı an. */
+  email_verified_at: number | null;
+  /** Şifre girişinin kapatıldığı an (hesap eşleştirme güvenliği). */
+  password_disabled_at: number | null;
   created_at: number;
 }
 
@@ -90,6 +98,10 @@ export function privateUser(row: UserRow) {
     termsAcceptedAt: row.terms_accepted_at,
     privacyAcceptedAt: row.privacy_accepted_at,
     deletionRequestedAt: row.deletion_requested_at,
+    /** Ayarlarda "Google ile bağlı" durumunu göstermek için. */
+    googleLinked: row.google_id !== null,
+    hasPassword: row.password_hash !== null,
+    passwordLoginDisabled: row.password_disabled_at !== null,
     dogs: dogs.map(publicDog),
     /** İstemci profil tamamlama uyarısını bu bayraklara göre gösterir. */
     profileComplete: Boolean(row.name && row.district) && dogs.length > 0,

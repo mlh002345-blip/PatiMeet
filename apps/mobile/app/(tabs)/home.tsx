@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View } from 'react-native';
 import { api, type EventSummary } from '../../src/api';
 import { ActionCard, EventCard } from '../../src/components/cards';
 import {
@@ -11,6 +10,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  ScrollScreen,
   SectionHeader,
   Tag,
 } from '../../src/components/ui';
@@ -28,7 +28,6 @@ import { useLoader } from '../../src/useLoader';
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useSession();
-  const insets = useSafeAreaInsets();
 
   const loader = useLoader(async () => {
     const [joined, nearby] = await Promise.all([
@@ -47,17 +46,7 @@ export default function HomeScreen() {
   if (!user?.bio) missing.push('kendi açıklaman');
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={{
-        paddingHorizontal: spacing.lg,
-        paddingTop: insets.top + spacing.lg,
-        paddingBottom: spacing.xxl,
-      }}
-      refreshControl={
-        <RefreshControl refreshing={loader.refreshing} onRefresh={loader.refresh} tintColor={colors.primary} />
-      }
-    >
+    <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
       {/* Selamlama */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
@@ -183,15 +172,11 @@ export default function HomeScreen() {
           Güvenlik önerilerini oku
         </AppText>
       </Card>
-    </ScrollView>
+    </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

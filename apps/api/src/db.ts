@@ -128,8 +128,37 @@ CREATE TABLE IF NOT EXISTS blocks (
 CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id);
 `;
 
+/**
+ * Sonradan eklenen kolonlar. `CREATE TABLE IF NOT EXISTS` mevcut tabloları
+ * değiştirmediği için, önceki sürümden gelen veritabanlarını da güncellemek
+ * üzere kolonları tek tek kontrol edip ekliyoruz.
+ */
+const ADDED_COLUMNS: Array<{ table: string; column: string; definition: string }> = [
+  // Google ile giriş: sağlayıcının kalıcı kullanıcı kimliği (`sub`).
+  { table: 'users', column: 'google_id', definition: 'TEXT' },
+  // E-postanın sahipliği kanıtlandığı an (Google doğrulaması veya ileride
+  // eklenecek e-posta doğrulama akışı).
+  { table: 'users', column: 'email_verified_at', definition: 'INTEGER' },
+  // Şifre ile girişin kapatıldığı an — hesap eşleştirmede güvenlik gereği.
+  { table: 'users', column: 'password_disabled_at', definition: 'INTEGER' },
+];
+
+function addMissingColumns(): void {
+  for (const { table, column, definition } of ADDED_COLUMNS) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  }
+}
+
 export function migrate(): void {
   db.exec(SCHEMA);
+  addMissingColumns();
+  // Bir Google hesabı yalnızca tek bir PatiMeet hesabına bağlanabilir.
+  db.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL'
+  );
 }
 
 export function nowMs(): number {

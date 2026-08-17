@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, ApiError } from '../../src/api';
 import { StepHeader } from '../../src/components/StepHeader';
@@ -10,6 +10,7 @@ import {
   Button,
   LoadingState,
   Screen,
+  SearchField,
 } from '../../src/components/ui';
 import { useSession } from '../../src/session';
 import { colors, radius, spacing } from '../../src/theme';
@@ -91,13 +92,9 @@ export default function OnboardingDistrictScreen() {
         {formError ? <Banner tone="error" message={formError} /> : null}
         {loadError ? <Banner tone="warning" message={loadError} /> : null}
 
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Semt ara"
-          placeholderTextColor={colors.textSubtle}
-          style={styles.search}
-        />
+        <View style={{ marginBottom: spacing.lg }}>
+          <SearchField value={query} onChangeText={setQuery} placeholder="Semt ara" />
+        </View>
 
         {districts === null ? (
           <LoadingState label="Semtler yükleniyor…" />
@@ -153,17 +150,6 @@ export default function OnboardingDistrictScreen() {
 }
 
 const styles = StyleSheet.create({
-  search: {
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    minHeight: 52,
-    fontSize: 15,
-    color: colors.text,
-    marginBottom: spacing.lg,
-  },
   list: {
     gap: spacing.sm,
   },

@@ -65,54 +65,26 @@ authRouter.post(
     const input = parseBody(loginSchema, req.body);
 
     const row = db
-      .prepare<[string], UserRow & { password_hash: string | null }>(
-        'SELECT * FROM users WHERE email = ?'
-      )
+      .prepare<[string], UserRow>('SELECT * FROM users WHERE email = ?')
       .get(input.email);
 
     // Hesabın var olup olmadığını sızdırmamak için tek bir genel mesaj kullanıyoruz.
     const invalid = unauthorized('E-posta veya şifre hatalı.');
-    if (!row || !row.password_hash) throw invalid;
+    if (!row) throw invalid;
+
+    /**
+     * Şifresi olmayan hesaplar: ya Google ile açılmış ya da hesap eşleştirmede
+     * şifre girişi kapatılmış. Kullanıcıyı boşuna uğraştırmamak için doğru
+     * yöntemi söylüyoruz — hesabın varlığı Google butonuyla zaten belli.
+     */
+    if (!row.password_hash) {
+      if (row.google_id) {
+        throw unauthorized('Bu hesap Google ile bağlı. "Google ile devam et" ile giriş yapın.');
+      }
+      throw invalid;
+    }
     if (!bcrypt.compareSync(input.password, row.password_hash)) throw invalid;
     if (row.status !== 'active') {
-      throw unauthorized('Hesabınız aktif değil. Destek ile iletişime geçin.');
-    }
-
-    res.json({ token: signToken(row.id), user: privateUser(row) });
-  })
-);
-
-/**
- * Google / Apple ile giriş. MVP'de doğrulanmış kimlik bilgisi mobil SDK
- * tarafından alınır ve buraya iletilir; sunucu tarafında hesap eşleştirme
- * yapılır. Sağlayıcı imza doğrulaması yayın öncesi eklenecek adımdır.
- */
-const socialSchema = z.object({
-  provider: z.enum(['google', 'apple']),
-  providerId: z.string().trim().min(1, 'Sağlayıcı kimliği gerekli.'),
-  email: emailSchema,
-  name: z.string().trim().max(80).optional(),
-});
-
-authRouter.post(
-  '/social',
-  asyncRoute((req, res) => {
-    const input = parseBody(socialSchema, req.body);
-    const ts = nowMs();
-
-    let row = db
-      .prepare<[string], UserRow>('SELECT * FROM users WHERE email = ?')
-      .get(input.email);
-
-    if (!row) {
-      const id = newId();
-      db.prepare(
-        `INSERT INTO users
-           (id, email, provider, provider_id, name, terms_accepted_at, privacy_accepted_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(id, input.email, input.provider, input.providerId, input.name ?? '', ts, ts, ts, ts);
-      row = db.prepare<[string], UserRow>('SELECT * FROM users WHERE id = ?').get(id)!;
-    } else if (row.status !== 'active') {
       throw unauthorized('Hesabınız aktif değil. Destek ile iletişime geçin.');
     }
 

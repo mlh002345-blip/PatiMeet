@@ -1,7 +1,9 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +13,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, spacing, typography } from '../theme';
 
 // ---------------------------------------------------------------------------
@@ -508,6 +511,97 @@ export function Screen({
   );
 }
 
+/**
+ * Kaydırılabilir ekran gövdesi.
+ *
+ * Sekme ekranlarının tamamı aynı düzeni paylaşır: krem arka plan, güvenli
+ * alan üst boşluğu, yatay kenar boşluğu ve aşağı çekerek yenileme. Tek yerde
+ * tutulması görsel tutarlılığı garanti eder.
+ */
+export function ScrollScreen({
+  children,
+  refreshing,
+  onRefresh,
+  padded = true,
+  topInset = true,
+}: {
+  children: React.ReactNode;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  padded?: boolean;
+  topInset?: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[
+        padded && { paddingHorizontal: spacing.lg },
+        { paddingTop: (topInset ? insets.top : 0) + spacing.lg, paddingBottom: spacing.xxl },
+      ]}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={Boolean(refreshing)}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        ) : undefined
+      }
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+/** Liste üstündeki arama alanı — Keşfet ve semt seçiminde aynı görünüm. */
+export function SearchField({
+  value,
+  onChangeText,
+  placeholder,
+}: {
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={colors.textSubtle}
+      style={styles.input}
+      autoCorrect={false}
+    />
+  );
+}
+
+/**
+ * Alt panel (bottom sheet). Şikâyet/engelleme ve Google onay panelleri aynı
+ * yüzeyi kullanır: karartılmış arka plan, üstte tutamak, yuvarlatılmış köşeler.
+ */
+export function BottomSheet({
+  visible,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Paneli kapat" />
+      <View style={styles.sheet}>
+        <View style={styles.sheetHandle} />
+        {children}
+      </View>
+    </Modal>
+  );
+}
+
 export function SectionHeader({
   title,
   actionLabel,
@@ -635,5 +729,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: spacing.xl,
     marginBottom: spacing.md,
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: colors.backdrop,
+  },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl + spacing.lg,
+  },
+  sheetHandle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderStrong,
+    alignSelf: 'center',
+    marginBottom: spacing.lg,
   },
 });

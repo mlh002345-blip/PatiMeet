@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { api } from '../../src/api';
 import {
   AppText,
@@ -9,6 +8,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  ScrollScreen,
 } from '../../src/components/ui';
 import { formatRelative } from '../../src/labels';
 import { colors, radius, spacing } from '../../src/theme';
@@ -17,25 +17,10 @@ import { useLoader } from '../../src/useLoader';
 /** Mesaj listesi (12/14) — okunmamış göstergesi ile. */
 export default function MessagesScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const loader = useLoader(() => api.conversations());
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={{
-        paddingHorizontal: spacing.lg,
-        paddingTop: insets.top + spacing.lg,
-        paddingBottom: spacing.xxl,
-      }}
-      refreshControl={
-        <RefreshControl
-          refreshing={loader.refreshing}
-          onRefresh={loader.refresh}
-          tintColor={colors.primary}
-        />
-      }
-    >
+    <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
       <AppText variant="display">Mesajlar</AppText>
       {loader.data && loader.data.totalUnread > 0 ? (
         <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
@@ -105,15 +90,11 @@ export default function MessagesScreen() {
           />
         )}
       </View>
-    </ScrollView>
+    </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

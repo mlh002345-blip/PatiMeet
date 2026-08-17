@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View } from 'react-native';
 import { api } from '../../src/api';
 import { DogCard } from '../../src/components/cards';
 import {
@@ -10,6 +9,8 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  ScrollScreen,
+  SearchField,
 } from '../../src/components/ui';
 import { dogSizeLabels, energyLabels } from '../../src/labels';
 import { useSession } from '../../src/session';
@@ -25,7 +26,6 @@ import { useLoader } from '../../src/useLoader';
 export default function DiscoverScreen() {
   const router = useRouter();
   const { user } = useSession();
-  const insets = useSafeAreaInsets();
 
   const [district, setDistrict] = useState<string | null>(user?.district ?? null);
   const [size, setSize] = useState<string | null>(null);
@@ -54,34 +54,19 @@ export default function DiscoverScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={{
-        paddingHorizontal: spacing.lg,
-        paddingTop: insets.top + spacing.lg,
-        paddingBottom: spacing.xxl,
-      }}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={
-        <RefreshControl
-          refreshing={loader.refreshing}
-          onRefresh={loader.refresh}
-          tintColor={colors.primary}
-        />
-      }
-    >
+    <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
       <AppText variant="display">Keşfet</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
         Yakınındaki köpekleri gör, sahibine mesaj gönder.
       </AppText>
 
-      <TextInput
-        value={search}
-        onChangeText={setSearch}
-        placeholder="Köpek adı veya cins ara"
-        placeholderTextColor={colors.textSubtle}
-        style={styles.search}
-      />
+      <View style={{ marginTop: spacing.lg }}>
+        <SearchField
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Köpek adı veya cins ara"
+        />
+      </View>
 
       <View style={styles.filterBar}>
         <AppText
@@ -168,26 +153,11 @@ export default function DiscoverScreen() {
           onAction={() => router.push('/event/create')}
         />
       )}
-    </ScrollView>
+    </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  search: {
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    minHeight: 52,
-    fontSize: 15,
-    color: colors.text,
-    marginTop: spacing.lg,
-  },
   filterBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',

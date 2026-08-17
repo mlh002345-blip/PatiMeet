@@ -38,6 +38,11 @@ export const colors = {
   // Çizgiler
   border: '#E7DFD4',
   borderStrong: '#D6CCBE',
+
+  // Örtü ve vurgu üzeri metin — alt panellerin arkasındaki karartma ve
+  // lila balon içindeki ikincil metin için.
+  backdrop: 'rgba(42, 36, 48, 0.45)',
+  textOnPrimaryMuted: 'rgba(255, 255, 255, 0.7)',
 } as const;
 
 export const spacing = {

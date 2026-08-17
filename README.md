@@ -63,6 +63,88 @@ Ardından:
 Boş başlangıç durumlarını görmek için: `npm run seed -- --reset` ile veriyi
 temizleyip yeni bir hesapla kayıt olun.
 
+### Google ile giriş
+
+Google ile giriş **isteğe bağlı olarak devreye girer**: istemci kimlikleri
+tanımlı değilse düğme hiç gösterilmez ve uygulama e-posta ile girişle sorunsuz
+çalışır. Kurmak için aşağıdaki "Google OAuth kurulumu" bölümüne bakın.
+
+Akış:
+
+1. Uygulama `expo-auth-session` ile Google'ın oturum sayfasını **sistem
+   tarayıcısında** açar (iOS'ta `ASWebAuthenticationSession`, Android'de Chrome
+   Custom Tabs). Google, WebView içinde oturum açmayı yasakladığı için gereken
+   yöntem budur.
+2. Google bir **ID token** döner.
+3. Uygulama token'ı `POST /api/auth/google` ucuna gönderir.
+4. **Sunucu token'ı doğrular**: imza Google'ın açık anahtarlarıyla kontrol
+   edilir, `aud` yapılandırılmış istemci kimliklerinden biri olmalı, `iss`
+   Google olmalı ve `email_verified` true olmalıdır. İstemciden gelen hiçbir
+   kimlik bilgisine güvenilmez.
+5. Yeni kullanıcı onboarding'e, mevcut kullanıcı ana sayfaya yönlendirilir.
+
+### Google OAuth kurulumu
+
+[Google Cloud Console](https://console.cloud.google.com/apis/credentials) →
+**APIs & Services → Credentials** altında **her platform için ayrı** bir OAuth
+istemcisi oluşturun:
+
+| Platform | Application type | Gereken bilgi |
+|---|---|---|
+| iOS | iOS | Bundle ID: `com.patimeet.app` |
+| Android | Android | Package name: `com.patimeet.app` + imzalama sertifikasının **SHA-1** parmak izi |
+| Web | Web application | Yalnızca `expo start --web` önizlemesi için |
+
+Ayrıca **OAuth consent screen** ekranını doldurun (uygulama adı, destek
+e-postası, gizlilik politikası ve kullanım koşulları bağlantıları). `email` ve
+`profile` kapsamları yeterlidir; ek kapsam istemeyin.
+
+Android SHA-1 parmak izini almak için:
+
+```bash
+# EAS ile derliyorsanız
+npx eas credentials          # Android → keystore → SHA-1 değerini kopyalayın
+```
+
+Aldığınız kimlikleri iki yere yazın:
+
+```bash
+# apps/mobile/.env  — uygulamanın hangi istemciyle Google'a gideceği
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=...apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=...apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=...apps.googleusercontent.com
+
+# apps/api/.env  — sunucunun hangi token'ları kabul edeceği
+GOOGLE_IOS_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_ANDROID_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_WEB_CLIENT_ID=...apps.googleusercontent.com
+```
+
+Notlar:
+
+- **Client secret gerekmez ve yazılmamalıdır.** Mobil akış PKCE kullanır;
+  istemci kimlikleri gizli değil, herkese açık değerlerdir.
+- iOS'un ihtiyaç duyduğu "ters çevrilmiş istemci kimliği" geri dönüş şeması
+  (`com.googleusercontent.apps.<id>`) `app.config.ts` tarafından
+  `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` değerinden **otomatik** üretilir.
+- Bu değişkenler derleme anında paketlenir. Değiştirdikten sonra
+  `npx expo start --clear` çalıştırın ve yeni bir derleme alın.
+- Google ile giriş **Expo Go'da çalışmaz**; geliştirme derlemesi
+  (`npx expo run:ios` / `run:android`) veya EAS derlemesi gerekir.
+
+#### Hesap eşleştirme ve güvenlik kararı
+
+Bir kullanıcı, daha önce **e-posta ve şifre ile** açtığı hesabın adresiyle
+Google'a girerse hesaplar birleştirilir — yeni bir kopya hesap açılmaz.
+
+Bu birleştirmede şifre girişi **kapatılır** ve kullanıcıya bildirilir. Nedeni:
+MVP'de e-posta doğrulama akışı yok, yani biri başkasının adresiyle şifreli
+hesap açmış olabilir. Google e-postayı doğruladığı için gerçek sahip Google ile
+gelen kişidir; önceden belirlenmiş şifre bırakılırsa adresi kaydeden kişi
+hesaba erişmeye devam ederdi. Hesabın e-postası zaten doğrulanmışsa şifre
+korunur — ileride e-posta doğrulama eklendiğinde bu durum kendiliğinden geçerli
+olur.
+
 ### Gerçek cihazda API'ye bağlanmak
 
 Telefonda `localhost` cihazın kendisini gösterir. Uygulama bunu otomatik çözer:
@@ -175,15 +257,29 @@ curl -X PATCH -H "x-admin-token: $TOKEN" -H 'content-type: application/json' \
 # API iş kuralları — gerçek HTTP üzerinden 89 kontrol
 cd apps/api && npm test
 
+# Google ile giriş — token doğrulama ve hesap eşleştirme, 52 kontrol
+cd apps/api && npm run test:google
+
 # Tip denetimi
 cd apps/api && npm run typecheck
 cd apps/mobile && npx tsc --noEmit
 
 # Uçtan uca akışlar (API + web hedefi çalışırken)
 cd e2e && npm install && npm test
+
+# Google arayüz akışı — iki durum ayrı ayrı sınanır
+cd e2e && GOOGLE_EXPECTED=absent  node 04-google-giris.js   # kimlik tanımsız: düğme gizli
+cd e2e && GOOGLE_EXPECTED=present node 04-google-giris.js   # kimlik tanımlı: düğme görünür
 ```
 
 `npm test` (API) geçici bir veritabanı kullanır; geliştirme verinize dokunmaz.
+Google testleri doğrulayıcıyı enjekte ederek çalışır — gerçek Google servisine
+çıkılmaz, bu yüzden ağ erişimi veya gerçek kimlik gerekmez. Production yolunda
+hiçbir atlama (bypass) yoktur; doğrulayıcı yalnızca testte değiştirilir.
+
+Gerçek Google OAuth turu (kullanıcının hesap seçip izin verdiği adım) otomatik
+sürülemez: geçerli bir istemci kimliği ve insan etkileşimi gerektirir. Bu adım
+gerçek cihazda/emülatörde elle doğrulanmalıdır.
 
 Uçtan uca testler uygulamayı 390×844 (telefon) ölçüsünde gerçek bir tarayıcıda
 sürer ve kayıt, onboarding, keşfet, etkinlik oluşturma/katılma, mesajlaşma,
@@ -214,6 +310,11 @@ metinleri `infoPlist` ve Android `permissions` altında ayarlandı.
       (production'da boş bırakılırsa sunucu açılmaz)
 - [ ] `CORS_ORIGIN` daraltıldı
 - [ ] `EXPO_PUBLIC_API_URL` yayın API adresine ayarlandı
+- [ ] Google OAuth istemcileri oluşturuldu ve iki `.env` dosyasına yazıldı
+      (bkz. "Google OAuth kurulumu"); OAuth consent screen dolduruldu
+- [ ] Google ile giriş gerçek cihazda iOS ve Android'de elle denendi
+- [ ] Google'ın marka kılavuzuna uygun resmî "G" görseli eklendi
+      (`src/components/GoogleSignIn.tsx` içindeki `GoogleMark`)
 - [ ] Yasal metinler (`apps/api/src/routes/legal.ts`) hukuk onayından geçti
 - [ ] SQLite yerine yönetilen bir veritabanı değerlendirildi (aşağıya bakın)
 
@@ -227,10 +328,14 @@ Bunlar MVP kapsamı dışında bırakıldı veya bilinçli olarak basit tutuldu:
   dışı olduğu için seçilen görselin yalnızca cihaz üzerindeki URI'si saklanır ve
   o cihazda görünür. Yükleme altyapısı eklendiğinde `PhotoPicker` içinde dönen
   kalıcı URL kaydedilecek.
-- **Google / Apple ile giriş** için sunucu tarafı uç (`POST /api/auth/social`)
-  hazır, ancak sağlayıcı imza doğrulaması eklenmedi. Yayın öncesi
-  `expo-auth-session` ile istemci akışı ve sunucuda token doğrulaması
-  tamamlanmalı.
+- **Apple ile giriş** henüz yok. Google akışı (`POST /api/auth/google`) tam
+  doğrulamalı olarak çalışıyor; Apple aynı desenle eklenebilir. Not: iOS
+  uygulaması üçüncü taraf girişi sunduğu için App Store, Apple ile girişi de
+  şart koşabilir — mağaza gönderiminden önce değerlendirilmeli.
+- **Google düğmesindeki "G" işareti** bir yer tutucudur; mağaza gönderimi
+  öncesi Google'ın marka kılavuzuna uygun resmî görsel eklenmelidir.
+- **Oturum token'ı** `AsyncStorage`'da tutuluyor. Yayın öncesi
+  `expo-secure-store`'a taşınması önerilir (cihaz anahtar zinciri).
 - **Anlık bildirim yok** (belge 11. bölüm). Okunmamış mesaj göstergesi ve sohbet
   ekranı düzenli aralıklarla yoklama yapar; websocket bağlantısı yoktur.
 - **SQLite** tek sunucu için uygundur. Şema, Postgres'e taşınabilecek biçimde

@@ -18,6 +18,9 @@ const SUITES = [
   ['Temel akışlar (giriş, sekmeler, mesaj, etkinlik oluşturma)', '01-temel-akislar.js'],
   ['Güvenlik ve katılım (şikâyet, engelleme, katıl/ayrıl)', '02-guvenlik-ve-katilim.js'],
   ['Yeni kullanıcı yolculuğu (kayıt → onboarding)', '03-yeni-kullanici.js'],
+  // Google akışı: beklenen durum GOOGLE_EXPECTED ile verilir. Varsayılan
+  // 'absent' — yapılandırma olmadan düğmenin gizlendiğini doğrular.
+  ['Google ile giriş arayüzü', '04-google-giris.js'],
 ];
 
 let failed = 0;

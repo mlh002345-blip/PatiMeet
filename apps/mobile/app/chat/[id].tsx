@@ -161,7 +161,7 @@ export default function ChatScreen() {
                 </AppText>
                 <AppText
                   variant="caption"
-                  color={message.isMine ? 'rgba(255,255,255,0.7)' : colors.textSubtle}
+                  color={message.isMine ? colors.textOnPrimaryMuted : colors.textSubtle}
                   style={{ marginTop: 2, alignSelf: 'flex-end' }}
                 >
                   {formatTime(message.createdAt)}

@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { SafetySheet } from '../../src/components/SafetySheet';
 import {
@@ -11,6 +11,7 @@ import {
   Card,
   ErrorState,
   LoadingState,
+  ScrollScreen,
   Tag,
 } from '../../src/components/ui';
 import {
@@ -68,10 +69,7 @@ export default function UserProfileScreen() {
   const focused = dogs.find((d) => d.id === params.dogId) ?? dogs[0];
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }}
-    >
+    <ScrollScreen topInset={false}>
       {actionError ? <Banner tone="error" message={actionError} /> : null}
 
       {/* Köpek ön planda */}
@@ -198,15 +196,11 @@ export default function UserProfileScreen() {
         targetName={owner.name}
         onBlocked={() => router.back()}
       />
-    </ScrollView>
+    </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   hero: {
     width: 110,
     height: 110,

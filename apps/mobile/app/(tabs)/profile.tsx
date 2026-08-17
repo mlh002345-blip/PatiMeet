@@ -1,9 +1,16 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 import { api, ApiError, API_URL } from '../../src/api';
-import { AppText, Avatar, Banner, Button, Card, Tag } from '../../src/components/ui';
+import {
+  AppText,
+  Avatar,
+  Banner,
+  Button,
+  Card,
+  ScrollScreen,
+  Tag,
+} from '../../src/components/ui';
 import {
   dogAgeLabel,
   dogSizeLabels,
@@ -19,7 +26,6 @@ import { colors, radius, spacing } from '../../src/theme';
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useSession();
-  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,14 +76,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={{
-        paddingHorizontal: spacing.lg,
-        paddingTop: insets.top + spacing.lg,
-        paddingBottom: spacing.xxl,
-      }}
-    >
+    <ScrollScreen>
       {error ? <Banner tone="error" message={error} /> : null}
 
       {/* Kullanıcı kartı */}
@@ -199,6 +198,20 @@ export default function ProfileScreen() {
         </AppText>
         <AppText variant="body">{user?.email}</AppText>
 
+        <AppText variant="caption" color={colors.textMuted} style={{ marginTop: spacing.md }}>
+          Giriş yöntemi
+        </AppText>
+        <View style={styles.methodRow}>
+          {user?.googleLinked ? <Tag label="Google ile bağlı" tone="primary" /> : null}
+          {user?.hasPassword ? <Tag label="E-posta ve şifre" tone="neutral" /> : null}
+        </View>
+
+        {user?.passwordLoginDisabled ? (
+          <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.sm }}>
+            Hesabın Google ile bağlandığı için şifre ile giriş kapatıldı.
+          </AppText>
+        ) : null}
+
         <Button
           label="Oturumu kapat"
           variant="secondary"
@@ -222,7 +235,7 @@ export default function ProfileScreen() {
       >
         PatiMeet MVP · {API_URL}
       </AppText>
-    </ScrollView>
+    </ScrollScreen>
   );
 }
 
@@ -254,10 +267,6 @@ function SettingsRow({
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -273,6 +282,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
     marginTop: spacing.lg,
+  },
+  methodRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
   },
   group: {
     backgroundColor: colors.surface,

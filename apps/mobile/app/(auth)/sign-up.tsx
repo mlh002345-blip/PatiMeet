@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, ApiError } from '../../src/api';
+import { GoogleAuthSection } from '../../src/components/GoogleSignIn';
 import { AppText, Banner, Button, Checkbox, Field, Screen } from '../../src/components/ui';
 import { useSession } from '../../src/session';
 import { colors, spacing, typography } from '../../src/theme';
@@ -134,6 +135,21 @@ export default function SignUpScreen() {
           </View>
 
           <Button label="Hesap oluştur" onPress={onSubmit} loading={loading} />
+
+          {/*
+            Google ile kayıt. Onay kutuları bu ekranda görünür olduğu için
+            işaretlenmiş onayları doğrudan geçiyoruz; böylece kullanıcıya
+            ikinci bir onay paneli açılmaz. Onaylar eksikse sunucu yine
+            `consent_required` döner ve panel devreye girer.
+          */}
+          <GoogleAuthSection
+            presetConsents={
+              acceptTerms && acceptPrivacy
+                ? { acceptTerms: true, acceptPrivacy: true }
+                : undefined
+            }
+            onError={setFormError}
+          />
 
           <View style={styles.footer}>
             <AppText variant="body" color={colors.textMuted}>

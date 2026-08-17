@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View } from 'react-native';
 import { api } from '../../src/api';
 import { EventCard } from '../../src/components/cards';
 import {
@@ -11,6 +10,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  ScrollScreen,
 } from '../../src/components/ui';
 import { eventTypeLabels } from '../../src/labels';
 import { useSession } from '../../src/session';
@@ -29,7 +29,6 @@ const SCOPES: Array<{ value: Scope; label: string }> = [
 export default function EventsScreen() {
   const router = useRouter();
   const { user } = useSession();
-  const insets = useSafeAreaInsets();
 
   const [scope, setScope] = useState<Scope>('upcoming');
   const [type, setType] = useState<string | null>(null);
@@ -65,21 +64,7 @@ export default function EventsScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={{
-        paddingHorizontal: spacing.lg,
-        paddingTop: insets.top + spacing.lg,
-        paddingBottom: spacing.xxl,
-      }}
-      refreshControl={
-        <RefreshControl
-          refreshing={loader.refreshing}
-          onRefresh={loader.refresh}
-          tintColor={colors.primary}
-        />
-      }
-    >
+    <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
       <AppText variant="display">Etkinlikler</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
         Yürüyüşlere katıl veya kendi buluşmanı oluştur.
@@ -165,15 +150,11 @@ export default function EventsScreen() {
           onAction={() => router.push('/event/create')}
         />
       )}
-    </ScrollView>
+    </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   scopeRow: {
     flexDirection: 'row',
     backgroundColor: colors.surfaceMuted,

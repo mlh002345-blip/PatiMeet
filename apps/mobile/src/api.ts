@@ -148,6 +148,13 @@ export interface CurrentUser {
   dogs: Dog[];
   profileComplete: boolean;
   hasDog: boolean;
+  termsAcceptedAt: number | null;
+  privacyAcceptedAt: number | null;
+  /** Hesap bir Google kimliğine bağlı mı? */
+  googleLinked: boolean;
+  hasPassword: boolean;
+  /** Hesap eşleştirmesi sırasında şifre girişi kapatıldı mı? */
+  passwordLoginDisabled: boolean;
 }
 
 export interface EventSummary {
@@ -226,10 +233,23 @@ export const api = {
       skipAuth: true,
     }),
 
-  social: (body: { provider: 'google' | 'apple'; providerId: string; email: string; name?: string }) =>
-    apiRequest<{ token: string; user: CurrentUser }>('/api/auth/social', {
-      method: 'POST',
-      body,
+  /**
+   * Google ID token'ını sunucuya doğrulatır ve oturum açar.
+   * Yeni hesap oluşturulacaksa sözleşme onayları gönderilmelidir; aksi halde
+   * sunucu `consent_required` döner.
+   */
+  googleSignIn: (body: { idToken: string; acceptTerms?: boolean; acceptPrivacy?: boolean }) =>
+    apiRequest<{
+      token: string;
+      user: CurrentUser;
+      isNewUser: boolean;
+      linkedExistingAccount: boolean;
+      passwordLoginDisabled: boolean;
+    }>('/api/auth/google', { method: 'POST', body, skipAuth: true }),
+
+  /** Sunucu tarafında Google ile girişin açık olup olmadığı. */
+  googleConfig: () =>
+    apiRequest<{ enabled: boolean; configuredClientCount: number }>('/api/auth/google/config', {
       skipAuth: true,
     }),
 
