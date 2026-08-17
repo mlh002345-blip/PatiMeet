@@ -5,6 +5,8 @@ import { api } from '../../src/api';
 import { EventCard } from '../../src/components/cards';
 import {
   AppText,
+  AppHeader,
+  Banner,
   Button,
   ChoiceGroup,
   EmptyState,
@@ -33,6 +35,8 @@ export default function EventsScreen() {
   const [scope, setScope] = useState<Scope>('upcoming');
   const [type, setType] = useState<string | null>(null);
   const [onlyMyDistrict, setOnlyMyDistrict] = useState(true);
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const loader = useLoader(
     () =>
@@ -63,12 +67,32 @@ export default function EventsScreen() {
     },
   };
 
+  async function quickJoin(eventId: string) {
+    if ((user?.dogs?.length ?? 0) !== 1) {
+      router.push(`/event/${eventId}`);
+      return;
+    }
+    setActionError(null);
+    setJoiningId(eventId);
+    try {
+      await api.joinEvent(eventId, user?.dogs?.[0]?.id);
+      await loader.reload();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Etkinliğe katılınamadı.');
+    } finally {
+      setJoiningId(null);
+    }
+  }
+
   return (
     <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
+      <AppHeader onNotifications={() => router.push('/settings/notifications')} />
       <AppText variant="display">Etkinlikler</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
-        Yürüyüşlere katıl veya kendi buluşmanı oluştur.
+        Birlikte yürüyüşler ve buluşmalar.
       </AppText>
+
+      {actionError ? <Banner tone="error" message={actionError} /> : null}
 
       <Button
         label="+ Yürüyüş oluştur"
@@ -138,6 +162,8 @@ export default function EventsScreen() {
               key={event.id}
               event={event}
               onPress={() => router.push(`/event/${event.id}`)}
+              onJoin={!event.hasJoined && !event.isOwner && !event.isFull ? () => quickJoin(event.id) : undefined}
+              joining={joiningId === event.id}
             />
           ))}
         </View>

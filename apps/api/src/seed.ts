@@ -26,6 +26,7 @@ interface SeedUser {
     energy: string;
     sociability: string;
     bio: string;
+    photoUrl: string;
   };
 }
 
@@ -44,6 +45,7 @@ const users: SeedUser[] = [
       energy: 'dengeli',
       sociability: 'sosyal',
       bio: 'Top getirmeye bayılır, çocuklarla çok iyi anlaşır.',
+      photoUrl: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=800&auto=format&fit=crop',
     },
   },
   {
@@ -60,6 +62,7 @@ const users: SeedUser[] = [
       energy: 'enerjik',
       sociability: 'sosyal',
       bio: 'Çok zeki, komut öğrenmeye meraklı. Koşmayı çok sever.',
+      photoUrl: 'https://images.unsplash.com/photo-1507146426996-ef05306b995a?w=800&auto=format&fit=crop',
     },
   },
   {
@@ -76,6 +79,7 @@ const users: SeedUser[] = [
       energy: 'dengeli',
       sociability: 'cekingen',
       bio: 'İlk tanışmada çekingen ama alışınca çok oyuncu.',
+      photoUrl: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=800&auto=format&fit=crop',
     },
   },
   {
@@ -92,6 +96,7 @@ const users: SeedUser[] = [
       energy: 'enerjik',
       sociability: 'secici',
       bio: 'Uzun yürüyüşlerin kralı. Bazı köpeklerle mesafeli olabiliyor.',
+      photoUrl: 'https://images.unsplash.com/photo-1605568427561-40dd23c2acea?w=800&auto=format&fit=crop',
     },
   },
   {
@@ -108,6 +113,7 @@ const users: SeedUser[] = [
       energy: 'sakin',
       sociability: 'sosyal',
       bio: 'Sakin, uysal ve çok sevecen. Kısa yürüyüşler ona yetiyor.',
+      photoUrl: 'https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?w=800&auto=format&fit=crop',
     },
   },
 ];
@@ -162,8 +168,8 @@ async function main(): Promise<void> {
     const dogId = newId();
     await db.exec(
       `INSERT INTO dogs
-         (id, owner_id, name, breed, birth_year, size, energy, sociability, bio, vaccinated, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, $10, $10)`,
+         (id, owner_id, name, breed, birth_year, size, energy, sociability, bio, vaccinated, photo_url, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, $10, $11, $11)`,
       [
         dogId,
         userId,
@@ -174,6 +180,7 @@ async function main(): Promise<void> {
         seed.dog.energy,
         seed.dog.sociability,
         seed.dog.bio,
+        seed.dog.photoUrl,
         ts,
       ]
     );

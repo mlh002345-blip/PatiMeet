@@ -14,6 +14,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SymbolView } from 'expo-symbols';
 import { colors, radius, shadow, spacing, typography } from '../theme';
 
 // ---------------------------------------------------------------------------
@@ -109,6 +110,28 @@ export function Button({
         <Text style={[typography.bodyStrong, { color: palette.fg }]}>{label}</Text>
       )}
     </Pressable>
+  );
+}
+
+/** Sekme ekranlarında marka ve bildirim erişimini tutarlı gösterir. */
+export function AppHeader({ onNotifications }: { onNotifications?: () => void }) {
+  return (
+    <View style={styles.appHeader}>
+      <AppText variant="title" color={colors.primary}>PatiMeet</AppText>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Bildirimler"
+        hitSlop={10}
+        onPress={onNotifications}
+        style={({ pressed }) => [styles.headerIcon, pressed && { opacity: 0.7 }]}
+      >
+        <SymbolView
+          name={{ ios: 'bell', android: 'notifications', web: 'notifications' }}
+          size={22}
+          tintColor={colors.text}
+        />
+      </Pressable>
+    </View>
   );
 }
 
@@ -567,14 +590,21 @@ export function SearchField({
   placeholder: string;
 }) {
   return (
-    <TextInput
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      placeholderTextColor={colors.textSubtle}
-      style={styles.input}
-      autoCorrect={false}
-    />
+    <View style={styles.searchWrap}>
+      <SymbolView
+        name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }}
+        size={20}
+        tintColor={colors.textSubtle}
+      />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textSubtle}
+        style={styles.searchInput}
+        autoCorrect={false}
+      />
+    </View>
   );
 }
 
@@ -637,6 +667,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
   },
+  appHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
+  },
+  headerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -657,6 +703,23 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
     minHeight: 52,
+    fontSize: 15,
+    color: colors.text,
+  },
+  searchWrap: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: 50,
+    marginLeft: spacing.sm,
     fontSize: 15,
     color: colors.text,
   },

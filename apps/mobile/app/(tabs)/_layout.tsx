@@ -1,6 +1,6 @@
 import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { api } from '../../src/api';
 import { LoadingState } from '../../src/components/ui';
 import { useSession } from '../../src/session';
@@ -73,28 +73,28 @@ export default function TabsLayout() {
         name="home"
         options={{
           title: 'Ana Sayfa',
-          tabBarIcon: ({ focused }) => <TabIcon glyph="⌂" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'house', android: 'home', web: 'home' }} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="discover"
         options={{
           title: 'Keşfet',
-          tabBarIcon: ({ focused }) => <TabIcon glyph="●" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'pawprint', android: 'pets', web: 'pets' }} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="events"
         options={{
           title: 'Etkinlikler',
-          tabBarIcon: ({ focused }) => <TabIcon glyph="▣" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="messages"
         options={{
           title: 'Mesajlar',
-          tabBarIcon: ({ focused }) => <TabIcon glyph="▢" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'bubble.left.and.bubble.right', android: 'chat_bubble', web: 'chat_bubble' }} focused={focused} />,
           tabBarBadge: unread > 0 ? unread : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.accent, fontSize: 10 },
         }}
@@ -103,7 +103,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profil',
-          tabBarIcon: ({ focused }) => <TabIcon glyph="○" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'person', android: 'person', web: 'person' }} focused={focused} />,
         }}
       />
     </Tabs>
@@ -111,9 +111,9 @@ export default function TabsLayout() {
 }
 
 /**
- * Yeni paket gerektirmeyen, tek renkli ve platformlar arası tutarlı semboller.
+ * Expo'nun platformlar arası profesyonel çizgi sembolleri.
  */
-function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
+function TabIcon({ name, focused }: { name: SymbolViewProps['name']; focused: boolean }) {
   const color = focused ? colors.primary : colors.textSubtle;
-  return <Text style={{ color, fontSize: 22, fontWeight: '700' }}>{glyph}</Text>;
+  return <SymbolView name={name} size={22} tintColor={color} />;
 }

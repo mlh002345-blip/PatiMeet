@@ -5,6 +5,7 @@ import { api, type EventSummary } from '../../src/api';
 import { ActionCard, EventCard } from '../../src/components/cards';
 import {
   AppText,
+  AppHeader,
   Banner,
   Card,
   EmptyState,
@@ -47,6 +48,7 @@ export default function HomeScreen() {
 
   return (
     <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
+      <AppHeader onNotifications={() => router.push('/settings/notifications')} />
       {/* Selamlama */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>

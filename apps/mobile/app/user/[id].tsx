@@ -80,12 +80,12 @@ export default function UserProfileScreen() {
 
       {/* Köpek ön planda */}
       {focused ? (
-        <Card>
+        <Card style={styles.profileCard}>
           <View style={{ alignItems: 'center' }}>
             {focused.photoUrl ? (
               <Image source={{ uri: focused.photoUrl }} style={styles.hero} />
             ) : (
-              <Avatar name={focused.name} size={110} emoji="🐕" />
+              <View style={styles.heroFallback}><Avatar name={focused.name} size={110} /></View>
             )}
 
             <AppText variant="display" style={{ marginTop: spacing.lg }}>
@@ -233,10 +233,21 @@ export default function UserProfileScreen() {
 
 const styles = StyleSheet.create({
   hero: {
-    width: 110,
-    height: 110,
-    borderRadius: radius.pill,
+    width: '100%',
+    height: 220,
+    borderRadius: radius.lg,
     backgroundColor: colors.surfaceMuted,
+  },
+  heroFallback: {
+    width: '100%',
+    height: 180,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileCard: {
+    padding: spacing.md,
   },
   tagRow: {
     flexDirection: 'row',

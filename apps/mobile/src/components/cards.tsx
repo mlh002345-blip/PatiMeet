@@ -1,17 +1,17 @@
 import React from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import type { DiscoverItem, EventSummary } from '../api';
 import {
   dogAgeLabel,
   dogSizeLabels,
   energyLabels,
-  eventTypeEmoji,
   eventTypeLabels,
   formatEventDate,
   labelFor,
   sociabilityLabels,
 } from '../labels';
-import { colors, spacing } from '../theme';
+import { colors, radius, spacing } from '../theme';
 import { AppText, Avatar, Card, Tag } from './ui';
 import { MatchBadge } from './MatchScore';
 
@@ -68,16 +68,31 @@ export function EventCard({
   event,
   onPress,
   compact,
+  onJoin,
+  joining,
 }: {
   event: EventSummary;
   onPress: () => void;
   compact?: boolean;
+  onJoin?: () => void;
+  joining?: boolean;
 }) {
+  const eventImage = event.type === 'yuruyus'
+    ? 'https://images.unsplash.com/photo-1558788353-f76d92427f16?w=600&auto=format&fit=crop'
+    : event.type === 'egitim'
+      ? 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600&auto=format&fit=crop'
+      : 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=600&auto=format&fit=crop';
+  const date = new Date(event.startsAt);
+  const day = date.toLocaleDateString('tr-TR', { day: 'numeric' });
+  const month = date.toLocaleDateString('tr-TR', { month: 'short' });
+
   return (
-    <Card onPress={onPress} style={{ marginBottom: spacing.md }}>
-      <View style={styles.row}>
-        <View style={styles.eventIcon}>
-          <AppText variant="title">{eventTypeEmoji[event.type] ?? '🐾'}</AppText>
+    <Card onPress={onPress} style={styles.eventCard}>
+      <View style={styles.eventContent}>
+        <Image source={{ uri: eventImage }} style={styles.eventPhoto} />
+        <View style={styles.dateBlock}>
+          <AppText variant="title">{day}</AppText>
+          <AppText variant="caption" color={colors.textMuted}>{month}</AppText>
         </View>
 
         <View style={styles.rowBody}>
@@ -90,20 +105,32 @@ export function EventCard({
           <AppText variant="caption" color={colors.textMuted} numberOfLines={1}>
             {event.district} · {labelFor(eventTypeLabels, event.type)}
           </AppText>
+          <View style={styles.eventMeta}>
+            <SymbolView name={{ ios: 'clock', android: 'schedule', web: 'schedule' }} size={14} tintColor={colors.textMuted} />
+            <AppText variant="caption" color={colors.textMuted}>{formatEventDate(event.startsAt).split('·').pop()?.trim()}</AppText>
+            <SymbolView name={{ ios: 'person.2', android: 'group', web: 'group' }} size={14} tintColor={colors.textMuted} />
+            <AppText variant="caption" color={colors.textMuted}>{event.participantCount}/{event.capacity}</AppText>
+          </View>
         </View>
       </View>
 
       {!compact ? (
-        <View style={styles.tagRow}>
-          <Tag
-            label={
-              event.isFull ? 'Kontenjan doldu' : `${event.spotsLeft} kişilik yer var`
-            }
-            tone={event.isFull ? 'danger' : 'success'}
-          />
-          <Tag label={labelFor(dogSizeLabels, event.dogSize)} tone="primary" />
-          {event.isOwner ? <Tag label="Etkinliğiniz" tone="accent" /> : null}
-          {event.hasJoined && !event.isOwner ? <Tag label="Katıldınız" tone="success" /> : null}
+        <View style={styles.eventFooter}>
+          <View style={styles.tagRowCompact}>
+            {event.isOwner ? <Tag label="Etkinliğiniz" tone="accent" /> : null}
+            {event.hasJoined && !event.isOwner ? <Tag label="Katıldınız" tone="success" /> : null}
+            {event.isFull ? <Tag label="Dolu" tone="danger" /> : null}
+          </View>
+          {onJoin ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={(e) => { e.stopPropagation(); onJoin(); }}
+              disabled={joining}
+              style={({ pressed }) => [styles.joinButton, pressed && { opacity: 0.82 }]}
+            >
+              <AppText variant="label" color={colors.textOnPrimary}>{joining ? 'Katılıyor…' : 'Katıl'}</AppText>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </Card>
@@ -167,13 +194,51 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.sm,
   },
-  eventIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: colors.accentLight,
+  eventCard: {
+    marginBottom: spacing.md,
+    padding: 0,
+    overflow: 'hidden',
+  },
+  eventContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    padding: spacing.md,
+  },
+  eventPhoto: {
+    width: 76,
+    height: 82,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+  },
+  dateBlock: {
+    width: 42,
+    alignItems: 'center',
+    marginLeft: spacing.sm,
+  },
+  eventMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: spacing.xs,
+  },
+  eventFooter: {
+    minHeight: 44,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  tagRowCompact: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  joinButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
   actionIcon: {
     width: 48,

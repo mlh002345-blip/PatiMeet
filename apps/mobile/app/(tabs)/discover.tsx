@@ -5,6 +5,7 @@ import { api } from '../../src/api';
 import { DogCard } from '../../src/components/cards';
 import {
   AppText,
+  AppHeader,
   ChoiceGroup,
   EmptyState,
   ErrorState,
@@ -60,9 +61,10 @@ export default function DiscoverScreen() {
 
   return (
     <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
+      <AppHeader onNotifications={() => router.push('/settings/notifications')} />
       <AppText variant="display">Keşfet</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
-        Yakınındaki köpekleri gör, sahibine mesaj gönder.
+        Yakınındaki köpekleri gör, birlikte sosyalleş.
       </AppText>
 
       <View style={{ marginTop: spacing.lg }}>

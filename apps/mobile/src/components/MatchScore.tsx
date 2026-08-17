@@ -89,7 +89,7 @@ export function MatchBreakdownCard({
 }) {
   const palette = levelColor(match.level);
   const [expanded, setExpanded] = useState(false);
-  const visibleFactors = expanded ? match.factors : match.factors.slice(0, 3);
+  const visibleFactors = expanded ? match.factors : match.factors.slice(0, 4);
 
   return (
     <Card>
@@ -103,6 +103,13 @@ export function MatchBreakdownCard({
         <View style={{ flex: 1, marginLeft: spacing.lg }}>
           <AppText variant="heading" color={palette.fg}>
             {LEVEL_LABELS[match.level]}
+          </AppText>
+          <AppText variant="caption" color={colors.textMuted}>
+            {match.level === 'yuksek'
+              ? 'Birlikte iyi bir ekip olabilirsiniz.'
+              : match.level === 'orta'
+                ? 'İlk buluşmayı sakin ve kontrollü planlayın.'
+                : 'Tanışmayı kısa ve dikkatli tutmanız iyi olur.'}
           </AppText>
           {viewerDogName && targetDogName ? (
             <AppText variant="caption" color={colors.textMuted}>
@@ -126,7 +133,7 @@ export function MatchBreakdownCard({
           style={styles.expandButton}
         >
           <AppText variant="label" color={colors.primary}>
-            {expanded ? 'Ayrıntıları daralt' : `${match.factors.length - 3} ayrıntı daha göster`}
+            {expanded ? 'Ayrıntıları daralt' : `${match.factors.length - 4} ayrıntı daha göster`}
           </AppText>
         </Pressable>
       ) : null}
@@ -174,6 +181,8 @@ const styles = StyleSheet.create({
     borderRadius: 34,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 6,
+    borderColor: colors.success,
   },
   factor: {
     marginBottom: spacing.lg,
