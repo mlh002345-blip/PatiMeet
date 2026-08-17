@@ -1,5 +1,5 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { SafetySheet } from '../../src/components/SafetySheet';
@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   ChoiceGroup,
+  Field,
   ErrorState,
   LoadingState,
   ScrollScreen,
@@ -36,6 +37,9 @@ export default function EventDetailScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [rating, setRating] = useState<string | null>('5');
+  const [feltSafe, setFeltSafe] = useState<string | null>('yes');
+  const [reviewComment, setReviewComment] = useState('');
 
   const loader = useLoader(() => api.event(id), [id]);
 
@@ -98,6 +102,7 @@ export default function EventDetailScreen() {
 
   const { event, participants } = loader.data;
   const isCancelled = event.status === 'cancelled';
+  const isPast = event.startsAt <= Date.now();
 
   return (
     <ScrollScreen topInset={false}>
@@ -204,6 +209,18 @@ export default function EventDetailScreen() {
 
       {/* Aksiyonlar */}
       <View style={{ marginTop: spacing.xl }}>
+        {isPast && event.hasJoined ? (
+          <Card style={{ marginBottom: spacing.lg }}>
+            <AppText variant="heading">Etkinliği değerlendir</AppText>
+            <AppText color={colors.textMuted} style={{ marginTop: spacing.xs, marginBottom: spacing.lg }}>
+              Deneyimin topluluğun daha güvenli buluşmalar düzenlemesine yardımcı olur.
+            </AppText>
+            <ChoiceGroup label="Puanın" value={rating} onChange={setRating} options={[1,2,3,4,5].map(n=>({value:String(n),label:`${n} ★`}))} />
+            <ChoiceGroup label="Kendini güvende hissettin mi?" value={feltSafe} onChange={setFeltSafe} options={[{value:'yes',label:'Evet'},{value:'no',label:'Hayır'}]} />
+            <Field label="Yorum (isteğe bağlı)" value={reviewComment} onChangeText={setReviewComment} multiline maxLength={400} />
+            <Button label="Değerlendirmeyi gönder" loading={busy} onPress={()=>runAction(()=>api.reviewEvent(id,{rating:Number(rating),feltSafe:feltSafe==='yes',comment:reviewComment}),'Değerlendirmen kaydedildi.')} />
+          </Card>
+        ) : null}
         {event.isOwner ? (
           <>
             <Button

@@ -242,6 +242,7 @@ export interface NotificationPreferences {
   events: boolean;
   safety: boolean;
 }
+export interface LostDogPost { id:string; district:string; lastSeenArea:string; details:string; status:string; createdAt:number; isOwner:boolean; dog:Dog|null; owner:PublicUser|null }
 
 /** Köpek profili oluşturma/güncelleme gövdesi — DogForm çıktısıyla eşleşir. */
 export interface DogPayload {
@@ -261,6 +262,11 @@ export interface DogPayload {
 // ---------------------------------------------------------------------------
 
 export const api = {
+  areaSummary: () => apiRequest<{district:string;nearbyDogs:number;upcomingEvents:number;activeAlerts:number}>('/api/community/area-summary'),
+  lostDogs: (district?:string) => apiRequest<{posts:LostDogPost[]}>(`/api/community/lost-dogs${district ? `?district=${encodeURIComponent(district)}` : ''}`),
+  createLostDog: (body:{dogId:string;district:string;lastSeenArea:string;details?:string}) => apiRequest<{ok:boolean;message:string}>('/api/community/lost-dogs',{method:'POST',body}),
+  markDogFound: (id:string) => apiRequest<{ok:boolean;message:string}>(`/api/community/lost-dogs/${id}/found`,{method:'POST'}),
+  reviewEvent: (id:string,body:{rating:number;feltSafe:boolean;comment?:string}) => apiRequest<{ok:boolean;message:string}>(`/api/community/events/${id}/review`,{method:'POST',body}),
   register: (body: {
     email: string;
     password: string;

@@ -52,7 +52,7 @@ const listQuerySchema = z.object({
   district: z.string().trim().max(80).optional(),
   type: z.enum(eventTypes).optional(),
   dogSize: z.enum(dogSizes).optional(),
-  scope: z.enum(['upcoming', 'mine', 'joined']).default('upcoming'),
+  scope: z.enum(['upcoming', 'mine', 'joined', 'history']).default('upcoming'),
   limit: z.coerce.number().int().min(1).max(50).default(30),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -78,14 +78,14 @@ eventsRouter.get(
 
     if (q.scope === 'mine') {
       where.push(`e.owner_id = ${push(me.id)}`);
-    } else if (q.scope === 'joined') {
+    } else if (q.scope === 'joined' || q.scope === 'history') {
       where.push(
         `EXISTS (SELECT 1 FROM event_participants p WHERE p.event_id = e.id AND p.user_id = ${push(me.id)})`
       );
     }
 
-    // Liste her zaman gelecekteki etkinlikleri gösterir; geçmiş kayıtlar düşer.
-    where.push(`e.starts_at > ${push(nowMs())}`);
+    // Geçmiş sekmesi yalnızca katılınan ve tamamlanmış etkinlikleri döndürür.
+    where.push(q.scope === 'history' ? `e.starts_at <= ${push(nowMs())}` : `e.starts_at > ${push(nowMs())}`);
 
     if (q.district) where.push(`e.district = ${push(q.district)}`);
     if (q.type) where.push(`e.type = ${push(q.type)}`);
