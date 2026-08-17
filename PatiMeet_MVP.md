@@ -184,7 +184,7 @@ Alt menü:
 
 ## 10. Yönetim ve Moderasyon
 
-İlk sürümde özel bir admin paneli geliştirilmeyecektir. Kullanıcılar, etkinlikler ve şikâyetler kullanılan backend hizmetinin yönetim panelinden kontrol edilecektir.
+İlk sürüm için özel moderasyon paneli geliştirilmiştir. Kullanıcılar, etkinlikler ve şikâyetler bu panelden kontrol edilebilir.
 
 Yayımdan önce aşağıdaki işlemler mümkün olmalıdır:
 
@@ -195,19 +195,14 @@ Yayımdan önce aşağıdaki işlemler mümkün olmalıdır:
 
 ## 11. MVP Dışında Bırakılanlar
 
-- Kayıp köpek bildirim sistemi
-- Ayrıntılı veya yapay zekâ destekli uyum skoru
-- Etkinlik sonrası puanlama
-- Özel admin paneli
 - Harita tabanlı canlı konum
 - Veteriner ve pet-friendly mekân rehberi
 - İşletme hesapları ve B2B özellikleri
+- Pati Topluluğu forumu
 - Reklam ve sponsorlu içerik
 - Ödeme ve abonelik
 - Fotoğraf, dosya veya sesli mesaj gönderme
 - Sesli ve görüntülü arama
-- Gelişmiş bildirim tercihleri
-- Çoklu köpek yönetimi
 
 ## 12. MVP Başarı Ölçütleri
 
@@ -251,12 +246,21 @@ Geliştirme sırası:
 
 İlk kullanıcı geri bildirimlerine göre değerlendirilecek özellikler:
 
-1. Basit uyum skoru
-2. Kayıp köpek bildirimleri
-3. Etkinlik sonrası güven değerlendirmesi
-4. Anlık bildirimler
-5. Çoklu köpek profili
-6. Gelişmiş moderasyon paneli
+1. **Pati Topluluğu:** kontrollü forum; soru, deneyim paylaşımı, kategoriler, yanıt, beğeni, şikâyet ve moderasyon
+2. **Veteriner B2B ağı:** doğrulanmış klinik profilleri, nöbetçi/açık durumu, randevu, arama ve yönlendirme
+3. Klinikler için ücretli abonelik, bölgesel öne çıkarma ve performans istatistikleri
+4. Veteriner Hekimler Odası kaydı + Google Places + klinik doğrulamasından oluşan hibrit veri modeli
+5. Pet-friendly mekân rehberi
+
+## 16. Güncel Uygulama ve Altyapı Durumu
+
+- Kayıp köpek ilanı, yaklaşık bölge özeti ve etkinlik sonrası güvenlik değerlendirmesi tamamlandı.
+- Açıklanabilir uyum skoru, anlık bildirimler, çoklu köpek profili ve moderasyon paneli tamamlandı.
+- Etkinlik kapak fotoğrafları dış bağlantı yerine PatiMeet obje deposuna yükleniyor.
+- Cloudflare R2 üzerinde özel `patimeet-media` kovası oluşturuldu; public access kapalı ve Standard sınıfında.
+- R2 erişim anahtarları kullanıcı tarafından güvenli biçimde saklandı; **anahtarlar repoya veya bu belgeye yazılmadı**.
+- Canlı sunucuda kullanılması gereken değişkenler: `STORAGE_DRIVER=s3`, `S3_BUCKET=patimeet-media`, `S3_REGION=auto`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`; `S3_PUBLIC_BASE_URL` şimdilik boş kalacak.
+- Sıradaki adım: canlı API sunucusu ve PostgreSQL veritabanı kurulumu, ardından R2 anahtarlarının sunucunun gizli ayarlarına girilmesi.
 
 ---
 
