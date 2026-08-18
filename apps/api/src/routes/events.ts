@@ -15,6 +15,7 @@ import {
 } from '../domain/serialize';
 import { asyncRoute, badRequest, conflict, forbidden, notFound, parseBody } from '../http';
 import { newId } from '../ids';
+import { normalizePhotoInput } from '../domain/media';
 
 export const eventsRouter = Router();
 
@@ -39,6 +40,7 @@ const createEventSchema = z.object({
   dogSize: z.enum(dogSizes).default('hepsi'),
   description: z.string().trim().max(600).optional(),
   rules: z.string().trim().max(600).optional(),
+  coverPhotoUrl: z.string().trim().max(500).nullable().optional(),
 });
 
 /** İş kuralı: geçmiş tarihli etkinlik oluşturulamaz. */
@@ -52,7 +54,7 @@ const listQuerySchema = z.object({
   district: z.string().trim().max(80).optional(),
   type: z.enum(eventTypes).optional(),
   dogSize: z.enum(dogSizes).optional(),
-  scope: z.enum(['upcoming', 'mine', 'joined']).default('upcoming'),
+  scope: z.enum(['upcoming', 'mine', 'joined', 'history']).default('upcoming'),
   limit: z.coerce.number().int().min(1).max(50).default(30),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -78,14 +80,14 @@ eventsRouter.get(
 
     if (q.scope === 'mine') {
       where.push(`e.owner_id = ${push(me.id)}`);
-    } else if (q.scope === 'joined') {
+    } else if (q.scope === 'joined' || q.scope === 'history') {
       where.push(
         `EXISTS (SELECT 1 FROM event_participants p WHERE p.event_id = e.id AND p.user_id = ${push(me.id)})`
       );
     }
 
-    // Liste her zaman gelecekteki etkinlikleri gösterir; geçmiş kayıtlar düşer.
-    where.push(`e.starts_at > ${push(nowMs())}`);
+    // Geçmiş sekmesi yalnızca katılınan ve tamamlanmış etkinlikleri döndürür.
+    where.push(q.scope === 'history' ? `e.starts_at <= ${push(nowMs())}` : `e.starts_at > ${push(nowMs())}`);
 
     if (q.district) where.push(`e.district = ${push(q.district)}`);
     if (q.type) where.push(`e.type = ${push(q.type)}`);
@@ -145,12 +147,13 @@ eventsRouter.post(
 
     const ts = nowMs();
     const id = newId();
+    const coverPhotoUrl = await normalizePhotoInput(me.id, input.coverPhotoUrl, db);
 
     await db.tx(async (t) => {
       await t.exec(
         `INSERT INTO events
-           (id, owner_id, title, type, starts_at, district, meeting_point, capacity, dog_size, description, rules, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+           (id, owner_id, title, type, starts_at, district, meeting_point, capacity, dog_size, description, rules, cover_photo_url, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)`,
         [
           id,
           me.id,
@@ -163,6 +166,7 @@ eventsRouter.post(
           input.dogSize,
           input.description ?? '',
           input.rules ?? '',
+          coverPhotoUrl ?? null,
           ts,
         ]
       );
@@ -354,6 +358,9 @@ eventsRouter.patch(
     await ownedEvent(db, req.params.id, me.id);
     const input = parseBody(updateEventSchema, req.body);
     if (input.startsAt !== undefined) assertFutureDate(input.startsAt);
+    if (input.coverPhotoUrl !== undefined) {
+      input.coverPhotoUrl = await normalizePhotoInput(me.id, input.coverPhotoUrl, db);
+    }
 
     if (input.capacity !== undefined) {
       const count = await db.one<CountRow>(
@@ -378,6 +385,7 @@ eventsRouter.patch(
       ['dogSize', 'dog_size'],
       ['description', 'description'],
       ['rules', 'rules'],
+      ['coverPhotoUrl', 'cover_photo_url'],
     ];
 
     const columns: Array<[string, unknown]> = [];

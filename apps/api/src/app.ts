@@ -15,6 +15,7 @@ import { authRouter } from './routes/auth';
 import { discoverRouter } from './routes/discover';
 import { dogsRouter } from './routes/dogs';
 import { eventsRouter } from './routes/events';
+import { communityRouter } from './routes/community';
 import { legalRouter } from './routes/legal';
 import { createLocalMediaRouter, mediaRouter } from './routes/media';
 import { messagesRouter } from './routes/messages';
@@ -175,6 +176,7 @@ export function createApp(deps: AppDependencies = {}): express.Express {
   app.use('/api/dogs', dogsRouter);
   app.use('/api/discover', discoverRouter);
   app.use('/api/events', writeLimit, eventsRouter);
+  app.use('/api/community', writeLimit, communityRouter);
   app.use('/api/messages', writeLimit, messagesRouter);
   app.use('/api/safety', writeLimit, safetyRouter);
   app.use('/api/push', pushRouter);

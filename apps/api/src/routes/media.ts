@@ -20,7 +20,7 @@ export const mediaRouter = Router();
  * ayrıştırma bağımlılığı gerektirmez. Tür ve boyut doğrulaması bayt
  * içeriğinden yapılır (bkz. domain/media.ts).
  */
-const PURPOSES: MediaPurpose[] = ['user_photo', 'dog_photo', 'alert_photo'];
+const PURPOSES: MediaPurpose[] = ['user_photo', 'dog_photo', 'event_photo', 'alert_photo'];
 
 mediaRouter.post(
   '/:purpose',

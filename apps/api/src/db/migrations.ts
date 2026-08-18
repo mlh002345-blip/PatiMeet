@@ -226,9 +226,44 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_log(created_at DESC);
 `,
   },
+  {
+    id: '0006_community_safety_features',
+    sql: `
+CREATE TABLE IF NOT EXISTS lost_dog_posts (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  dog_id TEXT NOT NULL REFERENCES dogs(id) ON DELETE CASCADE,
+  district TEXT NOT NULL,
+  last_seen_area TEXT NOT NULL,
+  details TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_lost_dogs_active ON lost_dog_posts(status, district, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS event_reviews (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  reviewer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  felt_safe BOOLEAN NOT NULL,
+  comment TEXT NOT NULL DEFAULT '',
+  created_at BIGINT NOT NULL,
+  UNIQUE(event_id, reviewer_id)
+);
+CREATE INDEX IF NOT EXISTS idx_event_reviews_event ON event_reviews(event_id, created_at DESC);
+`,
+  },
+  {
+    id: '0007_event_cover_photos',
+    sql: `
+ALTER TABLE events ADD COLUMN IF NOT EXISTS cover_photo_url TEXT;
+`,
+  },
 
   {
-    id: '0006_multi_purpose_and_community_alerts',
+    id: '0008_multi_purpose_and_community_alerts',
     sql: `
 -- 1) "Ne arıyorsun?" alanı tek seçimden çoklu seçime geçiyor.
 --

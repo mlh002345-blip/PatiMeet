@@ -99,6 +99,12 @@ export default function HomeScreen() {
         description="Kendi buluşmanı planla, komşuların katılsın"
         onPress={() => router.push('/event/create')}
       />
+      <ActionCard
+        emoji="🛡️"
+        title="Güvenli topluluk"
+        description="Yaklaşık harita, kayıp ilanları ve güvenlik değerlendirmeleri"
+        onPress={() => router.push('/community')}
+      />
 
       {/* Yaklaşan etkinliklerim */}
       <SectionHeader
