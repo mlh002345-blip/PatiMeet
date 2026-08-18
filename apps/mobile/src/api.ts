@@ -282,6 +282,25 @@ export interface CommunityAlert {
   isOwner: boolean;
   /** Uygulama içi mesajla iletişim için ilan sahibi. */
   author: PublicUser | null;
+  /** Eski kayıp ilanı kaydından taşındıysa kaynağın kimliği. */
+  sourceLostDogId: string | null;
+}
+
+/** Yaklaşık bölge özeti — semt düzeyinde sayılar, konum verisi değil. */
+export interface AreaSummary {
+  district: string;
+  nearbyDogs: number;
+  upcomingEvents: number;
+  activeAlerts: number;
+  lostDogAlerts: number;
+}
+
+/** Etkinlik sonrası güven değerlendirmesi. */
+export interface EventReview {
+  rating: number;
+  feltSafe: boolean;
+  comment: string;
+  createdAt: number;
 }
 
 export interface AlertPayload {
@@ -300,6 +319,7 @@ export interface NotificationPreferences {
   events: boolean;
   safety: boolean;
 }
+/** @deprecated Kayıp ilanları artık `CommunityAlert` (`kayip_hayvan` türü). */
 export interface LostDogPost { id:string; district:string; lastSeenArea:string; details:string; status:string; createdAt:number; isOwner:boolean; dog:Dog|null; owner:PublicUser|null }
 
 /** Köpek profili oluşturma/güncelleme gövdesi — DogForm çıktısıyla eşleşir. */
@@ -320,11 +340,19 @@ export interface DogPayload {
 // ---------------------------------------------------------------------------
 
 export const api = {
-  areaSummary: () => apiRequest<{district:string;nearbyDogs:number;upcomingEvents:number;activeAlerts:number}>('/api/community/area-summary'),
+  areaSummary: () => apiRequest<AreaSummary>('/api/community/area-summary'),
   lostDogs: (district?:string) => apiRequest<{posts:LostDogPost[]}>(`/api/community/lost-dogs${district ? `?district=${encodeURIComponent(district)}` : ''}`),
   createLostDog: (body:{dogId:string;district:string;lastSeenArea:string;details?:string}) => apiRequest<{ok:boolean;message:string}>('/api/community/lost-dogs',{method:'POST',body}),
   markDogFound: (id:string) => apiRequest<{ok:boolean;message:string}>(`/api/community/lost-dogs/${id}/found`,{method:'POST'}),
-  reviewEvent: (id:string,body:{rating:number;feltSafe:boolean;comment?:string}) => apiRequest<{ok:boolean;message:string}>(`/api/community/events/${id}/review`,{method:'POST',body}),
+  reviewEvent: (id: string, body: { rating: number; feltSafe: boolean; comment?: string }) =>
+    apiRequest<{ ok: boolean; message: string }>(`/api/community/events/${id}/review`, {
+      method: 'POST',
+      body,
+    }),
+
+  /** Kullanıcının bu etkinliğe daha önce yaptığı değerlendirme (yoksa null). */
+  eventReview: (id: string) =>
+    apiRequest<{ review: EventReview | null }>(`/api/community/events/${id}/review`),
   register: (body: {
     email: string;
     password: string;

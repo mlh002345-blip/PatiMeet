@@ -319,6 +319,67 @@ CREATE TABLE IF NOT EXISTS community_alert_photos (
 CREATE INDEX IF NOT EXISTS idx_alert_photos_alert ON community_alert_photos(alert_id, position);
 `,
   },
+
+  {
+    id: '0009_merge_lost_dog_posts_into_alerts',
+    sql: `
+-- İki ayrı kayıp köpek yapısı tek yapıda birleşiyor: lost_dog_posts kayıtları
+-- community_alerts içine "kayip_hayvan" türü olarak taşınır.
+--
+-- Kaynak tablo bilinçli olarak SİLİNMİYOR. Geri dönüş gerekirse veri yerinde
+-- durur; uygulama artık ona yazmaz, yalnızca bu geçiş okur.
+
+-- Taşınan kaydın kaynağı. Hem tekrar çalıştırmada çift kayıt oluşmasını
+-- engeller hem de hangi ilanın nereden geldiğini izlenebilir kılar.
+ALTER TABLE community_alerts ADD COLUMN IF NOT EXISTS source_lost_dog_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_source_lost_dog
+  ON community_alerts(source_lost_dog_id) WHERE source_lost_dog_id IS NOT NULL;
+
+-- İlanları taşı.
+--
+--   animal_name  ← köpeğin adı
+--   area_note    ← son görülen yaklaşık bölge
+--   occurred_at  ← ilan tarihi (eski yapıda ayrı bir son görülme zamanı yok)
+--   status       ← found kayıtları çözüldü sayılır
+--
+-- NOT EXISTS koşulu geçişi tekrar çalıştırılabilir yapar: daha önce taşınmış
+-- bir ilan ikinci kez eklenmez.
+INSERT INTO community_alerts
+  (id, author_id, type, animal_name, district, area_note, occurred_at,
+   description, status, created_at, updated_at, source_lost_dog_id)
+SELECT gen_random_uuid()::text,
+       p.owner_id,
+       'kayip_hayvan',
+       d.name,
+       p.district,
+       p.last_seen_area,
+       p.created_at,
+       p.details,
+       CASE WHEN p.status = 'active' THEN 'active' ELSE 'resolved' END,
+       p.created_at,
+       p.updated_at,
+       p.id
+  FROM lost_dog_posts p
+  JOIN dogs d ON d.id = p.dog_id
+ WHERE NOT EXISTS (
+         SELECT 1 FROM community_alerts ca WHERE ca.source_lost_dog_id = p.id
+       );
+
+-- Köpeğin profil fotoğrafı ilanın fotoğrafı olur; ilan görselsiz kalmasın.
+-- Alan hem obje deposu anahtarı hem düz adres taşıyabilir (bkz. storage/index.ts),
+-- ikisi de olduğu gibi çözümlenir.
+INSERT INTO community_alert_photos (id, alert_id, storage_key, position, created_at)
+SELECT gen_random_uuid()::text, ca.id, d.photo_url, 0, ca.created_at
+  FROM community_alerts ca
+  JOIN lost_dog_posts p ON p.id = ca.source_lost_dog_id
+  JOIN dogs d ON d.id = p.dog_id
+ WHERE d.photo_url IS NOT NULL
+   AND d.photo_url <> ''
+   AND NOT EXISTS (
+         SELECT 1 FROM community_alert_photos cp WHERE cp.alert_id = ca.id AND cp.position = 0
+       );
+`,
+  },
 ];
 
 export interface MigrationResult {

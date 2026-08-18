@@ -5,10 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, ApiError } from '../../src/api';
 import { PhotoPicker } from '../../src/components/PhotoPicker';
 import { StepHeader } from '../../src/components/StepHeader';
-import { Banner, Button, Field, MultiChoiceGroup, Screen } from '../../src/components/ui';
-import { purposeLabels } from '../../src/labels';
+import { AppText, Banner, Button, Field, MultiChoiceGroup, Screen } from '../../src/components/ui';
+import { legacyPurposes, purposeLabels, SELECTABLE_PURPOSES } from '../../src/labels';
 import { useSession } from '../../src/session';
-import { spacing } from '../../src/theme';
+import { colors, spacing } from '../../src/theme';
 
 /**
  * Kullanıcı profili oluşturma (3/14).
@@ -101,10 +101,46 @@ export default function OnboardingProfileScreen() {
           <MultiChoiceGroup
             label="Ne arıyorsun?"
             hint="Birden fazla seçebilirsin."
-            options={Object.entries(purposeLabels).map(([value, label]) => ({ value, label }))}
-            values={purposes}
-            onChange={setPurposes}
+            options={SELECTABLE_PURPOSES.map((value) => ({
+              value,
+              label: purposeLabels[value],
+            }))}
+            values={purposes.filter((value) =>
+              (SELECTABLE_PURPOSES as readonly string[]).includes(value)
+            )}
+            onChange={(next) => {
+              /**
+               * Seçenek listesinde artık yer almayan eski başlıklar (ör.
+               * "Eğitim ve çalışma") korunur; kullanıcı aşağıdaki nottan
+               * kaldırmadıkça kaydederken silinmez.
+               */
+              setPurposes([...next, ...legacyPurposes(purposes)]);
+            }}
           />
+
+          {legacyPurposes(purposes).length > 0 ? (
+            <View style={{ marginTop: -spacing.md, marginBottom: spacing.lg }}>
+              <AppText variant="caption" color={colors.textMuted}>
+                Eski seçimin korunuyor: {legacyPurposes(purposes)
+                  .map((value) => purposeLabels[value] ?? value)
+                  .join(', ')}
+              </AppText>
+              <AppText
+                variant="caption"
+                color={colors.danger}
+                style={{ marginTop: spacing.xs, textDecorationLine: 'underline' }}
+                onPress={() =>
+                  setPurposes(
+                    purposes.filter((value) =>
+                      (SELECTABLE_PURPOSES as readonly string[]).includes(value)
+                    )
+                  )
+                }
+              >
+                Kaldır
+              </AppText>
+            </View>
+          ) : null}
 
           <Field
             label="Kısa açıklama"

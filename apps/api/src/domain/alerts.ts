@@ -174,6 +174,8 @@ export interface AlertRow {
   status: string;
   created_at: number;
   updated_at: number;
+  /** Bu ilan eski lost_dog_posts kaydından taşındıysa kaynağın kimliği. */
+  source_lost_dog_id: string | null;
 }
 
 interface PhotoRow {
@@ -192,17 +194,38 @@ export interface CreateAlertInput {
 }
 
 /**
+ * Oluşturma seçenekleri.
+ *
+ * Yalnızca sunucunun kendi ürettiği çağrılar (eski uçların uyumluluk katmanı
+ * ve veri geçişi) bu gevşetmeleri kullanır; istemciden gelen normal istekler
+ * her zaman tam doğrulamadan geçer.
+ */
+export interface CreateAlertOptions {
+  /**
+   * Fotoğraf değerleri sunucu tarafından belirlendi (ör. kullanıcının kendi
+   * köpeğinin profil fotoğrafı), sahiplik kontrolü atlanır.
+   */
+  trustedPhotos?: boolean;
+  /** Tür fotoğraf zorunlu kılsa bile fotoğrafsız kabul edilir. */
+  allowMissingPhoto?: boolean;
+}
+
+/**
  * Girdi doğrulaması. Zod şeması alan biçimlerini kontrol eder; buradaki
  * kurallar türe göre değişen zorunlulukları ve konum güvenliğini uygular.
  */
-export function validateAlertInput(input: CreateAlertInput, now = nowMs()): void {
+export function validateAlertInput(
+  input: CreateAlertInput,
+  now = nowMs(),
+  options: CreateAlertOptions = {}
+): void {
   const info = alertTypeInfo(input.type);
   const photos = input.photoKeys ?? [];
 
   if (photos.length > MAX_ALERT_PHOTOS) {
     throw badRequest(`En fazla ${MAX_ALERT_PHOTOS} fotoğraf ekleyebilirsiniz.`, 'too_many_photos');
   }
-  if (info.requiresPhoto && photos.length === 0) {
+  if (info.requiresPhoto && photos.length === 0 && !options.allowMissingPhoto) {
     throw badRequest(
       `${info.label} ilanı için en az 1 fotoğraf gerekiyor.`,
       'photo_required'
@@ -236,14 +259,17 @@ export function validateAlertInput(input: CreateAlertInput, now = nowMs()): void
 export async function createAlert(
   authorId: string,
   input: CreateAlertInput,
-  db: Db = getDb()
+  db: Db = getDb(),
+  options: CreateAlertOptions = {}
 ): Promise<AlertRow> {
-  validateAlertInput(input);
+  validateAlertInput(input, nowMs(), options);
 
   const photos = input.photoKeys ?? [];
   // Fotoğraflar yalnızca ilanı açan kullanıcının kendi yüklediği görseller olabilir.
-  for (const key of photos) {
-    await assertOwnedMediaKey(authorId, key, db);
+  if (!options.trustedPhotos) {
+    for (const key of photos) {
+      await assertOwnedMediaKey(authorId, key, db);
+    }
   }
 
   const ts = nowMs();
@@ -319,6 +345,8 @@ export async function publicAlert(
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    /** Eski kayıp ilanı kaydından taşındıysa kaynağın kimliği (izlenebilirlik). */
+    sourceLostDogId: row.source_lost_dog_id,
     photos: (await Promise.all(photoKeys.map(resolveMediaUrl))).filter(
       (url): url is string => url !== null
     ),

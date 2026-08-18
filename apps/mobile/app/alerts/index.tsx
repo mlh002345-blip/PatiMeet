@@ -1,17 +1,20 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { api } from '../../src/api';
+import { api, type AreaSummary, type EventSummary } from '../../src/api';
 import { AlertCard } from '../../src/components/cards';
 import {
   AppText,
   Button,
+  Card,
   EmptyState,
   ErrorState,
   LoadingState,
   ScrollScreen,
+  SectionHeader,
+  Tag,
 } from '../../src/components/ui';
-import { alertTypeEmoji, alertTypeLabels } from '../../src/labels';
+import { alertTypeEmoji, alertTypeLabels, formatShortDate } from '../../src/labels';
 import { useSession } from '../../src/session';
 import { colors, radius, spacing } from '../../src/theme';
 import { useLoader } from '../../src/useLoader';
@@ -29,15 +32,27 @@ export default function AlertsScreen() {
   const [onlyMyDistrict, setOnlyMyDistrict] = useState(false);
 
   const loader = useLoader(
-    () =>
-      api.alerts({
-        type: type ?? undefined,
-        district: onlyMyDistrict ? (user?.district ?? undefined) : undefined,
-      }),
+    async () => {
+      const [list, summary, history] = await Promise.all([
+        api.alerts({
+          type: type ?? undefined,
+          district: onlyMyDistrict ? (user?.district ?? undefined) : undefined,
+        }),
+        /**
+         * Özet ve geçmiş etkinlikler yardımcı bölümler: biri hata verse de
+         * bildirim listesi açılmalı.
+         */
+        api.areaSummary().catch(() => null),
+        api.events({ scope: 'history' }).catch(() => ({ events: [] as EventSummary[] })),
+      ]);
+      return { alerts: list.alerts, summary, history: history.events };
+    },
     [type, onlyMyDistrict, user?.district]
   );
 
   const alerts = loader.data?.alerts ?? [];
+  // Değerlendirilebilecek etkinlikler: katıldığın, bitmiş olanlar.
+  const reviewable = (loader.data?.history ?? []).filter((event) => event.hasJoined).slice(0, 3);
 
   return (
     <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
@@ -52,6 +67,10 @@ export default function AlertsScreen() {
         onPress={() => router.push('/alerts/create')}
         style={{ marginTop: spacing.lg }}
       />
+
+      {/* Yaklaşık bölge özeti */}
+      <SectionHeader title="Yaklaşık bölge" />
+      <AreaMapCard summary={loader.data?.summary ?? null} district={user?.district ?? null} />
 
       {/* Tür filtresi */}
       <View style={styles.filterRow}>
@@ -97,7 +116,78 @@ export default function AlertsScreen() {
           />
         ))
       )}
+
+      {/* Etkinlik sonrası güven değerlendirmesi */}
+      <SectionHeader title="Etkinlik sonrası güven" />
+      <Card>
+        <AppText variant="bodyStrong">Katıldığın etkinliği değerlendir</AppText>
+        <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
+          Etkinlik bittikten sonra 1–5 yıldız, "güvende hissettim" bilgisi ve isteğe bağlı bir
+          yorum bırakabilirsin. Ciddi durumlarda şikâyet sistemi moderasyona iletir.
+        </AppText>
+      </Card>
+
+      {reviewable.length > 0 ? (
+        reviewable.map((event) => (
+          <Card key={event.id} style={{ marginTop: spacing.sm }}>
+            <AppText variant="bodyStrong" numberOfLines={1}>
+              {event.title}
+            </AppText>
+            <AppText variant="caption" color={colors.textMuted}>
+              {event.district} · {formatShortDate(event.startsAt)}
+            </AppText>
+            <Button
+              label="Değerlendir"
+              variant="secondary"
+              style={{ marginTop: spacing.md }}
+              onPress={() => router.push(`/event/${event.id}`)}
+            />
+          </Card>
+        ))
+      ) : (
+        <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.sm }}>
+          Değerlendirebileceğin geçmiş etkinlik yok.
+        </AppText>
+      )}
     </ScrollScreen>
+  );
+}
+
+/**
+ * Yaklaşık bölge kartı.
+ *
+ * Soyut bir yoğunluk görseli — gerçek bir harita katmanı, adres veya anlık
+ * konum DEĞİL. Sunucu yalnızca semt düzeyinde sayı döndürür.
+ */
+function AreaMapCard({
+  summary,
+  district,
+}: {
+  summary: AreaSummary | null;
+  district: string | null;
+}) {
+  return (
+    <Card>
+      <View style={styles.map}>
+        <View style={[styles.zone, { left: '12%', top: 35, width: 120, height: 90 }]} />
+        <View style={[styles.zone, { right: '8%', top: 75, width: 145, height: 110, opacity: 0.55 }]} />
+        <View style={styles.pin}>
+          <AppText variant="title">🐾</AppText>
+        </View>
+      </View>
+
+      <View style={styles.summaryTags}>
+        <Tag label={`📍 ${district ?? 'Semtin'} çevresi`} tone="primary" />
+        <Tag label={`${summary?.nearbyDogs ?? 0} köpek`} tone="success" />
+        <Tag label={`${summary?.upcomingEvents ?? 0} etkinlik`} tone="accent" />
+        <Tag label={`${summary?.lostDogAlerts ?? 0} kayıp ilanı`} tone="danger" />
+      </View>
+
+      <AppText variant="caption" color={colors.textMuted} style={{ marginTop: spacing.sm }}>
+        İşaretler gerçek adres veya anlık konum değildir. Güvenlik için yalnızca yaklaşık bölge
+        gösterilir.
+      </AppText>
+    </Card>
   );
 }
 
@@ -129,6 +219,36 @@ function FilterChip({
 }
 
 const styles = StyleSheet.create({
+  map: {
+    height: 210,
+    borderRadius: radius.lg,
+    backgroundColor: '#E8E1D7',
+    overflow: 'hidden',
+    marginBottom: spacing.md,
+  },
+  zone: {
+    position: 'absolute',
+    borderRadius: 80,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  pin: {
+    position: 'absolute',
+    left: '47%',
+    top: 78,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
   filterRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

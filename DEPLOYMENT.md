@@ -78,6 +78,14 @@ Eski kolon **silinmez** ve yazma sırasında ilk seçimle güncellenmeye devam e
 sürümü geri almanız gerekirse veri yerinde durur. Geçiş `cardinality` kontrolü
 sayesinde tekrar çalıştırılsa bile sonradan yapılmış çoklu seçimleri ezmez.
 
+`0009_merge_lost_dog_posts_into_alerts` eski `lost_dog_posts` kayıtlarını
+birleşik `community_alerts` yapısına taşır: köpeğin adı, semt, son görülen
+yaklaşık bölge, açıklama, sahibi ve zaman damgaları korunur; köpeğin profil
+fotoğrafı ilanın ilk fotoğrafı olur; `found` kayıtları `resolved` olur.
+Taşınan her kayıt `source_lost_dog_id` ile işaretlendiği ve ekleme
+`NOT EXISTS` koşuluyla yapıldığı için geçiş **tekrar çalıştırılabilir** —
+ikinci kez çalışsa da çift kayıt üretmez. Kaynak tablo silinmez.
+
 ### 2.4 Yedekleme
 
 - **Sağlayıcı yedeği:** günlük otomatik yedek + noktaya dönüş (PITR) açın.

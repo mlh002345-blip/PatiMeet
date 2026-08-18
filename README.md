@@ -40,9 +40,13 @@ Tek kod tabanı hem iOS hem Android'e derlenir; ayrı Swift/Kotlin projesi yoktu
   yaklaşık bölge ve son görülme zamanı ister; iletişim uygulama içi mesajla
   kurulur. **Kesin konum veya açık adres hiç toplanmaz** — koordinat, harita
   bağlantısı ve kapı/daire numarası sunucu tarafından reddedilir.
+  Aynı ekran yaklaşık bölge özetini ve etkinlik sonrası güven değerlendirmesi
+  girişini de barındırır; tek kalıcı adres `/alerts`, eski `/community` yolu
+  buraya yönlenir.
 - **Çoklu seçimli "Ne arıyorsun?"** — yürüyüş arkadaşı, oyun buluşması,
   sosyalleşme ve etkinlik birlikte seçilebilir; uyum skoru ortak beklentilere
-  göre hesaplanır.
+  göre hesaplanır. Tek seçimli dönemden kalan "eğitim ve çalışma" değeri veride
+  korunur ve profilde gösterilir, ancak yeni seçenek olarak sunulmaz.
 - **Push bildirimleri** — mesaj, etkinlik ve güvenlik olayları; kategori
   tercihleri kullanıcıda. Yeni bir topluluk bildirimi aynı semtteki
   kullanıcılara güvenlik kategorisinden iletilir.
@@ -214,7 +218,8 @@ MVP belgesindeki 14 ekranın tamamı uygulandı:
 olarak uygulandı: `src/components/SafetySheet.tsx`.
 
 Ek ekranlar: Güvenli Topluluk listesi, bildirim oluşturma ve bildirim detayı
-(`app/alerts/index.tsx`, `app/alerts/create.tsx`, `app/alerts/[id].tsx`), yasal
+(`app/alerts/index.tsx`, `app/alerts/create.tsx`, `app/alerts/[id].tsx` — eski
+`app/community.tsx` yalnızca buraya yönlendirir), yasal
 metin görüntüleyici (`app/legal/[slug].tsx`), engellenen kullanıcılar
 (`app/settings/blocked.tsx`), profil ve köpek düzenleme.
 
@@ -317,20 +322,20 @@ Her iki yol da denetim kaydına yazar.
 ## Test
 
 ```bash
-# Sunucu — beş paket, 351 kontrol
+# Sunucu — beş paket, 392 kontrol
 cd apps/api
 npm run test            # iş kuralları (89)
 npm run test:google     # Google ile giriş (54)
 npm run test:platform   # yayın altyapısı (102)
 npm run test:matching   # uyum skoru ve çoklu köpek (34)
-npm run test:alerts     # çoklu seçim + Güvenli Topluluk (72)
+npm run test:alerts     # çoklu seçim + Güvenli Topluluk + veri geçişi (113)
 npm run test:all        # hepsi
 
 # Tip denetimi
 cd apps/api && npm run typecheck
 cd apps/mobile && npx tsc --noEmit
 
-# Uçtan uca akışlar (API + web hedefi çalışırken) — 98 kontrol
+# Uçtan uca akışlar (API + web hedefi çalışırken) — 106 kontrol
 cd e2e && npm install && npm test
 ```
 
@@ -360,7 +365,7 @@ Kapsam:
 | `test:google` | Token doğrulama kuralları, hesap eşleştirme, ele geçirme senaryoları |
 | `test:platform` | Migration'lar, sağlık kontrolleri, görsel yükleme ve yetkilendirme, Apple girişi, push altyapısı, moderasyon paneli, hız sınırı |
 | `test:matching` | Skor kuralları, eksik bilgi davranışı, keşfet sıralaması, çoklu köpek iş kuralları |
-| `test:alerts` | Çoklu seçimli "Ne arıyorsun?" ve veri geçişi, Güvenli Topluluk bildirimleri, fotoğraf sahipliği, kesin konum reddi, moderasyon |
+| `test:alerts` | Çoklu seçimli "Ne arıyorsun?" ve veri geçişi, Güvenli Topluluk bildirimleri, fotoğraf sahipliği, kesin konum reddi, moderasyon, eski kayıp ilanlarının birleştirilmesi (veri kaybı / çift kayıt / geriye uyumluluk), etkinlik değerlendirmesi |
 | `e2e` | Gerçek tarayıcıda telefon ölçüsünde kullanıcı yolculukları |
 
 Uçtan uca testler Google düğmesinin görünürlüğünü de sınar. Beklenti, web

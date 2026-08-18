@@ -22,11 +22,12 @@ export const sociabilityLabels: Record<string, string> = {
 };
 
 /**
- * "Ne arıyorsun?" seçenekleri — çoklu seçim.
+ * "Ne arıyorsun?" etiketleri.
  *
- * `egitim` bilinçli olarak listede: alan tek seçimliyken bu değeri seçmiş
- * kullanıcıların verisi korunuyor ve düzenleme ekranında görünmeye devam
- * ediyor. Sunucu tarafındaki liste ile aynı sırada tutulmalı
+ * `egitim` burada duruyor çünkü alan tek seçimliyken bu değeri seçmiş
+ * kullanıcıların verisi korunuyor ve profillerde doğru gösterilmesi gerekiyor.
+ * Ancak YENİ seçim listesinde sunulmuyor — bkz. `SELECTABLE_PURPOSES`.
+ * Sunucu tarafındaki liste ile aynı sırada tutulmalı
  * (apps/api/src/domain/purposes.ts).
  */
 export const purposeLabels: Record<string, string> = {
@@ -36,6 +37,17 @@ export const purposeLabels: Record<string, string> = {
   etkinlik: 'Etkinlik',
   egitim: 'Eğitim ve çalışma',
 };
+
+/**
+ * Kullanıcının seçebileceği güncel başlıklar. `egitim` bilinçli olarak yok:
+ * eski veri korunur ve gösterilir, ama yeni seçim olarak sunulmaz.
+ */
+export const SELECTABLE_PURPOSES = ['yuruyus', 'oyun', 'sosyal', 'etkinlik'] as const;
+
+/** Kullanıcının kayıtlı olup artık seçenek listesinde yer almayan başlıkları. */
+export function legacyPurposes(values: string[]): string[] {
+  return values.filter((value) => !(SELECTABLE_PURPOSES as readonly string[]).includes(value));
+}
 
 /** Güvenli Topluluk bildirim türleri. Sunucu listesi ile aynı değerler. */
 export const alertTypeLabels: Record<string, string> = {

@@ -135,6 +135,8 @@ async function main(): Promise<void> {
       'reports',
       'community_alert_photos',
       'community_alerts',
+      'lost_dog_posts',
+      'event_reviews',
       'media_objects',
       'push_tokens',
       'notification_preferences',

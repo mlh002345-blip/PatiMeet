@@ -59,6 +59,19 @@ async function main() {
   const home = await page.textContent('body');
   await shot(page, '50-ana-sayfa');
   check('Güvenli Topluluk bölümü var', home.includes('Güvenli Topluluk'), home.slice(0, 300));
+  /**
+   * İki ayrı topluluk yapısı birleşti: ana sayfada yalnızca tek giriş
+   * kalmalı. Eski ayrı aksiyon kartı ("Güvenli topluluk") kaldırıldı.
+   */
+  const entryCount = await page.evaluate(() => {
+    let n = 0;
+    for (const el of document.querySelectorAll('div')) {
+      const t = (el.textContent || '').trim();
+      if (/^güvenli topluluk$/i.test(t)) n += 1;
+    }
+    return n;
+  });
+  check('Ana sayfada tek Güvenli Topluluk girişi var', entryCount === 1, `bulunan: ${entryCount}`);
 
   // --- Çoklu seçim: "Ne arıyorsun?" ---
   console.log('\n→ Profil düzenleme: çoklu seçim');
@@ -66,6 +79,21 @@ async function main() {
   await shot(page, '51-profil-duzenle');
   check('"Ne arıyorsun?" alanı var', edit.includes('Ne arıyorsun?'), edit.slice(0, 250));
   check('Etkinlik seçeneği eklendi', edit.includes('Etkinlik'));
+  const offered = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="checkbox"]')].map((el) =>
+      (el.getAttribute('aria-label') || '').trim()
+    )
+  );
+  check(
+    'Yeni seçim listesinde tam olarak dört başlık var',
+    offered.length === 4,
+    offered
+  );
+  check(
+    '"Eğitim ve çalışma" yeni seçenek olarak sunulmuyor',
+    !offered.includes('Eğitim ve çalışma'),
+    offered
+  );
   check('Çoklu seçim ipucu gösteriliyor', edit.includes('Birden fazla seçebilirsin'));
 
   const checkboxes = page.locator('[role="checkbox"]');
@@ -122,6 +150,35 @@ async function main() {
     'Mama veya ulaşım desteği',
   ].every((label) => list.includes(label)), list.slice(0, 600));
   check('Seed bildirimleri görünüyor', list.includes('şüpheli yem') || list.includes('mama desteği'), list.slice(0, 400));
+  check('Yaklaşık bölge bölümü taşındı', list.includes('Yaklaşık bölge'), list.slice(0, 600));
+  check(
+    'Harita kesin konum olmadığını söylüyor',
+    list.includes('gerçek adres veya anlık konum değildir'),
+    list.slice(0, 900)
+  );
+  check(
+    'Etkinlik sonrası güven bölümü taşındı',
+    list.includes('Etkinlik sonrası güven'),
+    list.slice(-900)
+  );
+
+  // Eski /community bağlantısı yeni ekrana yönlenmeli.
+  console.log('\n→ Eski /community bağlantısı');
+  await page.goto(`${BASE}/community`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(6000);
+  await shot(page, '54b-community-yonlendirme');
+  const redirected = await page.textContent('body');
+  check(
+    'Eski /community ekranı yeni Güvenli Topluluk ekranına yönlendiriyor',
+    redirected.includes('Yaklaşık bölge') && redirected.includes('Bildirim oluştur'),
+    redirected.slice(0, 500)
+  );
+  check(
+    'Yönlendirme sonrası eski kayıp ilanı formu görünmüyor',
+    !redirected.includes('Kayıp köpek ilanı ver'),
+    redirected.slice(0, 500)
+  );
+  await go('/alerts', 'Güvenli Topluluk');
 
   // --- Bildirim oluşturma formu ---
   console.log('\n→ Bildirim oluşturma');

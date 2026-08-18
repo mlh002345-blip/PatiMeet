@@ -678,6 +678,305 @@ async function main(): Promise<void> {
   });
   check('Anahtarsız moderasyon reddedilir', modNoToken.status === 403, modNoToken.body);
 
+  // ------------------------------------------------------------------
+  section('11. Eski kayıp ilanlarının birleşik yapıya taşınması');
+
+  const db = getDb();
+  const MERGE_MIGRATION = '0009_merge_lost_dog_posts_into_alerts';
+
+  // Ada'nın köpeğini (fotoğraflı) ve fotoğrafsız ikinci bir köpeği hazırla.
+  const adaDogs = await req('GET', '/api/dogs', { token: ada.token });
+  const adaDogId = adaDogs.body.dogs[0].id as string;
+  const legacyPhoto = await upload(ada.token, 'dog_photo');
+  await db.exec('UPDATE dogs SET photo_url = $1 WHERE id = $2', [legacyPhoto.body.key, adaDogId]);
+
+  const berkDogs = await req('GET', '/api/dogs', { token: berk.token });
+  const berkDogId = berkDogs.body.dogs[0].id as string;
+  await db.exec('UPDATE dogs SET photo_url = NULL WHERE id = $1', [berkDogId]);
+
+  const legacyTs = nowMs() - 5 * DAY;
+  const activePostId = newId();
+  const foundPostId = newId();
+  const noPhotoPostId = newId();
+
+  await db.exec(
+    `INSERT INTO lost_dog_posts
+       (id, owner_id, dog_id, district, last_seen_area, details, status, created_at, updated_at)
+     VALUES ($1, $2, $3, 'Kadıköy', 'Moda sahili civarı', 'Kırmızı tasmalı, ürkek.', 'active', $4, $4)`,
+    [activePostId, ada.id, adaDogId, legacyTs]
+  );
+  await db.exec(
+    `INSERT INTO lost_dog_posts
+       (id, owner_id, dog_id, district, last_seen_area, details, status, created_at, updated_at)
+     VALUES ($1, $2, $3, 'Kadıköy', 'Bahariye civarı', 'Bulundu, teşekkürler.', 'found', $4, $4)`,
+    [foundPostId, ada.id, adaDogId, legacyTs]
+  );
+  await db.exec(
+    `INSERT INTO lost_dog_posts
+       (id, owner_id, dog_id, district, last_seen_area, details, status, created_at, updated_at)
+     VALUES ($1, $2, $3, 'Kadıköy', 'Park çevresi', '', 'active', $4, $4)`,
+    [noPhotoPostId, berk.id, berkDogId, legacyTs]
+  );
+
+  /** Geçişi yeniden çalıştırır (migration kaydını silerek). */
+  async function rerunMerge(): Promise<void> {
+    await db.exec('DELETE FROM schema_migrations WHERE id = $1', [MERGE_MIGRATION]);
+    await runMigrations(db);
+  }
+
+  await rerunMerge();
+
+  const migrated = await db.query<any>(
+    'SELECT * FROM community_alerts WHERE source_lost_dog_id IS NOT NULL ORDER BY created_at'
+  );
+  check('Üç eski ilanın hepsi taşındı', migrated.length === 3, migrated.length);
+
+  const movedActive = migrated.find((row: any) => row.source_lost_dog_id === activePostId);
+  check('Taşınan ilan kayıp hayvan türünde', movedActive?.type === 'kayip_hayvan', movedActive);
+  check('Köpeğin adı korundu', movedActive?.animal_name === 'Zeytin', movedActive?.animal_name);
+  check('Semt korundu', movedActive?.district === 'Kadıköy');
+  check(
+    'Son görülen yaklaşık bölge korundu',
+    movedActive?.area_note === 'Moda sahili civarı',
+    movedActive?.area_note
+  );
+  check(
+    'Açıklama korundu',
+    movedActive?.description === 'Kırmızı tasmalı, ürkek.',
+    movedActive?.description
+  );
+  check('İlan sahibi korundu (mesajlaşma bağlantısı)', movedActive?.author_id === ada.id);
+  check('Oluşturulma zamanı korundu', movedActive?.created_at === legacyTs, movedActive?.created_at);
+  check('Son görülme zamanı dolduruldu', movedActive?.occurred_at === legacyTs);
+
+  const movedFound = migrated.find((row: any) => row.source_lost_dog_id === foundPostId);
+  check('Bulunan ilan çözüldü olarak taşındı', movedFound?.status === 'resolved', movedFound?.status);
+
+  const movedPhotos = await db.query<any>(
+    'SELECT * FROM community_alert_photos WHERE alert_id = $1',
+    [movedActive?.id]
+  );
+  check(
+    'Köpeğin profil fotoğrafı ilana taşındı',
+    movedPhotos.length === 1 && movedPhotos[0].storage_key === legacyPhoto.body.key,
+    movedPhotos
+  );
+
+  const movedNoPhoto = migrated.find((row: any) => row.source_lost_dog_id === noPhotoPostId);
+  const noPhotoRows = await db.query<any>(
+    'SELECT * FROM community_alert_photos WHERE alert_id = $1',
+    [movedNoPhoto?.id]
+  );
+  check('Fotoğrafsız köpek ilanı da taşındı', Boolean(movedNoPhoto), movedNoPhoto);
+  check('Fotoğrafsız ilanda boş fotoğraf kaydı oluşmadı', noPhotoRows.length === 0, noPhotoRows);
+
+  check(
+    'Kaynak tablo silinmedi (geri dönüş güvencesi)',
+    (await db.query<any>('SELECT id FROM lost_dog_posts')).length === 3
+  );
+
+  // Tekrar çalıştırma: ne çift kayıt ne veri kaybı.
+  await rerunMerge();
+  await rerunMerge();
+
+  const afterRerun = await db.query<any>(
+    'SELECT * FROM community_alerts WHERE source_lost_dog_id IS NOT NULL'
+  );
+  check('Geçiş tekrar çalışınca çift kayıt oluşmaz', afterRerun.length === 3, afterRerun.length);
+
+  const photosAfterRerun = await db.query<any>(
+    'SELECT * FROM community_alert_photos WHERE alert_id = $1',
+    [movedActive?.id]
+  );
+  check(
+    'Geçiş tekrar çalışınca fotoğraf çiftlenmez',
+    photosAfterRerun.length === 1,
+    photosAfterRerun.length
+  );
+
+  const idsAfter = afterRerun.map((row: any) => row.id).sort();
+  const idsBefore = migrated.map((row: any) => row.id).sort();
+  check(
+    'Tekrar çalıştırma mevcut kayıtların kimliğini değiştirmez',
+    JSON.stringify(idsAfter) === JSON.stringify(idsBefore),
+    { idsBefore, idsAfter }
+  );
+
+  // Taşınan ilan yeni ekranda görünür ve sahibiyle mesajlaşılabilir.
+  const migratedDetail = await req('GET', `/api/safety/alerts/${movedActive?.id}`, {
+    token: berk.token,
+  });
+  check('Taşınan ilan yeni uçtan okunur', migratedDetail.status === 200, migratedDetail.body);
+  check(
+    'Taşınan ilanın sahibi mesajlaşma için dönüyor',
+    migratedDetail.body.alert.author?.id === ada.id,
+    migratedDetail.body.alert.author
+  );
+  check(
+    'Taşınan ilanda köpeğin fotoğrafı görünüyor',
+    migratedDetail.body.alert.photos.length === 1,
+    migratedDetail.body.alert.photos
+  );
+  check(
+    'Kaynak kaydın kimliği izlenebilir',
+    migratedDetail.body.alert.sourceLostDogId === activePostId,
+    migratedDetail.body.alert.sourceLostDogId
+  );
+
+  // ------------------------------------------------------------------
+  section('12. Eski uçların geriye uyumluluğu');
+
+  const legacyList = await req('GET', '/api/community/lost-dogs?district=Kadıköy', {
+    token: berk.token,
+  });
+  check('Eski liste ucu çalışmaya devam ediyor', legacyList.status === 200, legacyList.body);
+  check(
+    'Eski liste birleşik veriden besleniyor',
+    legacyList.body.posts.some((p: any) => p.id === movedActive?.id),
+    legacyList.body.posts?.length
+  );
+  check('Eski uç kullanımdan kaldırıldığını bildiriyor', legacyList.body.deprecated === true);
+
+  const legacyCountBefore = (
+    await db.query<any>('SELECT id FROM lost_dog_posts')
+  ).length;
+
+  const legacyCreate = await req('POST', '/api/community/lost-dogs', {
+    token: ada.token,
+    body: {
+      dogId: adaDogId,
+      district: 'Kadıköy',
+      lastSeenArea: 'Yoğurtçu Parkı civarı',
+      details: 'Eski istemciden açılan ilan.',
+    },
+  });
+  check('Eski oluşturma ucu çalışıyor', legacyCreate.status === 201, legacyCreate.body);
+
+  const createdViaLegacy = await req('GET', `/api/safety/alerts/${legacyCreate.body.id}`, {
+    token: berk.token,
+  });
+  check(
+    'Eski uçtan açılan ilan birleşik yapıda',
+    createdViaLegacy.status === 200 && createdViaLegacy.body.alert.type === 'kayip_hayvan',
+    createdViaLegacy.body
+  );
+  check(
+    'Eski uçtan açılan ilanda köpeğin adı ve fotoğrafı var',
+    createdViaLegacy.body.alert.animalName === 'Zeytin' &&
+      createdViaLegacy.body.alert.photos.length === 1,
+    createdViaLegacy.body.alert
+  );
+  check(
+    'Eski uç artık eski tabloya yazmıyor',
+    (await db.query<any>('SELECT id FROM lost_dog_posts')).length === legacyCountBefore,
+    legacyCountBefore
+  );
+
+  const legacyFound = await req('POST', `/api/community/lost-dogs/${activePostId}/found`, {
+    token: ada.token,
+  });
+  check('Eski kapatma ucu eski kimlikle çalışıyor', legacyFound.status === 200, legacyFound.body);
+  const closed = await db.one<any>('SELECT status FROM community_alerts WHERE id = $1', [
+    movedActive?.id,
+  ]);
+  check('Eski kimlikle kapatma birleşik kaydı çözüldü yapıyor', closed?.status === 'resolved', closed);
+
+  const summary = await req('GET', '/api/community/area-summary', { token: berk.token });
+  check('Bölge özeti çalışıyor', summary.status === 200, summary.body);
+  check(
+    'Özet birleşik bildirimleri sayıyor',
+    typeof summary.body.activeAlerts === 'number' &&
+      typeof summary.body.lostDogAlerts === 'number',
+    summary.body
+  );
+  check(
+    'Özet kesin konum döndürmüyor',
+    !('latitude' in summary.body) && !('coordinates' in summary.body),
+    Object.keys(summary.body)
+  );
+
+  // `egitim` eski veride geçerli kalmalı (yeni arayüzde gösterilmese de).
+  const legacyPurpose = await req('PATCH', '/api/users/me', {
+    token: berk.token,
+    body: { purposes: ['egitim', 'oyun'] },
+  });
+  check(
+    'Eski `egitim` değeri API tarafından kabul edilmeye devam ediyor',
+    legacyPurpose.status === 200 &&
+      legacyPurpose.body.user.purposes.includes('egitim'),
+    legacyPurpose.body.user?.purposes
+  );
+
+  // ------------------------------------------------------------------
+  section('13. Etkinlik sonrası güven değerlendirmesi');
+
+  const pastEventId = newId();
+  const pastTs = nowMs() - 2 * DAY;
+  await db.exec(
+    `INSERT INTO events
+       (id, owner_id, title, type, starts_at, district, meeting_point, capacity, dog_size,
+        description, rules, created_at, updated_at)
+     VALUES ($1, $2, 'Geçmiş yürüyüş', 'yuruyus', $3, 'Kadıköy', 'Park girişi', 10, 'hepsi',
+             '', '', $3, $3)`,
+    [pastEventId, ada.id, pastTs]
+  );
+
+  const notParticipant = await req('POST', `/api/community/events/${pastEventId}/review`, {
+    token: berk.token,
+    body: { rating: 5, feltSafe: true },
+  });
+  check('Katılmayan kullanıcı değerlendiremez', notParticipant.status === 400, notParticipant.body);
+
+  await db.exec(
+    'INSERT INTO event_participants (id, event_id, user_id, created_at) VALUES ($1, $2, $3, $4)',
+    [newId(), pastEventId, berk.id, pastTs]
+  );
+
+  const review = await req('POST', `/api/community/events/${pastEventId}/review`, {
+    token: berk.token,
+    body: { rating: 4, feltSafe: true, comment: 'Düzenli ve güvenliydi.' },
+  });
+  check('Katılımcı değerlendirme gönderebiliyor', review.status === 201, review.body);
+
+  const reviewAgain = await req('POST', `/api/community/events/${pastEventId}/review`, {
+    token: berk.token,
+    body: { rating: 5, feltSafe: false, comment: 'Fikrimi değiştirdim.' },
+  });
+  check('Tekrar gönderim çift kayıt oluşturmaz', reviewAgain.status === 201, reviewAgain.body);
+  const reviewRows = await db.query<any>(
+    'SELECT * FROM event_reviews WHERE event_id = $1 AND reviewer_id = $2',
+    [pastEventId, berk.id]
+  );
+  check('Değerlendirme tek satır olarak güncellendi', reviewRows.length === 1, reviewRows.length);
+  check('Güncellenen değer kaydedildi', reviewRows[0]?.rating === 5, reviewRows[0]);
+
+  const savedReview = await req('GET', `/api/community/events/${pastEventId}/review`, {
+    token: berk.token,
+  });
+  check(
+    'Kendi değerlendirmesi okunabiliyor',
+    savedReview.body.review?.rating === 5 && savedReview.body.review?.feltSafe === false,
+    savedReview.body
+  );
+
+  const futureEvent = await req('POST', '/api/events', {
+    token: ada.token,
+    body: {
+      title: 'Gelecek yürüyüş',
+      type: 'yuruyus',
+      startsAt: nowMs() + 3 * DAY,
+      district: 'Kadıköy',
+      meetingPoint: 'Park girişi',
+      capacity: 5,
+    },
+  });
+  const futureReview = await req(
+    'POST',
+    `/api/community/events/${futureEvent.body.event.id}/review`,
+    { token: ada.token, body: { rating: 5, feltSafe: true } }
+  );
+  check('Bitmemiş etkinlik değerlendirilemez', futureReview.status === 400, futureReview.body);
+
   // Hesap silindiğinde ilanlar da gider (ON DELETE CASCADE + hesap kapatma).
   server.close();
   await getDb().close();
