@@ -35,7 +35,11 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "permissions": ["READ_MEDIA_IMAGES", "CAMERA", "POST_NOTIFICATIONS"]
+      "permissions": [
+        "READ_MEDIA_IMAGES",
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -62,7 +66,11 @@
       ]
     ],
     "extra": {
-      "apiUrl": "https://patimeet-githup-production.up.railway.app"
-    }
+      "apiUrl": "https://patimeet-githup-production.up.railway.app",
+      "eas": {
+        "projectId": "1089a8fd-73f6-4c3b-a91f-ed4dd05f1d0b"
+      }
+    },
+    "owner": "mlhoznnn"
   }
 }
