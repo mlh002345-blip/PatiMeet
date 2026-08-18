@@ -13,30 +13,41 @@ import { AppText } from './ui';
  *
  * iOS ve Android yerel bileşenleri farklı çalışır: Android'de imperatif API
  * (`DateTimePickerAndroid.open`) ile tarih ve ardından saat sorulur, iOS'ta
- * satır içi seçici gösterilir. Her iki platformda da geçmiş tarihler
- * `minimumDate` ile engellenir (iş kuralı: geçmiş tarihli etkinlik olamaz).
+ * satır içi seçici gösterilir.
+ *
+ * Varsayılan sınır gelecek tarihlerdir (etkinlik oluşturma). Geçmişte bir anı
+ * seçmek gereken yerler — kayıp hayvan ilanında "son görülme" gibi —
+ * `bounds="past"` verir.
  */
 export function DateTimeField({
   label,
   value,
   onChange,
   error,
+  bounds = 'future',
+  required = true,
 }: {
   label: string;
   value: Date;
   onChange: (date: Date) => void;
   error?: string | null;
+  /** `future`: bugünden ileri, `past`: bugüne kadar geri. */
+  bounds?: 'future' | 'past';
+  required?: boolean;
 }) {
   const [iosPickerVisible, setIosPickerVisible] = useState(false);
   const [iosMode, setIosMode] = useState<'date' | 'time'>('date');
 
-  const minimumDate = new Date();
+  const now = new Date();
+  const minimumDate = bounds === 'future' ? now : undefined;
+  const maximumDate = bounds === 'past' ? now : undefined;
 
   function openAndroid() {
     DateTimePickerAndroid.open({
       value,
       mode: 'date',
       minimumDate,
+      maximumDate,
       onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
         if (event.type !== 'set' || !selectedDate) return;
 
@@ -74,9 +85,11 @@ export function DateTimeField({
     <View style={{ marginBottom: spacing.lg }}>
       <AppText variant="label" color={colors.textMuted} style={{ marginBottom: spacing.sm }}>
         {label}
-        <AppText variant="caption" color={colors.accent}>
-          {'  '}zorunlu
-        </AppText>
+        {required ? (
+          <AppText variant="caption" color={colors.accent}>
+            {'  '}zorunlu
+          </AppText>
+        ) : null}
       </AppText>
 
       <Pressable
@@ -117,6 +130,7 @@ export function DateTimeField({
             mode={iosMode}
             display="spinner"
             minimumDate={iosMode === 'date' ? minimumDate : undefined}
+            maximumDate={iosMode === 'date' ? maximumDate : undefined}
             onChange={handleIosChange}
             locale="tr-TR"
           />

@@ -52,6 +52,7 @@ function makeUser(overrides: Partial<UserRow> = {}): UserRow {
     district: 'Kadıköy',
     bio: '',
     purpose: 'yuruyus',
+    purposes: ['yuruyus'],
     photo_url: null,
     status: 'active',
     terms_accepted_at: null,

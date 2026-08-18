@@ -3,7 +3,7 @@ import { badRequest, forbidden, notFound } from '../http';
 import { newId } from '../ids';
 import { getStorage, isMediaKey, MEDIA_KEY_PREFIX } from '../storage';
 
-export type MediaPurpose = 'user_photo' | 'dog_photo';
+export type MediaPurpose = 'user_photo' | 'dog_photo' | 'alert_photo';
 
 export interface MediaRow {
   id: string;
@@ -210,6 +210,8 @@ export async function deleteMedia(
     // Profillerde bu anahtar hâlâ kullanılıyorsa temizle; kırık görsel kalmasın.
     await t.exec('UPDATE users SET photo_url = NULL WHERE photo_url = $1', [row.storage_key]);
     await t.exec('UPDATE dogs SET photo_url = NULL WHERE photo_url = $1', [row.storage_key]);
+    // Güvenli Topluluk ilanlarında da kırık görsel kalmasın.
+    await t.exec('DELETE FROM community_alert_photos WHERE storage_key = $1', [row.storage_key]);
   });
 }
 

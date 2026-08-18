@@ -93,9 +93,11 @@ export default function ProfileScreen() {
             <AppText variant="caption" color={colors.textMuted}>
               {user?.district ?? 'Semt seçilmemiş'}
             </AppText>
-            {user?.purpose ? (
-              <View style={{ flexDirection: 'row', marginTop: spacing.sm }}>
-                <Tag label={labelFor(purposeLabels, user.purpose)} tone="primary" />
+            {user && user.purposes.length > 0 ? (
+              <View style={styles.purposeRow}>
+                {user.purposes.map((purpose) => (
+                  <Tag key={purpose} label={labelFor(purposeLabels, purpose)} tone="primary" />
+                ))}
               </View>
             ) : null}
           </View>
@@ -288,6 +290,12 @@ function SettingsRow({
 }
 
 const styles = StyleSheet.create({
+  purposeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',

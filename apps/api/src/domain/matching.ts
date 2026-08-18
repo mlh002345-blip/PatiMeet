@@ -1,3 +1,4 @@
+import { PURPOSE_LABELS, readPurposes, sharedPurposes, type PurposeValue } from './purposes';
 import type { DogRow, UserRow } from './serialize';
 
 /**
@@ -144,18 +145,27 @@ function districtFactor(mine: string | null, theirs: string | null): MatchFactor
   };
 }
 
-function purposeFactor(mine: string | null, theirs: string | null): MatchFactor | null {
-  if (!mine || !theirs) return null;
+/**
+ * Kullanım amacı artık çoklu seçim: en az bir ortak beklenti varsa tam puan
+ * verilir ve açıklamada hangi başlıkların örtüştüğü yazılır. Hiç ortak yoksa
+ * eskisi gibi düşük ama sıfır olmayan bir puan kalır — farklı beklentiler
+ * eşleşmeyi imkânsız kılmaz, sadece baştan konuşmayı gerektirir.
+ */
+function purposeFactor(mine: PurposeValue[], theirs: PurposeValue[]): MatchFactor | null {
+  if (mine.length === 0 || theirs.length === 0) return null;
 
-  const same = mine === theirs;
+  const shared = sharedPurposes(mine, theirs);
+  const names = shared.map((value) => PURPOSE_LABELS[value].toLocaleLowerCase('tr-TR'));
+
   return {
     key: 'purpose',
     label: 'Kullanım amacı',
-    points: same ? WEIGHTS.purpose : 4,
+    points: shared.length > 0 ? WEIGHTS.purpose : 4,
     max: WEIGHTS.purpose,
-    note: same
-      ? 'Aynı şeyi arıyorsunuz; beklentiler örtüşüyor.'
-      : 'Farklı şeyler arıyorsunuz; ne istediğinizi baştan konuşmak iyi olur.',
+    note:
+      shared.length > 0
+        ? `Ortak beklentiniz var: ${names.join(', ')}.`
+        : 'Farklı şeyler arıyorsunuz; ne istediğinizi baştan konuşmak iyi olur.',
   };
 }
 
@@ -200,7 +210,10 @@ export function computeMatchScore(
     sociabilityFactor(viewer.dog.sociability, target.dog.sociability),
     sizeFactor(viewer.dog.size, target.dog.size),
     districtFactor(viewer.user.district, target.user.district),
-    purposeFactor(viewer.user.purpose, target.user.purpose),
+    purposeFactor(
+      readPurposes(viewer.user.purposes, viewer.user.purpose),
+      readPurposes(target.user.purposes, target.user.purpose)
+    ),
     ageFactor(dogAge(viewer.dog), dogAge(target.dog)),
   ];
 

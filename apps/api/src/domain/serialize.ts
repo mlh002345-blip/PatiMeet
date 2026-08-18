@@ -1,5 +1,6 @@
 import { getDb, type CountRow, type Db } from '../db';
 import { resolveMediaUrl } from '../storage';
+import { readPurposes } from './purposes';
 
 export interface DogRow {
   id: string;
@@ -26,7 +27,13 @@ export interface UserRow {
   name: string;
   district: string | null;
   bio: string;
+  /**
+   * Tek seçimli eski kolon. Yalnızca geriye dönük uyumluluk için yazılmaya
+   * devam eder; okuma `purposes` üzerinden yapılır (bkz. migration 0006).
+   */
   purpose: string | null;
+  /** Çoklu seçim: "Ne arıyorsun?" cevapları. */
+  purposes: string[] | null;
   photo_url: string | null;
   status: string;
   terms_accepted_at: number | null;
@@ -84,12 +91,15 @@ export function publicDogs(rows: DogRow[]) {
  * alanlar bilinçli olarak dışarıda bırakıldı — yalnızca semt paylaşılır.
  */
 export async function publicUser(row: UserRow) {
+  const purposes = readPurposes(row.purposes, row.purpose);
   return {
     id: row.id,
     name: row.name,
     district: row.district,
     bio: row.bio,
-    purpose: row.purpose,
+    purposes,
+    /** Eski istemciler tek değer bekliyor; ilk seçim gönderilir. */
+    purpose: purposes[0] ?? null,
     photoUrl: await photoUrl(row.photo_url),
   };
 }
@@ -101,13 +111,17 @@ export async function privateUser(row: UserRow, db: Db = getDb()) {
     [row.id]
   );
 
+  const purposes = readPurposes(row.purposes, row.purpose);
+
   return {
     id: row.id,
     email: row.email,
     name: row.name,
     district: row.district,
     bio: row.bio,
-    purpose: row.purpose,
+    purposes,
+    /** Eski istemciler tek değer bekliyor; ilk seçim gönderilir. */
+    purpose: purposes[0] ?? null,
     photoUrl: await photoUrl(row.photo_url),
     status: row.status,
     termsAcceptedAt: row.terms_accepted_at,

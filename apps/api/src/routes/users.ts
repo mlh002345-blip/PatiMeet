@@ -5,6 +5,7 @@ import { getDb, nowMs } from '../db';
 import { isBlockedBetween } from '../domain/blocks';
 import { computeMatchScore } from '../domain/matching';
 import { normalizePhotoInput } from '../domain/media';
+import { dedupe, PURPOSE_VALUES, type PurposeValue } from '../domain/purposes';
 import {
   privateUser,
   publicDogs,
@@ -20,7 +21,12 @@ const profileSchema = z.object({
   name: z.string().trim().min(2, 'Ad en az 2 karakter olmalı.').max(60).optional(),
   district: z.string().trim().min(2, 'Semt seçin.').max(80).nullable().optional(),
   bio: z.string().trim().max(300, 'Açıklama en fazla 300 karakter olabilir.').optional(),
-  purpose: z.enum(['yuruyus', 'oyun', 'sosyal', 'egitim']).nullable().optional(),
+  /**
+   * Çoklu seçim. Boş dizi veya null "seçim yok" anlamına gelir.
+   * Tek değerli eski `purpose` alanı da kabul edilir (eski istemciler).
+   */
+  purposes: z.array(z.enum(PURPOSE_VALUES)).max(PURPOSE_VALUES.length).nullable().optional(),
+  purpose: z.enum(PURPOSE_VALUES).nullable().optional(),
   /** Yüklenmiş görselin depo anahtarı (`media/...`) veya kaldırmak için null. */
   photoUrl: z.string().trim().max(2000).nullable().optional(),
 });
@@ -41,7 +47,24 @@ usersRouter.patch(
     if (input.name !== undefined) columns.push(['name', input.name]);
     if (input.district !== undefined) columns.push(['district', input.district]);
     if (input.bio !== undefined) columns.push(['bio', input.bio]);
-    if (input.purpose !== undefined) columns.push(['purpose', input.purpose]);
+    /**
+     * `purposes` gönderildiyse o geçerlidir; yoksa eski tek değerli alan tek
+     * elemanlı listeye çevrilir. Eski `purpose` kolonu ilk seçimle yazılmaya
+     * devam eder (migration 0006'daki geri dönüş güvencesi).
+     */
+    const purposes: PurposeValue[] | undefined =
+      input.purposes !== undefined
+        ? dedupe(input.purposes ?? [])
+        : input.purpose !== undefined
+          ? input.purpose
+            ? [input.purpose]
+            : []
+          : undefined;
+
+    if (purposes !== undefined) {
+      columns.push(['purposes', purposes]);
+      columns.push(['purpose', purposes[0] ?? null]);
+    }
     if (photo !== undefined) columns.push(['photo_url', photo]);
 
     if (columns.length > 0) {

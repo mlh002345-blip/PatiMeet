@@ -240,6 +240,115 @@ export function Field({
   );
 }
 
+/**
+ * Çoklu seçimli seçenek grubu.
+ *
+ * ChoiceGroup ile aynı görünümü paylaşır; farkı seçili öğeye tekrar
+ * dokunmanın seçimi kaldırması ve erişilebilirlik rolünün `checkbox` olması
+ * (ekran okuyucu "seçili/seçili değil" der, radyo grubu gibi tek seçim
+ * beklentisi yaratmaz).
+ */
+export function MultiChoiceGroup<T extends string>({
+  label,
+  options,
+  values,
+  onChange,
+  error,
+  hint,
+  required,
+  max,
+}: {
+  label?: string;
+  options: Array<{ value: T; label: string }>;
+  values: T[];
+  onChange: (values: T[]) => void;
+  error?: string | null;
+  hint?: string;
+  required?: boolean;
+  /** Üst sınır dolduğunda seçili olmayan seçenekler pasifleşir. */
+  max?: number;
+}) {
+  const atLimit = max !== undefined && values.length >= max;
+
+  function toggle(value: T) {
+    if (values.includes(value)) {
+      onChange(values.filter((item) => item !== value));
+      return;
+    }
+    if (atLimit) return;
+    onChange([...values, value]);
+  }
+
+  return (
+    <View style={{ marginBottom: spacing.lg }}>
+      {label ? (
+        <View style={styles.fieldLabelRow}>
+          <AppText variant="label" color={colors.textMuted}>
+            {label}
+          </AppText>
+          {required ? (
+            <AppText variant="caption" color={colors.accent}>
+              {' '}
+              zorunlu
+            </AppText>
+          ) : null}
+        </View>
+      ) : null}
+
+      <View style={styles.choiceRow}>
+        {options.map((option) => {
+          const selected = values.includes(option.value);
+          const disabled = !selected && atLimit;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="checkbox"
+              /**
+               * `accessibilityState` yerel platformlarda yeterli, ancak React
+               * Native Web bunu `aria-checked` olarak yaymıyor; kutunun seçili
+               * olup olmadığı ekran okuyucuya ulaşmıyordu. İki API'yi birlikte
+               * veriyoruz.
+               */
+              accessibilityState={{ checked: selected, disabled }}
+              aria-checked={selected}
+              accessibilityLabel={option.label}
+              onPress={() => toggle(option.value)}
+              disabled={disabled}
+              style={({ pressed }) => [
+                styles.chip,
+                selected && { backgroundColor: colors.primary, borderColor: colors.primary },
+                disabled && { opacity: 0.45 },
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Text
+                style={[
+                  typography.label,
+                  { color: selected ? colors.textOnPrimary : colors.textMuted },
+                ]}
+              >
+                {selected ? `✓ ${option.label}` : option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {hint && !error ? (
+        <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.xs }}>
+          {hint}
+        </AppText>
+      ) : null}
+
+      {error ? (
+        <AppText variant="caption" color={colors.danger} style={{ marginTop: spacing.xs }}>
+          {error}
+        </AppText>
+      ) : null}
+    </View>
+  );
+}
+
 /** Tek seçimli seçenek grubu — az adımlı formlar için dropdown yerine kullanılır. */
 export function ChoiceGroup<T extends string>({
   label,

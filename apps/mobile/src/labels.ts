@@ -21,12 +21,51 @@ export const sociabilityLabels: Record<string, string> = {
   sosyal: 'Sosyal',
 };
 
+/**
+ * "Ne arıyorsun?" seçenekleri — çoklu seçim.
+ *
+ * `egitim` bilinçli olarak listede: alan tek seçimliyken bu değeri seçmiş
+ * kullanıcıların verisi korunuyor ve düzenleme ekranında görünmeye devam
+ * ediyor. Sunucu tarafındaki liste ile aynı sırada tutulmalı
+ * (apps/api/src/domain/purposes.ts).
+ */
 export const purposeLabels: Record<string, string> = {
   yuruyus: 'Yürüyüş arkadaşı',
-  oyun: 'Oyun arkadaşı',
+  oyun: 'Oyun buluşması',
   sosyal: 'Sosyalleşme',
+  etkinlik: 'Etkinlik',
   egitim: 'Eğitim ve çalışma',
 };
+
+/** Güvenli Topluluk bildirim türleri. Sunucu listesi ile aynı değerler. */
+export const alertTypeLabels: Record<string, string> = {
+  kayip_hayvan: 'Kayıp hayvan',
+  bulunan_hayvan: 'Bulunan hayvan',
+  zehirli_yem: 'Zehirli yem / tehlikeli bölge',
+  yarali_hayvan: 'Yaralı veya başıboş hayvan',
+  salgin_hastalik: 'Salgın hastalık uyarısı',
+  acil_kan: 'Acil kan ihtiyacı',
+  gecici_yuva: 'Geçici yuva / sahiplendirme',
+  destek: 'Mama veya ulaşım desteği',
+};
+
+/** Liste kartlarında türü bir bakışta ayırt etmek için. */
+export const alertTypeEmoji: Record<string, string> = {
+  kayip_hayvan: '🔎',
+  bulunan_hayvan: '🏠',
+  zehirli_yem: '☠️',
+  yarali_hayvan: '🚑',
+  salgin_hastalik: '🦠',
+  acil_kan: '🩸',
+  gecici_yuva: '🤝',
+  destek: '🥫',
+};
+
+/**
+ * Aciliyeti yüksek türler listede vurgulanır. Renk seçimi bilgilendirme
+ * amaçlı; hiçbiri resmî bir acil durum servisi yerine geçmez.
+ */
+export const urgentAlertTypes = new Set(['kayip_hayvan', 'zehirli_yem', 'yarali_hayvan', 'acil_kan']);
 
 export const eventTypeLabels: Record<string, string> = {
   yuruyus: 'Yürüyüş',
@@ -107,4 +146,9 @@ export function dogAgeLabel(age: number | null): string {
   if (age === null || age === undefined) return 'Yaş belirtilmemiş';
   if (age === 0) return 'Yavru';
   return `${age} yaşında`;
+}
+
+/** "12 Mart Cumartesi, 10:00" — bildirimlerde son görülme zamanı için. */
+export function formatDateTime(timestamp: number): string {
+  return formatEventDate(timestamp);
 }

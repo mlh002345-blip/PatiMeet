@@ -27,6 +27,8 @@ export default function TabsLayout() {
       router.push(`/chat/${data.conversationId}`);
     } else if (data.type === 'event' && typeof data.eventId === 'string') {
       router.push(`/event/${data.eventId}`);
+    } else if (data.type === 'alert' && typeof data.alertId === 'string') {
+      router.push(`/alerts/${data.alertId}`);
     } else if (data.type === 'safety') {
       router.push('/(tabs)/profile');
     }

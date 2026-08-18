@@ -25,6 +25,7 @@ type DiscoverRow = DogRow & {
   u_district: string | null;
   u_bio: string;
   u_purpose: string | null;
+  u_purposes: string[] | null;
   u_photo_url: string | null;
 };
 
@@ -78,7 +79,8 @@ discoverRouter.get(
 
     const rows = await db.query<DiscoverRow>(
       `SELECT d.*, u.id AS u_id, u.name AS u_name, u.district AS u_district,
-              u.bio AS u_bio, u.purpose AS u_purpose, u.photo_url AS u_photo_url
+              u.bio AS u_bio, u.purpose AS u_purpose, u.purposes AS u_purposes,
+              u.photo_url AS u_photo_url
          FROM dogs d
          JOIN users u ON u.id = d.owner_id
         WHERE ${where.join(' AND ')}
@@ -95,6 +97,7 @@ discoverRouter.get(
           district: row.u_district,
           bio: row.u_bio,
           purpose: row.u_purpose,
+          purposes: row.u_purposes,
           photo_url: row.u_photo_url,
         } as UserRow;
 

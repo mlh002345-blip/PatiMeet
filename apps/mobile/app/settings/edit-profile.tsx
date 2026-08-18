@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { PhotoPicker } from '../../src/components/PhotoPicker';
@@ -9,6 +9,7 @@ import {
   Button,
   ChoiceGroup,
   Field,
+  MultiChoiceGroup,
   Screen,
 } from '../../src/components/ui';
 import { purposeLabels } from '../../src/labels';
@@ -24,7 +25,7 @@ export default function EditProfileScreen() {
   const [district, setDistrict] = useState<string | null>(user?.district ?? null);
   const [districts, setDistricts] = useState<string[]>([]);
   const [bio, setBio] = useState(user?.bio ?? '');
-  const [purpose, setPurpose] = useState<string | null>(user?.purpose ?? null);
+  const [purposes, setPurposes] = useState<string[]>(user?.purposes ?? []);
   /**
    * Mevcut fotoğraf sunucudan görüntüleme adresi olarak gelir; yeni bir
    * fotoğraf yüklenmedikçe alanı hiç göndermiyoruz ki adres, anahtarın
@@ -38,6 +39,25 @@ export default function EditProfileScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  /**
+   * Oturum uygulama açılırken eşzamansız yükleniyor. Ekran doğrudan bir
+   * bağlantıyla (soğuk açılış veya sayfa yenileme) açıldığında `user` ilk
+   * render'da henüz yok; alanlar boş başlar ve kullanıcı farkında olmadan
+   * profilini silebilirdi. Kullanıcı geldiğinde alanları bir kez dolduruyoruz;
+   * `hydrated` sayesinde sonraki güncellemeler kullanıcının yazdıklarını
+   * ezmiyor.
+   */
+  const hydrated = useRef(Boolean(user));
+  useEffect(() => {
+    if (hydrated.current || !user) return;
+    hydrated.current = true;
+    setName(user.name ?? '');
+    setDistrict(user.district ?? null);
+    setBio(user.bio ?? '');
+    setPurposes(user.purposes ?? []);
+    if (!photoTouched) setPhotoPreview(user.photoUrl ?? null);
+  }, [user, photoTouched]);
 
   useEffect(() => {
     api
@@ -64,7 +84,7 @@ export default function EditProfileScreen() {
         name: name.trim(),
         district,
         bio: bio.trim(),
-        purpose,
+        purposes,
         ...(photoTouched ? { photoUrl: photoKey } : {}),
       });
       setUser(res.user);
@@ -125,11 +145,12 @@ export default function EditProfileScreen() {
             Diğer kullanıcılar yalnızca semtini görür; tam adresin hiçbir zaman paylaşılmaz.
           </AppText>
 
-          <ChoiceGroup
+          <MultiChoiceGroup
             label="Ne arıyorsun?"
+            hint="Birden fazla seçebilirsin; seçili bir başlığa tekrar dokunmak kaldırır."
             options={Object.entries(purposeLabels).map(([value, label]) => ({ value, label }))}
-            value={purpose}
-            onChange={setPurpose}
+            values={purposes}
+            onChange={setPurposes}
           />
 
           <Field

@@ -33,8 +33,19 @@ Tek kod tabanı hem iOS hem Android'e derlenir; ayrı Swift/Kotlin projesi yoktu
   seçilir.
 - **Üç giriş yöntemi** — e-posta, Google ve Apple. Sağlayıcı yapılandırılmamışsa
   ilgili düğme hiç gösterilmez.
+- **Güvenli Topluluk** — sekiz bildirim türü (kayıp hayvan, bulunan hayvan,
+  zehirli yem / tehlikeli bölge, yaralı veya başıboş hayvan, salgın hastalık
+  uyarısı, acil kan ihtiyacı, geçici yuva / sahiplendirme, mama veya ulaşım
+  desteği). Kayıp hayvan ilanı 1–5 fotoğraf, hayvanın adı, son görüldüğü
+  yaklaşık bölge ve son görülme zamanı ister; iletişim uygulama içi mesajla
+  kurulur. **Kesin konum veya açık adres hiç toplanmaz** — koordinat, harita
+  bağlantısı ve kapı/daire numarası sunucu tarafından reddedilir.
+- **Çoklu seçimli "Ne arıyorsun?"** — yürüyüş arkadaşı, oyun buluşması,
+  sosyalleşme ve etkinlik birlikte seçilebilir; uyum skoru ortak beklentilere
+  göre hesaplanır.
 - **Push bildirimleri** — mesaj, etkinlik ve güvenlik olayları; kategori
-  tercihleri kullanıcıda.
+  tercihleri kullanıcıda. Yeni bir topluluk bildirimi aynı semtteki
+  kullanıcılara güvenlik kategorisinden iletilir.
 - **Moderasyon paneli** — şikâyet inceleme, hesap ve içerik yönetimi, denetim kaydı.
 
 ---
@@ -202,8 +213,10 @@ MVP belgesindeki 14 ekranın tamamı uygulandı:
 Şikâyet ve engelleme, belgede belirtildiği gibi ayrı tam ekran değil **alt panel**
 olarak uygulandı: `src/components/SafetySheet.tsx`.
 
-Ek ekranlar: yasal metin görüntüleyici (`app/legal/[slug].tsx`), engellenen
-kullanıcılar (`app/settings/blocked.tsx`), profil ve köpek düzenleme.
+Ek ekranlar: Güvenli Topluluk listesi, bildirim oluşturma ve bildirim detayı
+(`app/alerts/index.tsx`, `app/alerts/create.tsx`, `app/alerts/[id].tsx`), yasal
+metin görüntüleyici (`app/legal/[slug].tsx`), engellenen kullanıcılar
+(`app/settings/blocked.tsx`), profil ve köpek düzenleme.
 
 Alt menü: Ana Sayfa · Keşfet · Etkinlikler · Mesajlar · Profil (okunmamış mesaj
 göstergesi ile).
@@ -234,7 +247,13 @@ MVP belgesi 9. bölümdeki kuralların tamamı sunucu tarafında zorlanır:
 - Etkinlik katılımcı sayısı sınırı aşamaz (kontenjan kontrolü tek işlemde)
 - Geçmiş tarihli etkinlik oluşturulamaz
 - Yalnızca etkinlik sahibi düzenler veya iptal eder
-- Tam konum paylaşılmaz — keşif ve etkinlikler yalnızca **semt** bilgisine dayanır
+- Tam konum paylaşılmaz — keşif, etkinlikler ve topluluk bildirimleri yalnızca
+  **semt** ve serbest metin bir *yaklaşık bölge* tarifine dayanır; koordinat,
+  harita bağlantısı ve kapı/daire numarası içeren girdiler reddedilir
+- Kayıp hayvan ilanı en az 1, en fazla 5 fotoğraf ve hayvanın adı ister; son
+  görülme zamanı gelecekte veya 90 günden eski olamaz
+- İlan fotoğrafları yalnızca ilanı açan kullanıcının kendi yüklediği görseller
+  olabilir (obje deposu sahiplik doğrulaması)
 - Silinen veya pasife alınan içerik diğer kullanıcılara gösterilmez
 
 Ek olarak: etkinliğin uygun köpek boyutu kısıtı, kontenjanın mevcut katılımcı
@@ -298,19 +317,20 @@ Her iki yol da denetim kaydına yazar.
 ## Test
 
 ```bash
-# Sunucu — dört paket, 279 kontrol
+# Sunucu — beş paket, 351 kontrol
 cd apps/api
 npm run test            # iş kuralları (89)
 npm run test:google     # Google ile giriş (54)
 npm run test:platform   # yayın altyapısı (102)
 npm run test:matching   # uyum skoru ve çoklu köpek (34)
+npm run test:alerts     # çoklu seçim + Güvenli Topluluk (72)
 npm run test:all        # hepsi
 
 # Tip denetimi
 cd apps/api && npm run typecheck
 cd apps/mobile && npx tsc --noEmit
 
-# Uçtan uca akışlar (API + web hedefi çalışırken) — 72 kontrol
+# Uçtan uca akışlar (API + web hedefi çalışırken) — 98 kontrol
 cd e2e && npm install && npm test
 ```
 
@@ -324,6 +344,11 @@ PostgreSQL verin:
 TEST_DATABASE_URL=postgresql://postgres@localhost:5432/patimeet_test npm run test:all
 ```
 
+> `test:platform` tüm migration'ların **boş** bir veritabanına uygulandığını
+> doğrular. Gerçek PostgreSQL ile çalışırken her paketi kendi taze
+> veritabanında çalıştırın, yoksa bu kontrol sırayla ikinci çalıştığında
+> başarısız olur.
+
 > Bu depodaki tüm sunucu testleri hem gömülü hem gerçek PostgreSQL 16 üzerinde
 > geçer. Verdiğiniz test veritabanı değiştirilir — ayrı bir veritabanı kullanın.
 
@@ -335,6 +360,7 @@ Kapsam:
 | `test:google` | Token doğrulama kuralları, hesap eşleştirme, ele geçirme senaryoları |
 | `test:platform` | Migration'lar, sağlık kontrolleri, görsel yükleme ve yetkilendirme, Apple girişi, push altyapısı, moderasyon paneli, hız sınırı |
 | `test:matching` | Skor kuralları, eksik bilgi davranışı, keşfet sıralaması, çoklu köpek iş kuralları |
+| `test:alerts` | Çoklu seçimli "Ne arıyorsun?" ve veri geçişi, Güvenli Topluluk bildirimleri, fotoğraf sahipliği, kesin konum reddi, moderasyon |
 | `e2e` | Gerçek tarayıcıda telefon ölçüsünde kullanıcı yolculukları |
 
 Uçtan uca testler Google düğmesinin görünürlüğünü de sınar. Beklenti, web
@@ -421,13 +447,16 @@ apps/
       routes/        auth, users, dogs, discover, events, messages,
                      safety, media, push, legal, admin
       domain/        sosyal giriş, google, apple, medya, push, moderasyon,
-                     engelleme, API çıktı biçimleri
+                     engelleme, topluluk bildirimleri, kullanım amaçları,
+                     API çıktı biçimleri
       config.ts      ortam değişkenleri
       logger.ts      yapılandırılmış günlükleme
       seed.ts        demo veri
       smoke-test.ts    iş kuralı testleri
       google-test.ts   Google ile giriş testleri
       platform-test.ts yayın altyapısı testleri
+      matching-test.ts uyum skoru testleri
+      alerts-test.ts   çoklu seçim ve Güvenli Topluluk testleri
   mobile/
     app/             expo-router ekranları (dosya tabanlı yönlendirme)
     src/

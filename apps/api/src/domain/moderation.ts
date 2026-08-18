@@ -182,6 +182,47 @@ export async function setDogStatus(
   await recordAudit(adminId, `dog_${status}`, 'dog', dogId, note, db);
 }
 
+/**
+ * Güvenli Topluluk bildirimini moderasyondan kaldırır veya geri alır.
+ *
+ * Kaldırılan bildirim listede ve detayda 404 döner; fotoğraf kayıtları
+ * silinir. İlan sahibi neden bilgisiyle uyarılır.
+ */
+export async function setAlertStatus(
+  adminId: string,
+  alertId: string,
+  status: 'active' | 'removed',
+  note: string,
+  db: Db = getDb()
+): Promise<void> {
+  const row = await db.one<{ author_id: string }>(
+    'SELECT author_id FROM community_alerts WHERE id = $1',
+    [alertId]
+  );
+  if (!row) throw notFound('Bildirim bulunamadı.');
+
+  await db.tx(async (t) => {
+    await t.exec('UPDATE community_alerts SET status = $1, updated_at = $2 WHERE id = $3', [
+      status,
+      nowMs(),
+      alertId,
+    ]);
+    if (status === 'removed') {
+      await t.exec('DELETE FROM community_alert_photos WHERE alert_id = $1', [alertId]);
+    }
+  });
+
+  if (status === 'removed') {
+    await notifyUser(row.author_id, 'safety', {
+      title: 'Bildiriminiz kaldırıldı',
+      body: 'Paylaştığınız bir Güvenli Topluluk bildirimi topluluk kuralları gereği kaldırıldı.',
+      data: { type: 'safety' },
+    });
+  }
+
+  await recordAudit(adminId, `alert_${status}`, 'alert', alertId, note, db);
+}
+
 export async function setReportStatus(
   adminId: string,
   reportId: string,
@@ -223,7 +264,7 @@ export interface ReportListItem {
   created_at: number;
   reporter_name: string;
   reporter_id: string;
-  /** Şikâyet edilen kullanıcı veya etkinlik sahibinin adı. */
+  /** Şikâyet edilen kullanıcının, etkinliğin veya bildirimin adı. */
   target_label: string | null;
   target_status: string | null;
 }
@@ -237,12 +278,13 @@ export async function listReports(
     `SELECT r.id, r.target_type, r.target_id, r.reason, r.details, r.status, r.created_at,
             r.reporter_id,
             reporter.name AS reporter_name,
-            COALESCE(tu.name, te.title) AS target_label,
-            COALESCE(tu.status, te.status) AS target_status
+            COALESCE(tu.name, te.title, ta.animal_name, ta.type) AS target_label,
+            COALESCE(tu.status, te.status, ta.status) AS target_status
        FROM reports r
        JOIN users reporter ON reporter.id = r.reporter_id
   LEFT JOIN users  tu ON r.target_type = 'user'  AND tu.id = r.target_id
   LEFT JOIN events te ON r.target_type = 'event' AND te.id = r.target_id
+  LEFT JOIN community_alerts ta ON r.target_type = 'alert' AND ta.id = r.target_id
       WHERE ($1::text IS NULL OR r.status = $1)
       ORDER BY
         -- Açık şikâyetler önce, sonra en yeni.

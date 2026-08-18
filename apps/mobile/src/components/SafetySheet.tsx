@@ -7,14 +7,23 @@ import { AppText, Banner, BottomSheet, Button, ChoiceGroup, Field } from './ui';
 /**
  * Şikâyet ve engelleme, ayrı tam ekranlar yerine alt panel olarak uygulandı
  * (MVP belgesi 5. bölüm). Aynı bileşen hem kullanıcı hem etkinlik şikâyetinde
- * kullanılır; engelleme yalnızca kullanıcı hedefinde gösterilir.
+ * kullanılır. Engelleme her zaman bir kullanıcıyı hedefler: kullanıcı
+ * profilinde hedefin kendisi, Güvenli Topluluk bildiriminde ise ilanı paylaşan
+ * kişi (`blockUserId`).
  */
 interface SafetySheetProps {
   visible: boolean;
   onClose: () => void;
-  targetType: 'user' | 'event';
+  targetType: 'user' | 'event' | 'alert';
+  /** Şikâyet edilen kaydın kimliği (kullanıcı, etkinlik veya bildirim). */
   targetId: string;
   targetName: string;
+  /**
+   * Engellenecek kullanıcı. Verilmezse `targetType === 'user'` olduğunda
+   * `targetId` kullanılır; verilmediği ve hedef kullanıcı olmadığı durumda
+   * engelleme seçeneği gösterilmez.
+   */
+  blockUserId?: string;
   /** Engelleme sonrası çağrılır — çağıran ekran genelde geri gider. */
   onBlocked?: () => void;
 }
@@ -36,8 +45,10 @@ export function SafetySheet({
   targetType,
   targetId,
   targetName,
+  blockUserId,
   onBlocked,
 }: SafetySheetProps) {
+  const blockTargetId = blockUserId ?? (targetType === 'user' ? targetId : null);
   const [mode, setMode] = useState<Mode>('menu');
   const [reasons, setReasons] = useState(FALLBACK_REASONS);
   const [reason, setReason] = useState<string | null>(null);
@@ -90,10 +101,11 @@ export function SafetySheet({
   }
 
   async function submitBlock() {
+    if (!blockTargetId) return;
     setSubmitting(true);
     setError(null);
     try {
-      const res = await api.block(targetId);
+      const res = await api.block(blockTargetId);
       setSuccess(res.message);
       setTimeout(() => {
         onClose();
@@ -118,7 +130,7 @@ export function SafetySheet({
             {mode === 'menu' ? (
               <>
                 <AppText variant="title">
-                  {targetType === 'user' ? targetName : 'Etkinlik'}
+                  {targetType === 'event' ? 'Etkinlik' : targetName}
                 </AppText>
                 <AppText
                   variant="body"
@@ -135,7 +147,7 @@ export function SafetySheet({
                   style={{ marginBottom: spacing.md }}
                 />
 
-                {targetType === 'user' ? (
+                {blockTargetId ? (
                   <Button
                     label="Kullanıcıyı engelle"
                     variant="danger"

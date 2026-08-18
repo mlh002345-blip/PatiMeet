@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { api, type EventSummary } from '../../src/api';
-import { ActionCard, EventCard } from '../../src/components/cards';
+import { ActionCard, AlertCard, EventCard } from '../../src/components/cards';
 import {
   AppText,
   AppHeader,
@@ -31,11 +31,16 @@ export default function HomeScreen() {
   const { user } = useSession();
 
   const loader = useLoader(async () => {
-    const [joined, nearby] = await Promise.all([
+    const [joined, nearby, alerts] = await Promise.all([
       api.events({ scope: 'joined' }),
       api.events({ district: user?.district ?? undefined }),
+      /**
+       * Güvenli Topluluk bildirimleri kritik değil: sunucu eski bir sürümde
+       * olsa veya uç geçici olarak hata verse bile ana sayfa açılmalı.
+       */
+      api.alerts({ district: user?.district ?? undefined }).catch(() => ({ alerts: [] })),
     ]);
-    return { joined: joined.events, nearby: nearby.events };
+    return { joined: joined.events, nearby: nearby.events, alerts: alerts.alerts };
   }, [user?.district]);
 
   const dog = user?.dogs?.[0];
@@ -156,6 +161,32 @@ export default function HomeScreen() {
           )}
         </>
       ) : null}
+
+      {/* Güvenli Topluluk */}
+      <SectionHeader
+        title="Güvenli Topluluk"
+        actionLabel="Tümü"
+        onAction={() => router.push('/alerts')}
+      />
+
+      {loader.data && loader.data.alerts.length > 0 ? (
+        loader.data.alerts
+          .slice(0, 3)
+          .map((alert) => (
+            <AlertCard
+              key={alert.id}
+              alert={alert}
+              onPress={() => router.push(`/alerts/${alert.id}`)}
+            />
+          ))
+      ) : (
+        <ActionCard
+          emoji="🛡️"
+          title="Kayıp hayvan, tehlike veya yardım çağrısı"
+          description="Kayıp ve bulunan hayvan, zehirli yem, yaralı hayvan, salgın, acil kan, geçici yuva ve mama desteği bildirimleri"
+          onPress={() => router.push('/alerts')}
+        />
+      )}
 
       {/* Güvenlik hatırlatması */}
       <Card style={{ marginTop: spacing.xl, backgroundColor: colors.warningLight, borderColor: colors.warningLight }}>

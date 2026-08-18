@@ -7,7 +7,8 @@
     "test": "node run-all.js",
     "test:temel": "node 01-temel-akislar.js",
     "test:guvenlik": "node 02-guvenlik-ve-katilim.js",
-    "test:yeni-kullanici": "node 03-yeni-kullanici.js"
+    "test:yeni-kullanici": "node 03-yeni-kullanici.js",
+    "test:topluluk": "node 05-guvenli-topluluk.js"
   },
   "dependencies": {
     "playwright": "^1.49.0"

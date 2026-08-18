@@ -99,6 +99,7 @@ messagesRouter.get(
       other_district: string | null;
       other_bio: string;
       other_purpose: string | null;
+      other_purposes: string[] | null;
       other_photo_url: string | null;
       last_body: string | null;
       last_created_at: number | null;
@@ -112,6 +113,7 @@ messagesRouter.get(
               o.district      AS other_district,
               o.bio           AS other_bio,
               o.purpose       AS other_purpose,
+              o.purposes      AS other_purposes,
               o.photo_url     AS other_photo_url,
               last.body       AS last_body,
               last.created_at AS last_created_at,
@@ -156,6 +158,7 @@ messagesRouter.get(
           district: row.other_district,
           bio: row.other_bio,
           purpose: row.other_purpose,
+          purposes: row.other_purposes,
           photo_url: row.other_photo_url,
         } as UserRow),
         lastMessage: row.last_created_at

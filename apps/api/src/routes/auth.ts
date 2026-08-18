@@ -133,7 +133,7 @@ authRouter.get(
     const me = currentUser(req);
 
     const [user, dogs, events, participations, messages, reports, blocks] = await Promise.all([
-      db.one('SELECT id, email, name, district, bio, purpose, created_at FROM users WHERE id = $1', [
+      db.one('SELECT id, email, name, district, bio, purpose, purposes, created_at FROM users WHERE id = $1', [
         me.id,
       ]),
       db.query('SELECT id, name, breed, size, energy, sociability, bio FROM dogs WHERE owner_id = $1', [
@@ -215,6 +215,7 @@ authRouter.post(
                 bio = '',
                 district = NULL,
                 purpose = NULL,
+                purposes = '{}',
                 photo_url = NULL,
                 updated_at = $1
           WHERE id = $2`,

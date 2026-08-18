@@ -72,6 +72,12 @@ Yeni migration eklerken: `apps/api/src/db/migrations.ts` dizisine yeni bir
 kayıt ekleyin. **Yayınlanmış bir migration'ı asla değiştirmeyin** — mevcut
 veritabanları onu yeniden uygulamaz.
 
+`0006_multi_purpose_and_community_alerts` mevcut veri üzerinde çalışır:
+tek seçimli `users.purpose` değerleri yeni `users.purposes` dizisine kopyalanır.
+Eski kolon **silinmez** ve yazma sırasında ilk seçimle güncellenmeye devam eder;
+sürümü geri almanız gerekirse veri yerinde durur. Geçiş `cardinality` kontrolü
+sayesinde tekrar çalıştırılsa bile sonradan yapılmış çoklu seçimleri ezmez.
+
 ### 2.4 Yedekleme
 
 - **Sağlayıcı yedeği:** günlük otomatik yedek + noktaya dönüş (PITR) açın.
@@ -100,8 +106,12 @@ veritabanları onu yeniden uygulamaz.
 
 ## 3. Obje depolama (fotoğraflar)
 
-Profil ve köpek fotoğrafları S3 uyumlu bir depoda tutulur. `local` sürücü
-yalnızca geliştirme içindir (birden fazla sunucuda paylaşılmaz).
+Profil, köpek ve Güvenli Topluluk bildirimi fotoğrafları S3 uyumlu bir depoda
+tutulur (`user_photo`, `dog_photo`, `alert_photo` anahtar önekleri). `local`
+sürücü yalnızca geliştirme içindir (birden fazla sunucuda paylaşılmaz).
+
+Bir kayıp hayvan ilanı 5 fotoğrafa kadar taşıyabildiği için kova boyutu
+tahmininde ilan başına ~5 görsel hesaplayın.
 
 ### 3.1 Kova oluşturma
 

@@ -226,6 +226,64 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_log(created_at DESC);
 `,
   },
+
+  {
+    id: '0006_multi_purpose_and_community_alerts',
+    sql: `
+-- 1) "Ne arıyorsun?" alanı tek seçimden çoklu seçime geçiyor.
+--
+-- Eski tek değerli purpose kolonu bilinçli olarak SİLİNMİYOR: mevcut veri
+-- yerinde kalır, yazma sırasında ilk seçim ile güncellenmeye devam eder ve
+-- geri dönüş gerekirse veri kaybı olmaz. Okuma artık purposes dizisinden
+-- yapılır.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS purposes TEXT[] NOT NULL DEFAULT '{}';
+
+-- Mevcut tek seçimli değerleri kayıpsız taşı. cardinality kontrolü sayesinde
+-- migration yeniden çalıştırılsa bile sonradan yapılmış çoklu seçimleri ezmez.
+UPDATE users
+   SET purposes = ARRAY[purpose]
+ WHERE purpose IS NOT NULL
+   AND purpose <> ''
+   AND cardinality(purposes) = 0;
+
+-- 2) Güvenli Topluluk bildirimleri.
+--
+-- Kayıp hayvan ilanı da bu tablonun bir türü. KONUM KURALI: yalnızca semt ve
+-- serbest metin bir "yaklaşık bölge" tarifi saklanır; koordinat, açık adres
+-- veya kapı numarası için alan YOKTUR ve doğrulama katmanı bunları reddeder.
+CREATE TABLE IF NOT EXISTS community_alerts (
+  id           TEXT PRIMARY KEY,
+  author_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type         TEXT NOT NULL,
+  -- Kayıp/bulunan hayvan ilanlarında hayvanın adı.
+  animal_name  TEXT,
+  -- Yaklaşık bölge: semt zorunlu, area_note ise "X parkı civarı" gibi tarif.
+  district     TEXT NOT NULL,
+  area_note    TEXT NOT NULL DEFAULT '',
+  -- Son görülme (veya olayın gerçekleştiği) tarih ve saat.
+  occurred_at  BIGINT,
+  description  TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT 'active',  -- active | resolved | removed
+  created_at   BIGINT NOT NULL,
+  updated_at   BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_browse ON community_alerts(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_district ON community_alerts(district, status);
+CREATE INDEX IF NOT EXISTS idx_alerts_author ON community_alerts(author_id);
+
+-- İlan fotoğrafları. Anahtarlar media_objects kaydına karşılık gelir; sahiplik
+-- doğrulaması yükleme katmanında yapılır (bkz. domain/media.ts).
+CREATE TABLE IF NOT EXISTS community_alert_photos (
+  id          TEXT PRIMARY KEY,
+  alert_id    TEXT NOT NULL REFERENCES community_alerts(id) ON DELETE CASCADE,
+  storage_key TEXT NOT NULL,
+  position    INTEGER NOT NULL,
+  created_at  BIGINT NOT NULL,
+  UNIQUE(alert_id, position)
+);
+CREATE INDEX IF NOT EXISTS idx_alert_photos_alert ON community_alert_photos(alert_id, position);
+`,
+  },
 ];
 
 export interface MigrationResult {

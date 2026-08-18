@@ -441,7 +441,13 @@ function reportsTable(reports: Awaited<ReturnType<typeof listReports>>): string 
 <tr>
   <td>
     <strong>${esc(REASON_LABELS[report.reason] ?? report.reason)}</strong><br>
-    <span class="muted">${report.target_type === 'user' ? 'Kullanıcı' : 'Etkinlik'}: ${esc(
+    <span class="muted">${
+      report.target_type === 'user'
+        ? 'Kullanıcı'
+        : report.target_type === 'event'
+          ? 'Etkinlik'
+          : 'Bildirim'
+    }: ${esc(
       report.target_label ?? '(silinmiş)'
     )}</span>
     ${report.details ? `<details><summary>Açıklama</summary><p>${esc(report.details)}</p></details>` : ''}

@@ -31,6 +31,7 @@ const SUITES = [
   // Google akışı: beklenen durum GOOGLE_EXPECTED ile verilir. Varsayılan
   // 'absent' — yapılandırma olmadan düğmenin gizlendiğini doğrular.
   [`Google ile giriş arayüzü (mod: ${GOOGLE_MODE})`, '04-google-giris.js'],
+  ['Güvenli Topluluk ve çoklu seçim (bildirimler, "Ne arıyorsun?")', '05-guvenli-topluluk.js'],
 ];
 
 let failed = 0;

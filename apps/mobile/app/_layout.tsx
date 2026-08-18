@@ -28,6 +28,9 @@ export default function RootLayout() {
           <Stack.Screen name="event/[id]" options={{ title: 'Etkinlik' }} />
           <Stack.Screen name="event/create" options={{ title: 'Yürüyüş oluştur' }} />
           <Stack.Screen name="chat/[id]" options={{ title: 'Sohbet' }} />
+          <Stack.Screen name="alerts/index" options={{ title: 'Güvenli Topluluk' }} />
+          <Stack.Screen name="alerts/create" options={{ title: 'Bildirim oluştur' }} />
+          <Stack.Screen name="alerts/[id]" options={{ title: 'Bildirim' }} />
           <Stack.Screen name="legal/[slug]" options={{ title: 'Belge' }} />
           <Stack.Screen name="settings/blocked" options={{ title: 'Engellenen kullanıcılar' }} />
           <Stack.Screen name="settings/notifications" options={{ title: 'Bildirimler' }} />

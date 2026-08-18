@@ -170,9 +170,11 @@ export default function UserProfileScreen() {
           </View>
         </View>
 
-        {owner.purpose ? (
-          <View style={{ flexDirection: 'row', marginTop: spacing.md }}>
-            <Tag label={labelFor(purposeLabels, owner.purpose)} tone="primary" />
+        {owner.purposes.length > 0 ? (
+          <View style={styles.purposeRow}>
+            {owner.purposes.map((purpose) => (
+              <Tag key={purpose} label={labelFor(purposeLabels, purpose)} tone="primary" />
+            ))}
           </View>
         ) : null}
 
@@ -268,5 +270,11 @@ const styles = StyleSheet.create({
   },
   primaryActions: {
     marginTop: spacing.lg,
+  },
+  purposeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.md,
   },
 });

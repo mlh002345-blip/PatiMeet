@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
-import type { DiscoverItem, EventSummary } from '../api';
+import type { CommunityAlert, DiscoverItem, EventSummary } from '../api';
 import {
+  alertTypeEmoji,
+  alertTypeLabels,
   dogAgeLabel,
   dogSizeLabels,
   energyLabels,
   eventTypeEmoji,
   eventTypeLabels,
   formatEventDate,
+  formatRelative,
   labelFor,
   sociabilityLabels,
+  urgentAlertTypes,
 } from '../labels';
 import { colors, radius, spacing } from '../theme';
 import { AppText, Avatar, Card, Tag } from './ui';
@@ -163,6 +167,56 @@ export function EventCard({
   );
 }
 
+/** Güvenli Topluluk bildirimi kartı (kayıp hayvan ilanları dahil). */
+export function AlertCard({ alert, onPress }: { alert: CommunityAlert; onPress: () => void }) {
+  const urgent = urgentAlertTypes.has(alert.type);
+  const cover = alert.photos[0];
+
+  return (
+    <Card onPress={onPress} style={styles.alertCard}>
+      <View style={styles.row}>
+        {cover ? (
+          <Image source={{ uri: cover }} style={styles.alertCover} />
+        ) : (
+          <View style={[styles.alertCover, styles.alertCoverFallback]}>
+            <AppText variant="title">{alertTypeEmoji[alert.type] ?? '📣'}</AppText>
+          </View>
+        )}
+
+        <View style={styles.alertBody}>
+          <View style={styles.alertTagRow}>
+            <Tag
+              label={labelFor(alertTypeLabels, alert.type)}
+              tone={urgent ? 'danger' : 'primary'}
+            />
+            {alert.status === 'resolved' ? <Tag label="Çözüldü" tone="success" /> : null}
+          </View>
+
+          {alert.animalName ? (
+            <AppText variant="bodyStrong" numberOfLines={1} style={{ marginTop: spacing.xs }}>
+              {alert.animalName}
+            </AppText>
+          ) : null}
+
+          <AppText
+            variant="body"
+            color={colors.textMuted}
+            numberOfLines={2}
+            style={{ marginTop: 2 }}
+          >
+            {alert.description}
+          </AppText>
+
+          <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.xs }}>
+            📍 {alert.district}
+            {alert.areaNote ? ` · ${alert.areaNote}` : ''} · {formatRelative(alert.createdAt)}
+          </AppText>
+        </View>
+      </View>
+    </Card>
+  );
+}
+
 /** Ana sayfada hızlı aksiyon kartı. */
 export function ActionCard({
   emoji,
@@ -269,6 +323,29 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
+  },
+  alertCard: {
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+  },
+  alertCover: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+  },
+  alertCoverFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertBody: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  alertTagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
   },
   actionIcon: {
     width: 48,

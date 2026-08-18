@@ -17,7 +17,8 @@ interface SeedUser {
   name: string;
   district: string;
   bio: string;
-  purpose: string;
+  /** Çoklu seçim: "Ne arıyorsun?" */
+  purposes: string[];
   dog: {
     name: string;
     breed: string;
@@ -36,7 +37,7 @@ const users: SeedUser[] = [
     name: 'Elif',
     district: 'Kadıköy',
     bio: 'Her akşam Yoğurtçu Parkı civarında yürüyoruz. Sakin köpeklerle tanışmayı seviyoruz.',
-    purpose: 'yuruyus',
+    purposes: ['yuruyus', 'sosyal'],
     dog: {
       name: 'Pati',
       breed: 'Golden Retriever',
@@ -53,7 +54,7 @@ const users: SeedUser[] = [
     name: 'Mert',
     district: 'Beşiktaş',
     bio: 'Sabah koşularına köpeğimle çıkıyorum. Enerjik arkadaşlar arıyoruz.',
-    purpose: 'oyun',
+    purposes: ['oyun', 'etkinlik'],
     dog: {
       name: 'Karamel',
       breed: 'Border Collie',
@@ -70,7 +71,7 @@ const users: SeedUser[] = [
     name: 'Zeynep',
     district: 'Kadıköy',
     bio: 'Sokaktan sahiplendik, yeni yeni sosyalleşiyor. Sabırlı arkadaşlar arıyoruz.',
-    purpose: 'sosyal',
+    purposes: ['sosyal'],
     dog: {
       name: 'Fındık',
       breed: 'Terrier karışık',
@@ -87,7 +88,7 @@ const users: SeedUser[] = [
     name: 'Can',
     district: 'Şişli',
     bio: 'Hafta sonu uzun yürüyüşleri planlıyorum. Grup yürüyüşlerine katılmayı seviyorum.',
-    purpose: 'yuruyus',
+    purposes: ['yuruyus', 'etkinlik'],
     dog: {
       name: 'Duman',
       breed: 'Husky',
@@ -104,7 +105,7 @@ const users: SeedUser[] = [
     name: 'Selin',
     district: 'Üsküdar',
     bio: 'Yaşlı bir köpeğim var, kısa ve sakin yürüyüşler tercih ediyoruz.',
-    purpose: 'sosyal',
+    purposes: ['sosyal', 'yuruyus'],
     dog: {
       name: 'Maya',
       breed: 'Cocker Spaniel',
@@ -132,6 +133,8 @@ async function main(): Promise<void> {
       'events',
       'blocks',
       'reports',
+      'community_alert_photos',
+      'community_alerts',
       'media_objects',
       'push_tokens',
       'notification_preferences',
@@ -159,10 +162,21 @@ async function main(): Promise<void> {
     const userId = newId();
     await db.exec(
       `INSERT INTO users
-         (id, email, password_hash, provider, name, district, bio, purpose,
+         (id, email, password_hash, provider, name, district, bio, purpose, purposes,
           email_verified_at, terms_accepted_at, privacy_accepted_at, created_at, updated_at)
-       VALUES ($1, $2, $3, 'email', $4, $5, $6, $7, $8, $8, $8, $8, $8)`,
-      [userId, seed.email, passwordHash, seed.name, seed.district, seed.bio, seed.purpose, ts]
+       VALUES ($1, $2, $3, 'email', $4, $5, $6, $7, $8, $9, $9, $9, $9, $9)`,
+      [
+        userId,
+        seed.email,
+        passwordHash,
+        seed.name,
+        seed.district,
+        seed.bio,
+        // Eski tek değerli kolon ilk seçimle uyumlu kalır.
+        seed.purposes[0] ?? null,
+        seed.purposes,
+        ts,
+      ]
     );
 
     const dogId = newId();
@@ -318,6 +332,55 @@ async function main(): Promise<void> {
           [newId(), conversationId, senderId, body, readAt, createdAt]
         );
       }
+    }
+    /**
+     * Güvenli Topluluk örnekleri.
+     *
+     * Yalnızca fotoğraf zorunluluğu olmayan türler ekleniyor: seed sahte bir
+     * media_objects kaydı üretmiyor, dolayısıyla kayıp/bulunan hayvan ilanı
+     * için gerçek bir yükleme gerekir (uygulamadan denenebilir).
+     */
+    const alerts = [
+      {
+        owner: 0,
+        type: 'zehirli_yem',
+        district: 'Kadıköy',
+        areaNote: 'Yoğurtçu Parkı çevresi',
+        occurredAt: ts - 6 * 60 * 60 * 1000,
+        description:
+          'Park girişinde açıkta bırakılmış şüpheli yem gördük. Köpeğinizi tasmasız bırakmayın, yerden bir şey yemesine izin vermeyin.',
+      },
+      {
+        owner: 3,
+        type: 'destek',
+        district: 'Şişli',
+        areaNote: 'Mahalle içi',
+        occurredAt: null,
+        description:
+          'Sokak köpekleri için mama desteği topluyoruz. Katkı sağlamak veya ulaşım için yardım etmek isterseniz mesaj atın.',
+      },
+    ];
+
+    for (const alert of alerts) {
+      const owner = created[alert.owner];
+      if (!owner) continue;
+
+      await db.exec(
+        `INSERT INTO community_alerts
+           (id, author_id, type, animal_name, district, area_note, occurred_at,
+            description, status, created_at, updated_at)
+         VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, 'active', $8, $8)`,
+        [
+          newId(),
+          owner.userId,
+          alert.type,
+          alert.district,
+          alert.areaNote,
+          alert.occurredAt,
+          alert.description,
+          ts,
+        ]
+      );
     }
   }
 

@@ -7,6 +7,7 @@ import {
   listUsers,
   recentAudit,
   setDogStatus,
+  setAlertStatus,
   setEventStatus,
   setReportStatus,
   setUserStatus,
@@ -139,6 +140,22 @@ adminRouter.patch(
       req.body
     );
     await setDogStatus(API_ACTOR, req.params.id, input.status, input.note ?? '');
+    res.json({ ok: true });
+  })
+);
+
+/** Güvenli Topluluk bildirimini kaldırma. */
+adminRouter.patch(
+  '/alerts/:id',
+  asyncRoute(async (req, res) => {
+    const input = parseBody(
+      z.object({
+        status: z.enum(['active', 'removed']),
+        note: z.string().max(500).optional(),
+      }),
+      req.body
+    );
+    await setAlertStatus(API_ACTOR, req.params.id, input.status, input.note ?? '');
     res.json({ ok: true });
   })
 );

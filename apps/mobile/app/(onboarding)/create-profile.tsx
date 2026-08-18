@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, ApiError } from '../../src/api';
 import { PhotoPicker } from '../../src/components/PhotoPicker';
 import { StepHeader } from '../../src/components/StepHeader';
-import { Banner, Button, ChoiceGroup, Field, Screen } from '../../src/components/ui';
+import { Banner, Button, Field, MultiChoiceGroup, Screen } from '../../src/components/ui';
 import { purposeLabels } from '../../src/labels';
 import { useSession } from '../../src/session';
 import { spacing } from '../../src/theme';
@@ -23,7 +23,7 @@ export default function OnboardingProfileScreen() {
 
   const [name, setName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
-  const [purpose, setPurpose] = useState<string | null>(user?.purpose ?? null);
+  const [purposes, setPurposes] = useState<string[]>(user?.purposes ?? []);
   // Kaydedilecek depo anahtarı ile gösterilecek adresi ayrı tutuyoruz.
   const [photoKey, setPhotoKey] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(user?.photoUrl ?? null);
@@ -45,7 +45,7 @@ export default function OnboardingProfileScreen() {
       const res = await api.updateProfile({
         name: name.trim(),
         bio: bio.trim(),
-        purpose,
+        purposes,
         photoUrl: photoKey,
       });
       setUser(res.user);
@@ -98,11 +98,12 @@ export default function OnboardingProfileScreen() {
             required
           />
 
-          <ChoiceGroup
+          <MultiChoiceGroup
             label="Ne arıyorsun?"
+            hint="Birden fazla seçebilirsin."
             options={Object.entries(purposeLabels).map(([value, label]) => ({ value, label }))}
-            value={purpose}
-            onChange={setPurpose}
+            values={purposes}
+            onChange={setPurposes}
           />
 
           <Field

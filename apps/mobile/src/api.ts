@@ -145,6 +145,9 @@ export interface PublicUser {
   name: string;
   district: string | null;
   bio: string;
+  /** Çoklu seçim: "Ne arıyorsun?" cevapları. */
+  purposes: string[];
+  /** Eski tek değerli alan — sunucu ilk seçimi gönderir. */
   purpose: string | null;
   photoUrl: string | null;
 }
@@ -155,6 +158,9 @@ export interface CurrentUser {
   name: string;
   district: string | null;
   bio: string;
+  /** Çoklu seçim: "Ne arıyorsun?" cevapları. */
+  purposes: string[];
+  /** Eski tek değerli alan — sunucu ilk seçimi gönderir. */
   purpose: string | null;
   photoUrl: string | null;
   status: string;
@@ -235,6 +241,57 @@ export interface DiscoverItem {
   owner: PublicUser;
   /** İzleyenin köpeği yoksa null. */
   match: (MatchScore & { viewerDogId: string }) | null;
+}
+
+
+/** Yükleme türü — sunucudaki `MediaPurpose` ile aynı. */
+export type MediaPurpose = 'user_photo' | 'dog_photo' | 'alert_photo';
+
+/** Güvenli Topluluk bildirim türü ve zorunlu alanları. */
+export interface AlertTypeInfo {
+  value: string;
+  label: string;
+  description: string;
+  requiresAnimalName: boolean;
+  requiresPhoto: boolean;
+  requiresOccurredAt: boolean;
+}
+
+/**
+ * Güvenli Topluluk bildirimi (kayıp hayvan ilanı dahil).
+ *
+ * Kesin konum alanı bilinçli olarak YOK: yalnızca semt ve serbest metin bir
+ * yaklaşık bölge tarifi taşınır.
+ */
+export interface CommunityAlert {
+  id: string;
+  type: string;
+  typeLabel: string;
+  animalName: string | null;
+  district: string;
+  areaNote: string;
+  /** Son görülme / olay zamanı. */
+  occurredAt: number | null;
+  description: string;
+  status: string;
+  createdAt: number;
+  updatedAt: number;
+  /** Görüntülenebilir fotoğraf adresleri (en fazla 5). */
+  photos: string[];
+  isOwner: boolean;
+  /** Uygulama içi mesajla iletişim için ilan sahibi. */
+  author: PublicUser | null;
+}
+
+export interface AlertPayload {
+  type: string;
+  animalName?: string | null;
+  district: string;
+  areaNote?: string;
+  occurredAt?: number | null;
+  description: string;
+  /** Yüklenen fotoğrafların depo anahtarları. */
+  photoKeys?: string[];
 }
 
 export interface NotificationPreferences {
@@ -335,7 +392,7 @@ export const api = {
    * fotoğraf tüm cihazlarda görünür.
    */
   uploadPhoto: (
-    purpose: 'user_photo' | 'dog_photo',
+    purpose: MediaPurpose,
     data: Blob,
     contentType: string
   ) =>
@@ -393,7 +450,8 @@ export const api = {
     name?: string;
     district?: string | null;
     bio?: string;
-    purpose?: string | null;
+    /** Çoklu seçim. Boş dizi seçimi temizler. */
+    purposes?: string[];
     photoUrl?: string | null;
   }) => apiRequest<{ user: CurrentUser }>('/api/users/me', { method: 'PATCH', body }),
 
@@ -498,7 +556,7 @@ export const api = {
     ),
 
   report: (body: {
-    targetType: 'user' | 'event';
+    targetType: 'user' | 'event' | 'alert';
     targetId: string;
     reason: string;
     details?: string;
@@ -516,6 +574,49 @@ export const api = {
     }),
 
   blockedUsers: () => apiRequest<{ blocked: PublicUser[] }>('/api/safety/blocks'),
+
+  // --- Güvenli Topluluk bildirimleri ---
+
+  alertTypes: () =>
+    apiRequest<{ types: AlertTypeInfo[]; maxPhotos: number }>('/api/safety/alert-types', {
+      skipAuth: true,
+    }),
+
+  alerts: (
+    params: {
+      type?: string;
+      district?: string;
+      scope?: 'all' | 'mine';
+      status?: 'active' | 'resolved';
+    } = {}
+  ) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value) query.set(key, value);
+    }
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<{ alerts: CommunityAlert[]; hasMore: boolean }>(
+      `/api/safety/alerts${suffix}`
+    );
+  },
+
+  alert: (id: string) => apiRequest<{ alert: CommunityAlert }>(`/api/safety/alerts/${id}`),
+
+  createAlert: (body: AlertPayload) =>
+    apiRequest<{ alert: CommunityAlert; notified: number }>('/api/safety/alerts', {
+      method: 'POST',
+      body,
+    }),
+
+  /** İlanı çözüldü (ör. hayvan bulundu) olarak işaretler. */
+  updateAlertStatus: (id: string, status: 'active' | 'resolved') =>
+    apiRequest<{ alert: CommunityAlert }>(`/api/safety/alerts/${id}`, {
+      method: 'PATCH',
+      body: { status },
+    }),
+
+  deleteAlert: (id: string) =>
+    apiRequest<{ ok: boolean; message: string }>(`/api/safety/alerts/${id}`, { method: 'DELETE' }),
 
   legalDocuments: () =>
     apiRequest<{ documents: Array<{ slug: string; title: string; updatedAt: string }> }>(
