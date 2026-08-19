@@ -47,6 +47,7 @@ export function AppText({
   return (
     <Text
       numberOfLines={numberOfLines}
+      maxFontSizeMultiplier={1.25}
       onPress={onPress}
       accessibilityRole={onPress ? 'link' : undefined}
       style={[typography[variant], { color }, center && { textAlign: 'center' }, style]}
@@ -341,6 +342,7 @@ export function ImageHero({
   topLeft,
   fallbackLabel,
   fallbackIcon,
+  showFallbackPromptWithChildren = false,
   radius: cornerRadius = radius.lg,
   onPress,
   style,
@@ -352,6 +354,8 @@ export function ImageHero({
   topLeft?: React.ReactNode;
   fallbackLabel?: string;
   fallbackIcon?: SymbolViewProps['name'];
+  /** Fotoğraf yokken orta çağrıyı alt içerikle birlikte özellikle göster. */
+  showFallbackPromptWithChildren?: boolean;
   radius?: number;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
@@ -387,7 +391,7 @@ export function ImageHero({
               tintColor={colors.copperPale}
             />
           </View>
-          {fallbackLabel ? (
+          {fallbackLabel && (!children || showFallbackPromptWithChildren) ? (
             <View style={styles.heroFallbackPrompt}>
               <Text style={[typography.label, { color: colors.textOnDark }]} numberOfLines={1}>
                 {fallbackLabel}

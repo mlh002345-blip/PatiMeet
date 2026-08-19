@@ -6,6 +6,7 @@ import { LoadingState } from '../../src/components/ui';
 import { useSession } from '../../src/session';
 import { usePushRegistration } from '../../src/push';
 import { colors } from '../../src/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * Alt menü (MVP 6. bölüm): Ana Sayfa, Keşfet, Etkinlikler, Mesajlar, Profil.
@@ -16,6 +17,7 @@ import { colors } from '../../src/theme';
 export default function TabsLayout() {
   const { initializing, user } = useSession();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [unread, setUnread] = useState(0);
 
   /**
@@ -72,9 +74,9 @@ export default function TabsLayout() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 72,
+          height: 62 + Math.max(insets.bottom, 10),
           paddingTop: 7,
-          paddingBottom: 7,
+          paddingBottom: Math.max(insets.bottom, 10),
         },
         tabBarItemStyle: { minHeight: 56 },
         tabBarIconStyle: { marginTop: 0 },

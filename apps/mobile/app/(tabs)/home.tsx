@@ -99,6 +99,7 @@ export default function HomeScreen() {
         height={300}
         style={{ marginTop: spacing.xl }}
         fallbackLabel={dog ? `${dog.name}'nin portresini ekle` : 'Köpek profili ekle'}
+        showFallbackPromptWithChildren
         onPress={() =>
           dog ? router.push(`/settings/edit-dog?dogId=${dog.id}`) : router.push('/settings/add-dog')
         }
