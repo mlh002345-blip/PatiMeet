@@ -6,12 +6,12 @@ import { AlertCard, EventCard } from '../../src/components/cards';
 import {
   AppText,
   AppHeader,
-  Banner,
   Button,
   Card,
   EmptyState,
   ErrorState,
   ImageHero,
+  IconAction,
   LoadingState,
   Metric,
   PatiLine,
@@ -96,9 +96,9 @@ export default function HomeScreen() {
       {/* Sinematik hero — köpek merkezde */}
       <ImageHero
         uri={dog?.photoUrl}
-        height={280}
+        height={300}
         style={{ marginTop: spacing.xl }}
-        fallbackLabel={dog ? `${dog.name} için fotoğraf ekle` : 'Köpek profili ekle'}
+        fallbackLabel={dog ? `${dog.name}'nin portresini ekle` : 'Köpek profili ekle'}
         onPress={() =>
           dog ? router.push(`/settings/edit-dog?dogId=${dog.id}`) : router.push('/settings/add-dog')
         }
@@ -108,6 +108,20 @@ export default function HomeScreen() {
               label={user.district}
               tone="onDark"
               icon={{ ios: 'mappin', android: 'place', web: 'place' }}
+            />
+          ) : null
+        }
+        topRight={
+          !dog?.photoUrl ? (
+            <IconAction
+              label={`${dog?.name ?? 'Köpek'} fotoğrafı ekle`}
+              name={{ ios: 'camera', android: 'add_a_photo', web: 'add_a_photo' }}
+              tone="onDark"
+              onPress={() =>
+                dog
+                  ? router.push(`/settings/edit-dog?dogId=${dog.id}`)
+                  : router.push('/settings/add-dog')
+              }
             />
           ) : null
         }
@@ -128,34 +142,35 @@ export default function HomeScreen() {
         )}
       </ImageHero>
 
-      {/* Günün özeti + tek baskın eylem */}
-      <Card style={{ marginTop: spacing.lg }}>
-        <View style={styles.metricRow}>
-          <Metric
-            value={String(loader.data?.joined.length ?? 0)}
-            label="Kayıtlı etkinliğin"
+      {/* Günün concierge özeti hero'nun üzerine hafifçe oturur. */}
+      <Card style={styles.conciergeCard}>
+        <View style={styles.conciergeHeader}>
+          <SubtleBadge
+            label="Bugünün planı"
+            tone="copper"
+            icon={{ ios: 'sun.max', android: 'wb_sunny', web: 'wb_sunny' }}
           />
-          <View style={styles.metricDivider} />
-          <Metric
-            value={String(loader.data?.nearby.length ?? 0)}
-            label={`${user?.district ?? 'Yakında'} etkinliği`}
-          />
+          <AppText variant="caption" color={colors.textSubtle}>
+            {user?.district ?? 'Yakınında'}
+          </AppText>
         </View>
 
-        {nextEvent ? (
-          <View style={styles.nextEvent}>
-            <PatiLine progress={0.4} />
-            <AppText variant="caption" color={colors.copperDeep} style={{ marginTop: spacing.md }}>
-              SIRADAKİ
-            </AppText>
-            <AppText variant="bodyStrong" numberOfLines={1} style={{ marginTop: 2 }}>
-              {nextEvent.title}
-            </AppText>
-            <AppText variant="caption" color={colors.textMuted}>
-              {formatEventDate(nextEvent.startsAt)} · {nextEvent.district}
-            </AppText>
-          </View>
-        ) : null}
+        <AppText variant="title" style={{ marginTop: spacing.md }}>
+          {nextEvent ? 'Sıradaki buluşman hazır' : `${dog?.name ?? 'Dostun'} ile günü planla`}
+        </AppText>
+        <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
+          {nextEvent
+            ? `${formatEventDate(nextEvent.startsAt)} · ${nextEvent.district}`
+            : 'Yakınındaki güvenli bir yürüyüşü seç veya kendi buluşmanı oluştur.'}
+        </AppText>
+
+        <PatiLine progress={nextEvent ? 0.68 : completion} style={{ marginTop: spacing.lg }} />
+
+        <View style={styles.metricRow}>
+          <Metric value={String(loader.data?.joined.length ?? 0)} label="Planın" />
+          <View style={styles.metricDivider} />
+          <Metric value={String(loader.data?.nearby.length ?? 0)} label="Yakındaki buluşma" />
+        </View>
 
         {/**
          * Tek baskın eylem. Canlı yürüyüş takibi bu fazın kapsamı dışında
@@ -321,6 +336,7 @@ const styles = StyleSheet.create({
   metricRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    marginTop: spacing.lg,
   },
   metricDivider: {
     width: 1,
@@ -328,11 +344,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     marginHorizontal: spacing.lg,
   },
-  nextEvent: {
-    marginTop: spacing.lg,
-    paddingTop: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+  conciergeCard: {
+    marginTop: -26,
+    marginHorizontal: spacing.md,
+    borderColor: colors.borderStrong,
+  },
+  conciergeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   progressRow: {
     flexDirection: 'row',

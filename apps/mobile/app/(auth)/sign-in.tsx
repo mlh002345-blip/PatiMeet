@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, ApiError } from '../../src/api';
 import { SocialAuthSection } from '../../src/components/GoogleSignIn';
-import { AppText, Banner, Button, Field, Screen } from '../../src/components/ui';
+import { AppText, Banner, BrandMark, Button, Field, Screen } from '../../src/components/ui';
 import { useSession } from '../../src/session';
 import { colors, spacing, typography } from '../../src/theme';
 
@@ -54,7 +54,10 @@ export default function SignInScreen() {
     >
       <Screen>
         <View style={{ paddingTop: insets.top + spacing.xxl }}>
-          <Text style={styles.logo}>🐾</Text>
+          <BrandMark size={72} />
+          <AppText variant="kicker" color={colors.copper} style={{ marginTop: spacing.md }}>
+            PATIMEET PRIVÉ
+          </AppText>
           <AppText variant="display" color={colors.primary}>
             Tekrar hoş geldin
           </AppText>
@@ -106,10 +109,6 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-  logo: {
-    fontSize: 56,
-    marginBottom: spacing.lg,
-  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',

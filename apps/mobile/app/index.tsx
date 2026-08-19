@@ -1,6 +1,7 @@
 import { Redirect } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { BrandMark } from '../src/components/ui';
 import { useSession } from '../src/session';
 import { colors, spacing, typography } from '../src/theme';
 
@@ -28,9 +29,10 @@ export default function SplashScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>🐾</Text>
+      <BrandMark size={82} />
+      <Text style={styles.kicker}>PATIMEET PRIVÉ</Text>
       <Text style={styles.title}>PatiMeet</Text>
-      <Text style={styles.tagline}>Köpeğine yakınında oyun ve yürüyüş arkadaşı bul</Text>
+      <Text style={styles.tagline}>Seçkin dostluklar. Güvenli yürüyüşler.</Text>
       <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
     </View>
   );
@@ -44,9 +46,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.xl,
   },
-  logo: {
-    fontSize: 72,
-    marginBottom: spacing.lg,
+  kicker: {
+    ...typography.kicker,
+    color: colors.copper,
+    marginTop: spacing.lg,
+    letterSpacing: 2.4,
   },
   title: {
     ...typography.display,

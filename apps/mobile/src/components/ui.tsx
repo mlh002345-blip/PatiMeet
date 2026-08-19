@@ -155,6 +155,56 @@ export function AppHeader({
 }
 
 /**
+ * PatiMeet Privé monogramı.
+ *
+ * Harici logo dosyasına bağımlı değildir; bakır rota noktası ve editoryal P
+ * harfiyle küçük boyutta da tanınan, emoji olmayan bir marka işareti üretir.
+ */
+export function BrandMark({ size = 72 }: { size?: number }) {
+  return (
+    <View
+      accessibilityRole="image"
+      accessibilityLabel="PatiMeet Privé"
+      style={[
+        styles.brandMark,
+        { width: size, height: size, borderRadius: size / 2 },
+      ]}
+    >
+      <Text
+        style={[
+          typography.display,
+          {
+            color: colors.textOnDark,
+            fontSize: size * 0.52,
+            lineHeight: size * 0.62,
+          },
+        ]}
+      >
+        P
+      </Text>
+      <View
+        style={[
+          styles.brandMarkRoute,
+          { width: size * 0.33, right: size * 0.08, bottom: size * 0.2 },
+        ]}
+      />
+      <View
+        style={[
+          styles.brandMarkDot,
+          {
+            width: size * 0.1,
+            height: size * 0.1,
+            borderRadius: size * 0.05,
+            right: size * 0.06,
+            bottom: size * 0.17,
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+/**
  * Yuvarlak ikon eylemi. Dokunma alanı her zaman en az 44 px kalır; görsel
  * daire daha küçük olsa bile.
  */
@@ -319,10 +369,6 @@ export function ImageHero({
           accessibilityIgnoresInvertColors
         />
       ) : (
-        /**
-         * Fallback ortalanır; ancak üzerine yazı bindiğinde alt içerik alanı
-         * kadar yukarı kaydırılır, yoksa başlıkla çakışıyor.
-         */
         <View
           style={[
             StyleSheet.absoluteFill,
@@ -330,18 +376,28 @@ export function ImageHero({
             children ? { paddingBottom: 96 } : null,
           ]}
         >
-          <SymbolView
-            name={fallbackIcon ?? { ios: 'pawprint', android: 'pets', web: 'pets' }}
-            size={34}
-            tintColor="rgba(243, 237, 227, 0.45)"
-          />
-          {fallbackLabel && !children ? (
-            <Text
-              style={[typography.caption, { color: colors.textOnDarkMuted, marginTop: spacing.sm }]}
-              numberOfLines={1}
-            >
-              {fallbackLabel}
-            </Text>
+          {/* Fotoğrafsız profil de boş kutu gibi değil, PatiMeet kimliği gibi görünür. */}
+          <View style={styles.heroOrbitLarge} />
+          <View style={styles.heroOrbitSmall} />
+          <View style={styles.heroRouteLine} />
+          <View style={styles.heroFallbackMark}>
+            <SymbolView
+              name={fallbackIcon ?? { ios: 'camera', android: 'add_a_photo', web: 'add_a_photo' }}
+              size={24}
+              tintColor={colors.copperPale}
+            />
+          </View>
+          {fallbackLabel ? (
+            <View style={styles.heroFallbackPrompt}>
+              <Text style={[typography.label, { color: colors.textOnDark }]} numberOfLines={1}>
+                {fallbackLabel}
+              </Text>
+              {onPress ? (
+                <Text style={[typography.caption, { color: colors.textOnDarkMuted, marginTop: 2 }]}>
+                  Portresini eklemek için dokun
+                </Text>
+              ) : null}
+            </View>
           ) : null}
         </View>
       )}
@@ -1063,6 +1119,24 @@ export function SectionHeader({
 }
 
 const styles = StyleSheet.create({
+  brandMark: {
+    backgroundColor: colors.obsidian,
+    borderWidth: 1,
+    borderColor: colors.copper,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  brandMarkRoute: {
+    position: 'absolute',
+    height: 1,
+    backgroundColor: colors.copper,
+    transform: [{ rotate: '-18deg' }],
+  },
+  brandMarkDot: {
+    position: 'absolute',
+    backgroundColor: colors.copper,
+  },
   iconAction: {
     minWidth: HIT_SIZE,
     minHeight: HIT_SIZE,
@@ -1101,6 +1175,56 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryDark,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  heroOrbitLarge: {
+    position: 'absolute',
+    width: 230,
+    height: 230,
+    borderRadius: 115,
+    borderWidth: 1,
+    borderColor: 'rgba(181, 113, 60, 0.34)',
+    top: -72,
+    right: -58,
+  },
+  heroOrbitSmall: {
+    position: 'absolute',
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    borderWidth: 1,
+    borderColor: 'rgba(243, 237, 227, 0.12)',
+    top: 42,
+    left: -38,
+  },
+  heroRouteLine: {
+    position: 'absolute',
+    width: 190,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(181, 113, 60, 0.7)',
+    top: '42%',
+    right: -24,
+    transform: [{ rotate: '-12deg' }],
+  },
+  heroFallbackMark: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    borderWidth: 1,
+    borderColor: 'rgba(181, 113, 60, 0.72)',
+    backgroundColor: 'rgba(18, 20, 16, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroFallbackPrompt: {
+    alignItems: 'center',
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(18, 20, 16, 0.54)',
+    borderWidth: 1,
+    borderColor: 'rgba(243, 237, 227, 0.14)',
   },
   scrimBand: {
     position: 'absolute',

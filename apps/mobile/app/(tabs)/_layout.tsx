@@ -72,8 +72,20 @@ export default function TabsLayout() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
+          height: 72,
+          paddingTop: 7,
+          paddingBottom: 7,
         },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', letterSpacing: 0.2 },
+        tabBarItemStyle: { minHeight: 56 },
+        tabBarIconStyle: { marginTop: 0 },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          lineHeight: 14,
+          fontWeight: '600',
+          letterSpacing: 0.2,
+          marginTop: 1,
+        },
+        tabBarHideOnKeyboard: true,
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
