@@ -12,12 +12,12 @@ import {
   formatEventDate,
   formatRelative,
   labelFor,
+  purposeLabels,
   sociabilityLabels,
   urgentAlertTypes,
 } from '../labels';
-import { colors, radius, spacing } from '../theme';
+import { colors, radius, shadow, spacing } from '../theme';
 import { AppText, Card, ImageHero, PatiLine, SubtleBadge, Tag } from './ui';
-import { MatchBadge } from './MatchScore';
 
 /**
  * Keşfet listesindeki editoryal köpek kartı.
@@ -35,6 +35,13 @@ export function DogCard({ item, onPress }: { item: DiscoverItem; onPress: () => 
     labelFor(energyLabels, dog.energy),
     labelFor(sociabilityLabels, dog.sociability),
   ];
+  const purpose = owner.purposes[0];
+  const matchLabel =
+    item.match?.level === 'yuksek'
+      ? 'Güçlü eşleşme'
+      : item.match?.level === 'orta'
+        ? 'İyi bir başlangıç'
+        : 'Yeni bir ihtimal';
 
   return (
     <View style={styles.dogCard}>
@@ -46,11 +53,14 @@ export function DogCard({ item, onPress }: { item: DiscoverItem; onPress: () => 
         topLeft={
           item.match ? (
             <View style={styles.matchChip}>
-              <AppText variant="metric" color={colors.textOnDark}>
-                %{item.match.score}
-              </AppText>
+              <View style={styles.matchScoreRow}>
+                <AppText variant="metric" color={colors.textOnDark}>
+                  {item.match.score}
+                </AppText>
+                <AppText variant="caption" color={colors.copperPale}>/100</AppText>
+              </View>
               <AppText variant="caption" color={colors.textOnDarkMuted}>
-                uyum
+                {matchLabel}
               </AppText>
             </View>
           ) : null
@@ -85,10 +95,20 @@ export function DogCard({ item, onPress }: { item: DiscoverItem; onPress: () => 
       </ImageHero>
 
       <View style={styles.dogFooter}>
-        <View style={styles.tagRow}>
-          {traits.map((trait) => (
-            <Tag key={trait} label={trait} />
-          ))}
+        <View style={{ flex: 1 }}>
+          <View style={styles.tagRow}>
+            {traits.map((trait) => (
+              <Tag key={trait} label={trait} />
+            ))}
+          </View>
+          {purpose ? (
+            <View style={styles.intentRow}>
+              <View style={styles.intentDot} />
+              <AppText variant="caption" color={colors.textMuted} numberOfLines={1}>
+                {labelFor(purposeLabels, purpose)} arıyor
+              </AppText>
+            </View>
+          ) : null}
         </View>
 
         {/**
@@ -102,9 +122,7 @@ export function DogCard({ item, onPress }: { item: DiscoverItem; onPress: () => 
           onPress={onPress}
           style={({ pressed }) => [styles.meetButton, pressed && { opacity: 0.85 }]}
         >
-          <AppText variant="label" color={colors.textOnPrimary}>
-            Tanış
-          </AppText>
+          <AppText variant="label" color={colors.textOnPrimary}>Profili gör →</AppText>
         </Pressable>
       </View>
     </View>
@@ -301,13 +319,26 @@ export function AlertCard({ alert, onPress }: { alert: CommunityAlert; onPress: 
 const styles = StyleSheet.create({
   dogCard: {
     marginBottom: spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    ...shadow.card,
   },
   matchChip: {
-    backgroundColor: 'rgba(30, 58, 47, 0.86)',
-    borderRadius: radius.md,
+    backgroundColor: 'rgba(18, 20, 16, 0.82)',
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(181, 113, 60, 0.72)',
+  },
+  matchScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
   },
   dogMetaRow: {
     flexDirection: 'row',
@@ -328,12 +359,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
-    marginTop: spacing.md,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
   },
   meetButton: {
     backgroundColor: colors.copperAction,
     borderRadius: radius.pill,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
@@ -343,6 +376,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
+  },
+  intentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  intentDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.copper,
   },
   eventCard: {
     marginBottom: spacing.xl,

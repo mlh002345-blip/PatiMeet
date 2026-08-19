@@ -10,8 +10,11 @@ import {
   Button,
   Card,
   ErrorState,
+  ImageHero,
+  IconAction,
   LoadingState,
   ScrollScreen,
+  SubtleBadge,
   Tag,
 } from '../../src/components/ui';
 import {
@@ -76,45 +79,77 @@ export default function UserProfileScreen() {
 
   return (
     <ScrollScreen topInset={false}>
+      <View style={styles.detailHeader}>
+        <IconAction
+          label="Geri"
+          name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+          onPress={() => router.back()}
+        />
+        <AppText variant="label" color={colors.textMuted}>Kulüp profili</AppText>
+        <View style={{ width: 44 }} />
+      </View>
       {actionError ? <Banner tone="error" message={actionError} /> : null}
 
       {/* Köpek ön planda */}
       {focused ? (
-        <Card style={styles.profileCard}>
-          <View style={{ alignItems: 'center' }}>
-            {focused.photoUrl ? (
-              <Image source={{ uri: focused.photoUrl }} style={styles.hero} />
-            ) : (
-              <View style={styles.heroFallback}><Avatar name={focused.name} size={110} /></View>
-            )}
-
-            <AppText variant="display" style={{ marginTop: spacing.lg }}>
+        <>
+          <ImageHero
+            uri={focused.photoUrl}
+            height={360}
+            style={{ marginTop: spacing.md }}
+            fallbackLabel={focused.name}
+            topLeft={
+              matches[0] ? (
+                <SubtleBadge label={`%${matches[0].score} uyum`} tone="onDark" />
+              ) : null
+            }
+            topRight={
+              focused.vaccinated ? (
+                <SubtleBadge
+                  label="Aşılı (beyan)"
+                  tone="onDark"
+                  icon={{ ios: 'checkmark.seal', android: 'verified', web: 'verified' }}
+                />
+              ) : null
+            }
+          >
+            <AppText variant="kicker" color={colors.copperPale}>PATIMEET ÜYESİ</AppText>
+            <AppText variant="display" color={colors.textOnDark} numberOfLines={1}>
               {focused.name}
             </AppText>
-            <AppText variant="body" color={colors.textMuted}>
+            <AppText variant="body" color={colors.textOnDarkMuted} numberOfLines={1}>
               {focused.breed ?? 'Cins belirtilmemiş'} · {dogAgeLabel(focused.age)}
             </AppText>
-          </View>
+          </ImageHero>
 
-          <View style={styles.tagRow}>
-            <Tag label={labelFor(dogSizeLabels, focused.size)} tone="primary" />
-            <Tag label={labelFor(energyLabels, focused.energy)} tone="accent" />
-            <Tag label={labelFor(sociabilityLabels, focused.sociability)} />
-            {focused.vaccinated ? <Tag label="Aşılı (beyan)" tone="success" /> : null}
-          </View>
+          <Card style={styles.profileCard}>
+            <View style={styles.profileIntro}>
+              <View>
+                <AppText variant="kicker" color={colors.copper}>KARAKTER</AppText>
+                <AppText variant="title" style={{ marginTop: 2 }}>Tanışma notları</AppText>
+              </View>
+              <AppText variant="caption" color={colors.textSubtle}>{owner.district}</AppText>
+            </View>
 
-          {focused.bio ? (
-            <AppText variant="body" style={{ marginTop: spacing.lg }}>
-              {focused.bio}
-            </AppText>
-          ) : null}
+            <View style={styles.tagRow}>
+              <Tag label={labelFor(dogSizeLabels, focused.size)} tone="primary" />
+              <Tag label={labelFor(energyLabels, focused.energy)} tone="accent" />
+              <Tag label={labelFor(sociabilityLabels, focused.sociability)} />
+            </View>
 
-          {focused.vaccinated ? (
-            <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.md }}>
-              Aşı bilgisi kullanıcı beyanıdır, PatiMeet tarafından doğrulanmaz.
-            </AppText>
-          ) : null}
-        </Card>
+            {focused.bio ? (
+              <AppText variant="body" style={{ marginTop: spacing.lg }}>
+                {focused.bio}
+              </AppText>
+            ) : null}
+
+            {focused.vaccinated ? (
+              <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.md }}>
+                Aşı bilgisi kullanıcı beyanıdır, PatiMeet tarafından doğrulanmaz.
+              </AppText>
+            ) : null}
+          </Card>
+        </>
       ) : null}
 
       {/* Ana eylem uzun uyum açıklamalarından önce görünür. */}
@@ -122,7 +157,7 @@ export default function UserProfileScreen() {
         <View style={styles.primaryActions}>
           <Button label="Mesaj gönder" onPress={openChat} loading={opening} />
           <Button
-            label="Etkinliğe davet et"
+            label="Yürüyüşe davet et"
             variant="secondary"
             onPress={() => router.push('/event/create')}
             style={{ marginTop: spacing.sm }}
@@ -234,29 +269,29 @@ export default function UserProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    width: '100%',
-    height: 220,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceMuted,
-  },
-  heroFallback: {
-    width: '100%',
-    height: 180,
-    borderRadius: radius.lg,
-    backgroundColor: colors.primaryLight,
+  detailHeader: {
+    minHeight: 56,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
   profileCard: {
-    padding: spacing.md,
+    marginTop: -22,
+    marginHorizontal: spacing.md,
+    paddingTop: spacing.xl,
+    borderColor: colors.borderStrong,
+  },
+  profileIntro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   tagRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
     marginTop: spacing.lg,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   ownerRow: {
     flexDirection: 'row',

@@ -7,6 +7,7 @@ import {
   AppText,
   AppHeader,
   ChoiceGroup,
+  MultiChoiceGroup,
   IconAction,
   EmptyState,
   ErrorState,
@@ -31,8 +32,8 @@ export default function DiscoverScreen() {
   const { user } = useSession();
 
   const [district, setDistrict] = useState<string | null>(user?.district ?? null);
-  const [size, setSize] = useState<string | null>(null);
-  const [energy, setEnergy] = useState<string | null>(null);
+  const [sizes, setSizes] = useState<string[]>([]);
+  const [energies, setEnergies] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -40,22 +41,24 @@ export default function DiscoverScreen() {
     () =>
       api.discover({
         district: district ?? undefined,
-        size: size ?? undefined,
-        energy: energy ?? undefined,
         search: search.trim() || undefined,
       }),
-    [district, size, energy, search]
+    [district, search]
   );
 
-  const activeFilterCount = [size, energy].filter(Boolean).length + (district ? 1 : 0);
+  const activeFilterCount = sizes.length + energies.length + (district ? 1 : 0);
   // Eski/demo veride yinelenen kayıt olsa bile aynı köpek iki kez gösterilmez.
   const visibleItems = loader.data
-    ? Array.from(new Map(loader.data.items.map((item) => [item.dog.id, item])).values())
+    ? Array.from(new Map(loader.data.items.map((item) => [item.dog.id, item])).values()).filter(
+        (item) =>
+          (sizes.length === 0 || sizes.includes(item.dog.size)) &&
+          (energies.length === 0 || energies.includes(item.dog.energy))
+      )
     : [];
 
   function clearFilters() {
-    setSize(null);
-    setEnergy(null);
+    setSizes([]);
+    setEnergies([]);
     setDistrict(null);
     setSearch('');
   }
@@ -73,9 +76,10 @@ export default function DiscoverScreen() {
           />
         }
       />
-      <AppText variant="editorial">Keşfet</AppText>
+      <AppText variant="kicker" color={colors.copper}>PATIMEET ÇEVREN</AppText>
+      <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Keşfet</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm }}>
-        Yakınındaki köpekleri gör, birlikte sosyalleş.
+        Yakınındaki dostları uyum, karakter ve ortak planlarına göre keşfet.
       </AppText>
 
       <View style={{ marginTop: spacing.lg }}>
@@ -106,8 +110,12 @@ export default function DiscoverScreen() {
       {activeFilterCount > 0 && !filtersOpen ? (
         <View style={styles.activeFilters}>
           {district ? <Tag label={district} tone="primary" /> : null}
-          {size ? <Tag label={dogSizeLabels[size as keyof typeof dogSizeLabels]} tone="primary" /> : null}
-          {energy ? <Tag label={energyLabels[energy as keyof typeof energyLabels]} tone="accent" /> : null}
+          {sizes.map((value) => (
+            <Tag key={value} label={dogSizeLabels[value as keyof typeof dogSizeLabels]} tone="primary" />
+          ))}
+          {energies.map((value) => (
+            <Tag key={value} label={energyLabels[value as keyof typeof energyLabels]} tone="accent" />
+          ))}
         </View>
       ) : null}
 
@@ -124,22 +132,24 @@ export default function DiscoverScreen() {
             onChange={(value) => setDistrict(district === value ? null : value)}
           />
 
-          <ChoiceGroup
+          <MultiChoiceGroup
             label="Boyut"
+            hint="Birden fazla seçenek işaretleyebilirsin."
             options={[
               { value: 'kucuk', label: dogSizeLabels.kucuk },
               { value: 'orta', label: dogSizeLabels.orta },
               { value: 'buyuk', label: dogSizeLabels.buyuk },
             ]}
-            value={size}
-            onChange={(value) => setSize(size === value ? null : value)}
+            values={sizes}
+            onChange={setSizes}
           />
 
-          <ChoiceGroup
+          <MultiChoiceGroup
             label="Enerji seviyesi"
+            hint="Sana uygun tüm enerji seviyelerini seç."
             options={Object.entries(energyLabels).map(([value, label]) => ({ value, label }))}
-            value={energy}
-            onChange={(value) => setEnergy(energy === value ? null : value)}
+            values={energies}
+            onChange={setEnergies}
           />
         </View>
       ) : null}
@@ -150,9 +160,15 @@ export default function DiscoverScreen() {
         <ErrorState message={loader.error} onRetry={loader.reload} />
       ) : visibleItems.length > 0 ? (
         <View style={{ marginTop: spacing.md }}>
-          <AppText variant="caption" color={colors.textSubtle} style={{ marginBottom: spacing.lg }}>
-            {visibleItems.length} köpek bulundu
-          </AppText>
+          <View style={styles.resultHeader}>
+            <View>
+              <AppText variant="kicker" color={colors.copper}>SANA ÖZEL SEÇKİ</AppText>
+              <AppText variant="title" style={{ marginTop: 2 }}>
+                {visibleItems.length} yeni tanışma
+              </AppText>
+            </View>
+            <Tag label="Uyuma göre" tone="success" />
+          </View>
 
           {visibleItems.map((item) => (
             <DogCard
@@ -192,15 +208,23 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   filters: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
     padding: spacing.lg,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
   activeFilters: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  resultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
   },
 });
