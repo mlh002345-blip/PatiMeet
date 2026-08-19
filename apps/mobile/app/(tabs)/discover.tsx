@@ -7,6 +7,7 @@ import {
   AppText,
   AppHeader,
   ChoiceGroup,
+  IconAction,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -61,9 +62,19 @@ export default function DiscoverScreen() {
 
   return (
     <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
-      <AppHeader onNotifications={() => router.push('/settings/notifications')} />
-      <AppText variant="display">Keşfet</AppText>
-      <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
+      <AppHeader
+        onNotifications={() => router.push('/settings/notifications')}
+        action={
+          <IconAction
+            label={filtersOpen ? 'Filtreleri gizle' : 'Filtrele'}
+            name={{ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' }}
+            tone={activeFilterCount > 0 ? 'copper' : 'default'}
+            onPress={() => setFiltersOpen((v) => !v)}
+          />
+        }
+      />
+      <AppText variant="editorial">Keşfet</AppText>
+      <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm }}>
         Yakınındaki köpekleri gör, birlikte sosyalleş.
       </AppText>
 
@@ -78,7 +89,7 @@ export default function DiscoverScreen() {
       <View style={styles.filterBar}>
         <AppText
           variant="label"
-          color={colors.primary}
+          color={colors.copperDeep}
           onPress={() => setFiltersOpen((v) => !v)}
         >
           {filtersOpen ? 'Filtreleri gizle' : 'Filtrele'}
@@ -139,7 +150,7 @@ export default function DiscoverScreen() {
         <ErrorState message={loader.error} onRetry={loader.reload} />
       ) : visibleItems.length > 0 ? (
         <View style={{ marginTop: spacing.md }}>
-          <AppText variant="caption" color={colors.textSubtle} style={{ marginBottom: spacing.md }}>
+          <AppText variant="caption" color={colors.textSubtle} style={{ marginBottom: spacing.lg }}>
             {visibleItems.length} köpek bulundu
           </AppText>
 
@@ -153,7 +164,7 @@ export default function DiscoverScreen() {
         </View>
       ) : activeFilterCount > 0 || search ? (
         <EmptyState
-          emoji="🔍"
+          icon={{ ios: 'magnifyingglass', android: 'search', web: 'search' }}
           title="Sonuç bulunamadı"
           description="Filtreleri değiştirip tekrar deneyebilirsin."
           actionLabel="Filtreleri temizle"
@@ -161,10 +172,10 @@ export default function DiscoverScreen() {
         />
       ) : (
         <EmptyState
-          emoji="🐾"
+          icon={{ ios: 'pawprint', android: 'pets', web: 'pets' }}
           title="Henüz keşfedecek köpek yok"
           description="Semtinde yeni kullanıcılar katıldıkça burada görünecekler. Bir etkinlik oluşturarak topluluğu başlatabilirsin."
-          actionLabel="Yürüyüş oluştur"
+          actionLabel="Yürüyüş planla"
           onAction={() => router.push('/event/create')}
         />
       )}
@@ -184,7 +195,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     borderRadius: radius.lg,
     padding: spacing.lg,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
   activeFilters: {
     flexDirection: 'row',

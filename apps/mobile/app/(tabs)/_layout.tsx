@@ -61,20 +61,27 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
+        /**
+         * Aktif durum ölçülü bakır, pasif durum sessiz yeşil-gri. Yüzey
+         * fildişi ve üstte tek bir ince çizgi var — Privé dilinde alt bar
+         * kendini öne çıkarmaz, içeriği taşır.
+         */
+        tabBarActiveTintColor: colors.copperDeep,
         tabBarInactiveTintColor: colors.textSubtle,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
+          borderTopWidth: 1,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', letterSpacing: 0.2 },
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Ana Sayfa',
+          // Görsel etiket tasarım yönüne taşındı; route adı `home` olarak kaldı.
+          title: 'Bugün',
           tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'house', android: 'home', web: 'home' }} focused={focused} />,
         }}
       />
@@ -88,8 +95,14 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="events"
         options={{
-          title: 'Etkinlikler',
-          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }} focused={focused} />,
+          // Route adı `events`; yalnızca görünen etiket "Kulüp".
+          title: 'Kulüp',
+          tabBarIcon: ({ focused }) => (
+            <TabIcon
+              name={{ ios: 'shield.lefthalf.filled', android: 'workspace_premium', web: 'workspace_premium' }}
+              focused={focused}
+            />
+          ),
         }}
       />
       <Tabs.Screen
@@ -104,7 +117,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profil',
+          // Route adı `profile`; görünen etiket "Pati".
+          title: 'Pati',
           tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'person', android: 'person', web: 'person' }} focused={focused} />,
         }}
       />
@@ -115,7 +129,15 @@ export default function TabsLayout() {
 /**
  * Expo'nun platformlar arası profesyonel çizgi sembolleri.
  */
+/**
+ * Sekme ikonu.
+ *
+ * Aktif durum yalnızca bakır renkle anlatılıyor. Referanstaki alt çizgiyi
+ * ikonun içine koymayı denedik ama ikon yuvasını büyütüp etiketi sabit
+ * yükseklikli alt barda kesiyordu; okunabilirlik süslemeden önce gelir.
+ */
 function TabIcon({ name, focused }: { name: SymbolViewProps['name']; focused: boolean }) {
-  const color = focused ? colors.primary : colors.textSubtle;
-  return <SymbolView name={name} size={22} tintColor={color} />;
+  return (
+    <SymbolView name={name} size={22} tintColor={focused ? colors.copperDeep : colors.textSubtle} />
+  );
 }

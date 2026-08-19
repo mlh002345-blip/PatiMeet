@@ -61,7 +61,36 @@ export const alertTypeLabels: Record<string, string> = {
   destek: 'Mama veya ulaşım desteği',
 };
 
-/** Liste kartlarında türü bir bakışta ayırt etmek için. */
+/**
+ * Bildirim türünün profesyonel sembolü.
+ *
+ * Privé dilinde ana ikonografi emoji değil; `expo-symbols` üzerinden her
+ * platformun kendi sembol setini kullanıyoruz.
+ */
+export function alertTypeSymbol(type: string) {
+  switch (type) {
+    case 'kayip_hayvan':
+      return { ios: 'magnifyingglass', android: 'search', web: 'search' } as const;
+    case 'bulunan_hayvan':
+      return { ios: 'house', android: 'home', web: 'home' } as const;
+    case 'zehirli_yem':
+      return { ios: 'exclamationmark.triangle', android: 'warning', web: 'warning' } as const;
+    case 'yarali_hayvan':
+      return { ios: 'cross.case', android: 'medical_services', web: 'medical_services' } as const;
+    case 'salgin_hastalik':
+      return { ios: 'staroflife', android: 'coronavirus', web: 'coronavirus' } as const;
+    case 'acil_kan':
+      return { ios: 'drop', android: 'bloodtype', web: 'bloodtype' } as const;
+    case 'gecici_yuva':
+      return { ios: 'hand.raised', android: 'volunteer_activism', web: 'volunteer_activism' } as const;
+    case 'destek':
+      return { ios: 'shippingbox', android: 'inventory_2', web: 'inventory_2' } as const;
+    default:
+      return { ios: 'bell', android: 'campaign', web: 'campaign' } as const;
+  }
+}
+
+/** @deprecated Privé dilinde `alertTypeSymbol` kullanılır; filtre çipleri için duruyor. */
 export const alertTypeEmoji: Record<string, string> = {
   kayip_hayvan: '🔎',
   bulunan_hayvan: '🏠',

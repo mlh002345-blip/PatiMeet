@@ -47,14 +47,20 @@ async function main() {
   await inputs.nth(1).fill('patimeet123');
   await page.getByText('Giriş yap', { exact: true }).first().click();
   await page.waitForTimeout(7000);
-  check('Giriş yapıldı ve ana sayfa açıldı', (await page.textContent('body')).includes('Merhaba Elif'));
+  const homeBody = await page.textContent('body');
+  // Selamlama saate göre değişiyor; üçünden biri + kullanıcı adı beklenir.
+  check(
+    'Giriş yapıldı ve Bugün ekranı açıldı',
+    /Günaydın|İyi günler|İyi akşamlar/.test(homeBody) && homeBody.includes('Elif'),
+    homeBody.slice(0, 160)
+  );
 
   // Sekme yapısını incele
   const tabInfo = await page.evaluate(() => {
     const results = [];
     for (const el of document.querySelectorAll('a,[role="tab"],[role="button"],[href]')) {
       const text = (el.textContent || '').trim();
-      if (['Ana Sayfa', 'Keşfet', 'Etkinlikler', 'Mesajlar', 'Profil'].includes(text)) {
+      if (['Bugün', 'Keşfet', 'Kulüp', 'Mesajlar', 'Pati'].includes(text)) {
         results.push({ tag: el.tagName, role: el.getAttribute('role'), href: el.getAttribute('href'), text });
       }
     }
@@ -65,12 +71,13 @@ async function main() {
   // --- Sekme gezinmesi: expo-router web'de sekmeler <a href> üretir ---
   // Sekme gezinmesi URL üzerinden yapılır: sohbet/etkinlik gibi yığın
   // ekranlarında sekme çubuğu gizli olduğu için tıklama güvenilir değil.
+  // Etiketler Privé diline taşındı, route adresleri değişmedi.
   const TAB_URLS = {
-    'Ana Sayfa': '/home',
+    'Bugün': '/home',
     'Keşfet': '/discover',
-    'Etkinlikler': '/events',
+    'Kulüp': '/events',
     'Mesajlar': '/messages',
-    'Profil': '/profile',
+    'Pati': '/profile',
   };
 
   async function goTab(label, expect) {
@@ -90,7 +97,7 @@ async function main() {
   check('Keşfet listesinde köpek var', /Karamel|Fındık|Duman|Maya/.test(discover), discover.slice(0, 200));
   check('Keşfet e-posta göstermiyor', !discover.includes('@ornek.com'));
 
-  const events = await goTab('Etkinlikler', 'Etkinlikler');
+  const events = await goTab('Kulüp', 'Kulüp');
   await shot(page, '11-etkinlikler');
   check('Etkinlik listesinde etkinlik var', /Yoğurtçu|yürüyüş|Yürüyüş/.test(events));
 
@@ -98,7 +105,7 @@ async function main() {
   await shot(page, '12-mesajlar');
   check('Konuşma listesi görünüyor', /Mert|Cumartesi|okunmamış/.test(messages), messages.slice(0, 250));
 
-  const profile = await goTab('Profil', 'Profil');
+  const profile = await goTab('Pati', 'Profil');
   await shot(page, '13-profil');
   check('Profilde kullanıcı adı var', profile.includes('Elif'));
   check('Profilde köpek var', profile.includes('Pati'));
@@ -133,9 +140,18 @@ async function main() {
 
   // --- Etkinlik oluşturma akışı ---
   console.log('\n→ Etkinlik oluşturma');
-  await goTab('Etkinlikler', 'Etkinlikler');
-  const createBtn = page.getByText('+ Yürüyüş oluştur').first();
-  if ((await createBtn.count()) > 0) {
+  await goTab('Kulüp', 'Kulüp');
+  /**
+   * Etkinlik oluşturma girişi Privé düzeninde üst başlıktaki ikon eylemi.
+   * Erişilebilir ada göre hedefliyoruz; böylece ikon değişse de test kırılmaz
+   * ama eylem tamamen kaybolursa yüksek sesle hata verir.
+   *
+   * DİKKAT: burada koşullu atlama YOK. Eskiden `if (count > 0)` vardı ve
+   * düğme kaybolduğunda akışın tamamı sessizce atlanıyordu.
+   */
+  const createBtn = page.getByRole('button', { name: 'Yürüyüş planla' }).first();
+  check('Yürüyüş planlama girişi var', (await createBtn.count()) > 0);
+  {
     await createBtn.click();
     await page.waitForTimeout(5000);
     await shot(page, '17-etkinlik-olustur');
@@ -199,7 +215,7 @@ async function main() {
 
   // --- Yasal metin ---
   console.log('\n→ Yasal metinler');
-  await goTab('Profil', 'Profil');
+  await goTab('Pati', 'Profil');
   const terms = page.getByText('Kullanıcı Sözleşmesi', { exact: true }).first();
   if ((await terms.count()) > 0) {
     await terms.click();

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -9,13 +10,14 @@ import {
   Text,
   TextInput,
   View,
+  type ImageSourcePropType,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SymbolView } from 'expo-symbols';
-import { colors, radius, shadow, spacing, typography } from '../theme';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { colors, HIT_SIZE, radius, scrim, shadow, spacing, typography } from '../theme';
 
 // ---------------------------------------------------------------------------
 // Metin
@@ -61,7 +63,7 @@ export function AppText({
 interface ButtonProps {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'forest' | 'ghost' | 'danger';
   loading?: boolean;
   disabled?: boolean;
   fullWidth?: boolean;
@@ -79,9 +81,14 @@ export function Button({
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
+  /**
+   * Privé dilinde tek baskın eylem bakır dolgu, ikincil eylem orman yeşili
+   * ince çerçevedir. `forest` varyantı koyu/sinematik yüzeylerde okunur.
+   */
   const palette = {
-    primary: { bg: colors.primary, fg: colors.textOnPrimary, border: 'transparent' },
-    secondary: { bg: colors.surface, fg: colors.primary, border: colors.primary },
+    primary: { bg: colors.copperAction, fg: colors.textOnPrimary, border: 'transparent' },
+    secondary: { bg: 'transparent', fg: colors.primary, border: colors.primary },
+    forest: { bg: colors.primary, fg: colors.textOnPrimary, border: 'transparent' },
     ghost: { bg: 'transparent', fg: colors.textMuted, border: 'transparent' },
     danger: { bg: colors.dangerLight, fg: colors.danger, border: 'transparent' },
   }[variant];
@@ -107,31 +114,262 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={palette.fg} />
       ) : (
-        <Text style={[typography.bodyStrong, { color: palette.fg }]}>{label}</Text>
+        <Text style={[typography.bodyStrong, { color: palette.fg }]} numberOfLines={1}>
+          {label}
+        </Text>
       )}
     </Pressable>
   );
 }
 
-/** Sekme ekranlarında marka ve bildirim erişimini tutarlı gösterir. */
-export function AppHeader({ onNotifications }: { onNotifications?: () => void }) {
+/**
+ * Sekme ekranlarının ortak üst başlığı.
+ *
+ * Marka kilidi: serif "PatiMeet" + bakır "PRIVÉ" üst başlığı. Sağdaki eylem
+ * alanı isteğe bağlı; verilmezse yalnızca marka gösterilir.
+ */
+export function AppHeader({
+  onNotifications,
+  action,
+}: {
+  onNotifications?: () => void;
+  /** Bildirim yerine ekrana özel bir eylem koymak için. */
+  action?: React.ReactNode;
+}) {
   return (
     <View style={styles.appHeader}>
-      <AppText variant="title" color={colors.primary}>PatiMeet</AppText>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Bildirimler"
-        hitSlop={10}
-        onPress={onNotifications}
-        style={({ pressed }) => [styles.headerIcon, pressed && { opacity: 0.7 }]}
-      >
-        <SymbolView
+      <View>
+        <Text style={[typography.title, { color: colors.primary }]}>PatiMeet</Text>
+        <Text style={[typography.kicker, { color: colors.copper, marginTop: 1 }]}>PRIVÉ</Text>
+      </View>
+
+      {action ?? (
+        <IconAction
+          label="Bildirimler"
           name={{ ios: 'bell', android: 'notifications', web: 'notifications' }}
-          size={22}
-          tintColor={colors.text}
+          onPress={onNotifications}
         />
-      </Pressable>
+      )}
     </View>
+  );
+}
+
+/**
+ * Yuvarlak ikon eylemi. Dokunma alanı her zaman en az 44 px kalır; görsel
+ * daire daha küçük olsa bile.
+ */
+export function IconAction({
+  label,
+  name,
+  onPress,
+  tone = 'default',
+  size = 20,
+}: {
+  label: string;
+  name: SymbolViewProps['name'];
+  onPress?: () => void;
+  /** `onDark` koyu fotoğraf veya obsidyen yüzeyler için. */
+  tone?: 'default' | 'onDark' | 'copper';
+  size?: number;
+}) {
+  const tint =
+    tone === 'onDark' ? colors.textOnDark : tone === 'copper' ? colors.copperAction : colors.text;
+  const bg =
+    tone === 'onDark' ? 'rgba(18, 20, 16, 0.42)' : tone === 'copper' ? colors.copperPale : colors.surface;
+  const line = tone === 'onDark' ? 'rgba(243, 237, 227, 0.28)' : colors.border;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [
+        styles.iconAction,
+        { backgroundColor: bg, borderColor: line },
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <SymbolView name={name} size={size} tintColor={tint} />
+    </Pressable>
+  );
+}
+
+/**
+ * PatiLine — ince bakır rota çizgisi.
+ *
+ * Dekorasyon değil: bir ilerlemeyi, rotayı veya zaman çizgisini anlatır.
+ * `progress` 0–1 arası verilir; verilmezse tam çizgi çizilir.
+ */
+export function PatiLine({
+  progress,
+  style,
+}: {
+  progress?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const ratio = progress === undefined ? 1 : Math.max(0, Math.min(1, progress));
+  return (
+    <View style={[styles.patiLineTrack, style]}>
+      <View style={[styles.patiLineFill, { width: `${ratio * 100}%` }]} />
+    </View>
+  );
+}
+
+/**
+ * Sayısal vurgu — kapasite, uyum, mesafe.
+ * İsteğe bağlı `progress` değeri altına bir PatiLine çizer.
+ */
+export function Metric({
+  value,
+  label,
+  progress,
+  tone = 'default',
+}: {
+  value: string;
+  label: string;
+  progress?: number;
+  tone?: 'default' | 'onDark';
+}) {
+  const onDark = tone === 'onDark';
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={[typography.metric, { color: onDark ? colors.textOnDark : colors.primary }]}>
+        {value}
+      </Text>
+      <Text
+        style={[
+          typography.caption,
+          { color: onDark ? colors.textOnDarkMuted : colors.textMuted, marginTop: 2 },
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+      {progress !== undefined ? <PatiLine progress={progress} style={{ marginTop: spacing.sm }} /> : null}
+    </View>
+  );
+}
+
+/** Küçük, sessiz rozet — "Doğrulanmış", "Kulüp üyesi". */
+export function SubtleBadge({
+  label,
+  icon,
+  tone = 'default',
+}: {
+  label: string;
+  icon?: SymbolViewProps['name'];
+  tone?: 'default' | 'onDark' | 'copper';
+}) {
+  const onDark = tone === 'onDark';
+  const fg = onDark ? colors.textOnDark : tone === 'copper' ? colors.copperDeep : colors.primary;
+  const bg = onDark ? 'rgba(18, 20, 16, 0.46)' : tone === 'copper' ? colors.copperPale : colors.primaryLight;
+  const line = onDark ? 'rgba(243, 237, 227, 0.26)' : 'transparent';
+
+  return (
+    <View style={[styles.subtleBadge, { backgroundColor: bg, borderColor: line }]}>
+      {icon ? <SymbolView name={icon} size={12} tintColor={fg} /> : null}
+      <Text style={[typography.caption, { color: fg, fontWeight: '600' }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * Sinematik fotoğraf alanı.
+ *
+ * Fotoğrafın üzerine üç katmanlı bir karartma koyar (bkz. theme.ts `scrim`) ve
+ * alt kısma içerik yerleştirir. Fotoğraf yoksa veya yüklenemezse tutarlı,
+ * zarif bir orman yeşili fallback gösterilir — boş gri kutu bırakılmaz.
+ */
+export function ImageHero({
+  uri,
+  height = 220,
+  children,
+  topRight,
+  topLeft,
+  fallbackLabel,
+  fallbackIcon,
+  radius: cornerRadius = radius.lg,
+  onPress,
+  style,
+}: {
+  uri?: string | null;
+  height?: number;
+  children?: React.ReactNode;
+  topRight?: React.ReactNode;
+  topLeft?: React.ReactNode;
+  fallbackLabel?: string;
+  fallbackIcon?: SymbolViewProps['name'];
+  radius?: number;
+  onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const [failed, setFailed] = React.useState(false);
+  const showImage = Boolean(uri) && !failed;
+
+  const content = (
+    <View style={[styles.hero, { height, borderRadius: cornerRadius }, style]}>
+      {showImage ? (
+        <Image
+          source={{ uri: uri as string } as ImageSourcePropType}
+          style={StyleSheet.absoluteFill}
+          onError={() => setFailed(true)}
+          accessibilityIgnoresInvertColors
+        />
+      ) : (
+        /**
+         * Fallback ortalanır; ancak üzerine yazı bindiğinde alt içerik alanı
+         * kadar yukarı kaydırılır, yoksa başlıkla çakışıyor.
+         */
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            styles.heroFallback,
+            children ? { paddingBottom: 96 } : null,
+          ]}
+        >
+          <SymbolView
+            name={fallbackIcon ?? { ios: 'pawprint', android: 'pets', web: 'pets' }}
+            size={34}
+            tintColor="rgba(243, 237, 227, 0.45)"
+          />
+          {fallbackLabel && !children ? (
+            <Text
+              style={[typography.caption, { color: colors.textOnDarkMuted, marginTop: spacing.sm }]}
+              numberOfLines={1}
+            >
+              {fallbackLabel}
+            </Text>
+          ) : null}
+        </View>
+      )}
+
+      {/* Metnin okunabilirliği için alttan yukarı koyulaşan üç katman. */}
+      {children ? (
+        <>
+          <View style={[styles.scrimBand, { height: '55%', backgroundColor: scrim.soft }]} />
+          <View style={[styles.scrimBand, { height: '38%', backgroundColor: scrim.medium }]} />
+          <View style={[styles.scrimBand, { height: '22%', backgroundColor: scrim.strong }]} />
+        </>
+      ) : null}
+
+      {topLeft ? <View style={styles.heroTopLeft}>{topLeft}</View> : null}
+      {topRight ? <View style={styles.heroTopRight}>{topRight}</View> : null}
+      {children ? <View style={styles.heroContent}>{children}</View> : null}
+    </View>
+  );
+
+  if (!onPress) return content;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => (pressed ? { opacity: 0.94 } : null)}
+    >
+      {content}
+    </Pressable>
   );
 }
 
@@ -139,27 +377,40 @@ export function AppHeader({ onNotifications }: { onNotifications?: () => void })
 // Kart
 // ---------------------------------------------------------------------------
 
+/**
+ * Yüzey. Varsayılan fildişi kart; `tone="dark"` obsidyen kulüp yüzeyi,
+ * `tone="inset"` zeminden hafif ayrışan sessiz bir blok üretir.
+ */
 export function Card({
   children,
   onPress,
+  tone = 'default',
   style,
 }: {
   children: React.ReactNode;
   onPress?: () => void;
+  tone?: 'default' | 'dark' | 'inset';
   style?: StyleProp<ViewStyle>;
 }) {
+  const toneStyle =
+    tone === 'dark'
+      ? { backgroundColor: colors.obsidianSoft, borderColor: colors.borderOnDark }
+      : tone === 'inset'
+        ? { backgroundColor: colors.surfaceMuted, borderColor: 'transparent' }
+        : null;
+
   if (onPress) {
     return (
       <Pressable
         accessibilityRole="button"
         onPress={onPress}
-        style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }, style]}
+        style={({ pressed }) => [styles.card, toneStyle, pressed && { opacity: 0.92 }, style]}
       >
         {children}
       </Pressable>
     );
   }
-  return <View style={[styles.card, style]}>{children}</View>;
+  return <View style={[styles.card, toneStyle, style]}>{children}</View>;
 }
 
 // ---------------------------------------------------------------------------
@@ -517,13 +768,16 @@ export function LoadingState({ label = 'Yükleniyor…' }: { label?: string }) {
 }
 
 export function EmptyState({
-  emoji = '🐾',
+  emoji,
+  icon,
   title,
   description,
   actionLabel,
   onAction,
 }: {
+  /** @deprecated Privé dilinde emoji yerine `icon` kullanılır; prop yalnızca eski çağrılar kırılmasın diye duruyor. */
   emoji?: string;
+  icon?: SymbolViewProps['name'];
   title: string;
   description?: string;
   actionLabel?: string;
@@ -531,7 +785,13 @@ export function EmptyState({
 }) {
   return (
     <View style={styles.stateContainer}>
-      <Text style={{ fontSize: 44, marginBottom: spacing.md }}>{emoji}</Text>
+      <View style={styles.stateIcon}>
+        <SymbolView
+          name={icon ?? { ios: 'pawprint', android: 'pets', web: 'pets' }}
+          size={26}
+          tintColor={colors.primary}
+        />
+      </View>
       <AppText variant="heading" center>
         {title}
       </AppText>
@@ -566,7 +826,13 @@ export function ErrorState({
 }) {
   return (
     <View style={styles.stateContainer}>
-      <Text style={{ fontSize: 40, marginBottom: spacing.md }}>😕</Text>
+      <View style={[styles.stateIcon, { backgroundColor: colors.dangerLight }]}>
+        <SymbolView
+          name={{ ios: 'exclamationmark.triangle', android: 'error_outline', web: 'error_outline' }}
+          size={24}
+          tintColor={colors.danger}
+        />
+      </View>
       <AppText variant="heading" center>
         Bir şeyler ters gitti
       </AppText>
@@ -741,21 +1007,53 @@ export function BottomSheet({
   );
 }
 
+/**
+ * Editoryal bölüm başlığı.
+ *
+ * `kicker` verilirse üstte bakır, harf aralığı açılmış küçük bir üst başlık
+ * çıkar ve ana başlık serif olur — dergi hiyerarşisi. Verilmezse eski
+ * davranış birebir korunur.
+ */
 export function SectionHeader({
   title,
+  kicker,
   actionLabel,
   onAction,
 }: {
   title: string;
+  kicker?: string;
   actionLabel?: string;
   onAction?: () => void;
 }) {
   return (
     <View style={styles.sectionHeader}>
-      <AppText variant="heading">{title}</AppText>
+      <View style={{ flex: 1 }}>
+        {kicker ? (
+          /**
+           * Büyük harfe stille çeviriyoruz, JS ile değil: ekran okuyucular
+           * metnin özgün halini okur, "GÜVENLİ TOPLULUK" harf harf
+           * hecelenmez.
+           */
+          <Text
+            style={[
+              typography.kicker,
+              { color: colors.copper, marginBottom: 3, textTransform: 'uppercase' },
+            ]}
+          >
+            {kicker}
+          </Text>
+        ) : null}
+        <AppText variant={kicker ? 'title' : 'heading'}>{title}</AppText>
+      </View>
+
       {actionLabel && onAction ? (
-        <Pressable onPress={onAction} accessibilityRole="button" hitSlop={8}>
-          <AppText variant="label" color={colors.primary}>
+        <Pressable
+          onPress={onAction}
+          accessibilityRole="button"
+          hitSlop={12}
+          style={{ paddingLeft: spacing.md }}
+        >
+          <AppText variant="label" color={colors.copperDeep}>
             {actionLabel}
           </AppText>
         </Pressable>
@@ -765,6 +1063,64 @@ export function SectionHeader({
 }
 
 const styles = StyleSheet.create({
+  iconAction: {
+    minWidth: HIT_SIZE,
+    minHeight: HIT_SIZE,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  patiLineTrack: {
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  patiLineFill: {
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.copper,
+  },
+  subtleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  hero: {
+    overflow: 'hidden',
+    backgroundColor: colors.primaryDark,
+    justifyContent: 'flex-end',
+  },
+  heroFallback: {
+    backgroundColor: colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrimBand: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  heroContent: {
+    padding: spacing.lg,
+  },
+  heroTopLeft: {
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.md,
+  },
+  heroTopRight: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.background,
@@ -799,6 +1155,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     ...shadow.card,
+  },
+  stateIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
   },
   fieldLabelRow: {
     flexDirection: 'row',

@@ -151,7 +151,11 @@ async function main() {
   await page.waitForTimeout(9000);
   await shot(page, '51-ana-sayfa-yeni');
   body = await page.textContent('body');
-  check('Onboarding tamamlandı, ana sayfa açıldı', body.includes('Merhaba Deniz'), body.slice(0, 250));
+  check(
+    'Onboarding tamamlandı, Bugün ekranı açıldı',
+    /Günaydın|İyi günler|İyi akşamlar/.test(body) && body.includes('Deniz'),
+    body.slice(0, 250)
+  );
   check('Köpek adı ana sayfada görünüyor', body.includes('Bulut'), body.slice(0, 250));
   check('Semt gösteriliyor', body.includes('Kadıköy'));
 

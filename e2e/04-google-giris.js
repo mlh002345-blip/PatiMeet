@@ -159,7 +159,11 @@ async function main() {
     await shot(page, '64-google-kapali-eposta-giris');
 
     body = await page.textContent('body');
-    check('Google kapalıyken e-posta ile giriş çalışıyor', body.includes('Merhaba Elif'), body.slice(0, 200));
+    check(
+      'Google kapalıyken e-posta ile giriş çalışıyor',
+      /Günaydın|İyi günler|İyi akşamlar/.test(body) && body.includes('Elif'),
+      body.slice(0, 200)
+    );
   }
 
   console.log(`\n=== Konsol/sayfa hataları: ${errors.length} ===`);

@@ -1,14 +1,14 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { api } from '../../src/api';
 import { EventCard } from '../../src/components/cards';
 import {
   AppText,
   AppHeader,
   Banner,
-  Button,
   ChoiceGroup,
+  IconAction,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -21,10 +21,14 @@ import { useLoader } from '../../src/useLoader';
 
 type Scope = 'upcoming' | 'joined' | 'mine';
 
+/**
+ * Etiketler 320 px genişlikte üç sütuna sığacak kadar kısa tutuldu;
+ * "Oluşturduklarım" küçük Android ekranlarında kesiliyordu.
+ */
 const SCOPES: Array<{ value: Scope; label: string }> = [
-  { value: 'upcoming', label: 'Yakındakiler' },
-  { value: 'joined', label: 'Katıldıklarım' },
-  { value: 'mine', label: 'Oluşturduklarım' },
+  { value: 'upcoming', label: 'Yakınımda' },
+  { value: 'joined', label: 'Katıldığım' },
+  { value: 'mine', label: 'Oluşturduğum' },
 ];
 
 /** Etkinlik listesi (9/14). */
@@ -86,38 +90,50 @@ export default function EventsScreen() {
 
   return (
     <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
-      <AppHeader onNotifications={() => router.push('/settings/notifications')} />
-      <AppText variant="display">Etkinlikler</AppText>
-      <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
-        Birlikte yürüyüşler ve buluşmalar.
+      <AppHeader
+        onNotifications={() => router.push('/settings/notifications')}
+        action={
+          <IconAction
+            label="Yürüyüş planla"
+            name={{ ios: 'plus', android: 'add', web: 'add' }}
+            tone="copper"
+            onPress={() => router.push('/event/create')}
+          />
+        }
+      />
+      <AppText variant="editorial">Kulüp</AppText>
+      <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm }}>
+        Semtindeki köpek sahipleriyle planlı buluşmalar.
       </AppText>
 
       {actionError ? <Banner tone="error" message={actionError} /> : null}
 
-      <Button
-        label="+ Yürüyüş oluştur"
-        onPress={() => router.push('/event/create')}
-        style={{ marginTop: spacing.lg }}
-      />
-
-      {/* Kapsam sekmeleri */}
+      {/**
+        * Kapsam sekmeleri. "Yaklaşan" ile "kayıtlı olduklarım" ayrımı net
+        * kalsın diye seçili sekme bakır alt çizgiyle işaretleniyor.
+        */}
       <View style={styles.scopeRow}>
         {SCOPES.map((item) => {
           const active = item.value === scope;
           return (
-            <View
+            <Pressable
               key={item.value}
-              style={[styles.scopeTab, active && styles.scopeTabActive]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              aria-selected={active}
+              onPress={() => setScope(item.value)}
+              style={styles.scopeTab}
             >
               <AppText
                 variant="label"
-                color={active ? colors.primary : colors.textMuted}
-                onPress={() => setScope(item.value)}
+                color={active ? colors.primary : colors.textSubtle}
+                numberOfLines={1}
                 center
               >
                 {item.label}
               </AppText>
-            </View>
+              <View style={[styles.scopeUnderline, active && { backgroundColor: colors.copper }]} />
+            </Pressable>
           );
         })}
       </View>
@@ -126,14 +142,14 @@ export default function EventsScreen() {
         <View style={styles.districtToggle}>
           <AppText
             variant="label"
-            color={onlyMyDistrict ? colors.primary : colors.textMuted}
+            color={onlyMyDistrict ? colors.copperDeep : colors.textMuted}
             onPress={() => setOnlyMyDistrict(true)}
           >
-            📍 {user.district}
+            {user.district}
           </AppText>
           <AppText
             variant="label"
-            color={!onlyMyDistrict ? colors.primary : colors.textMuted}
+            color={!onlyMyDistrict ? colors.copperDeep : colors.textMuted}
             onPress={() => setOnlyMyDistrict(false)}
           >
             Tüm semtler
@@ -154,7 +170,7 @@ export default function EventsScreen() {
         <ErrorState message={loader.error} onRetry={loader.reload} />
       ) : loader.data && loader.data.events.length > 0 ? (
         <View>
-          <AppText variant="caption" color={colors.textSubtle} style={{ marginBottom: spacing.md }}>
+          <AppText variant="caption" color={colors.textSubtle} style={{ marginBottom: spacing.lg }}>
             {loader.data.events.length} etkinlik
           </AppText>
           {loader.data.events.map((event) => (
@@ -169,10 +185,10 @@ export default function EventsScreen() {
         </View>
       ) : (
         <EmptyState
-          emoji="📅"
+          icon={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
           title={emptyCopy[scope].title}
           description={emptyCopy[scope].description}
-          actionLabel="Yürüyüş oluştur"
+          actionLabel="Yürüyüş planla"
           onAction={() => router.push('/event/create')}
         />
       )}
@@ -183,20 +199,23 @@ export default function EventsScreen() {
 const styles = StyleSheet.create({
   scopeRow: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.md,
-    padding: 4,
-    marginTop: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    marginTop: spacing.xl,
     marginBottom: spacing.lg,
   },
   scopeTab: {
     flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: radius.sm,
+    minHeight: 44,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  scopeTabActive: {
-    backgroundColor: colors.surface,
+  scopeUnderline: {
+    marginTop: spacing.sm,
+    height: 2,
+    alignSelf: 'stretch',
+    marginHorizontal: spacing.md,
+    backgroundColor: 'transparent',
   },
   districtToggle: {
     flexDirection: 'row',

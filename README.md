@@ -228,17 +228,38 @@ göstergesi ile).
 
 ---
 
-## Tasarım dili
+## Tasarım dili — PatiMeet Privé
+
+Onaylı görsel yön: `design/patimeet-prive-flagship-11of10-v1.png`
+(yardımcı referans: `design/patimeet-premium-ui-reference-v1.png`).
 
 `src/theme.ts` içinde tek yerde tanımlı:
 
-- Açık krem arka plan (`#FBF6EF`), koyu lila vurgu (`#5B3E8E`), sıcak turuncu ikincil ton
-- Yuvarlak köşeler ve kart tabanlı arayüz
-- Flört uygulaması izlenimi vermemek için doygun pembe/kırmızı tonlarından kaçınıldı
-- Köpekler görsel olarak ön planda (kartlarda büyük köpek görseli, profil detayında hero)
-- Az adımlı formlar, güçlü CTA butonları, Türkçe arayüz
+- **Palet:** kemik beyazı/fildişi zemin (`#F3EDE3`), koyu botanik yeşil (`#1E3A2F`),
+  obsidyen (`#121410`) ve ölçülü oksitlenmiş bakır (`#A6602F` eylem, `#B5713C` dekoratif)
+- **Tipografi:** editoryal serif başlıklar (`editorial`, `display`, `title`, `metric`) +
+  sistem sans gövde. Harici font dosyası **yok**; her platformun kendi sistem serifi
+  kullanılıyor (lisans yükü ve paket boyutu olmadan)
+- **PatiLine:** ince bakır çizgi; süs değil, ilerleme/rota/kapasite anlatımı için
+- Tek ekranda tek baskın eylem; bakır dolgulu CTA, orman yeşili ikincil eylem
+- Sinematik fotoğraf alanları (`ImageHero`) üç katmanlı karartma ile; fotoğraf yoksa
+  tutarlı, zarif fallback — uydurma görsel kullanılmaz
+- Ana ikonografi emoji değil, `expo-symbols` sembolleri
+- Ölçülü gölge ve ince sınırlar; parlak gradient ve glassmorphism yok
 - Boş / yükleniyor / hata / başarı durumları ayrı bileşenler olarak tasarlandı
   (`EmptyState`, `LoadingState`, `ErrorState`, `Banner`)
+
+Ortak Privé bileşenleri: `ImageHero`, `PatiLine`, `Metric`, `SubtleBadge`,
+`IconAction`, `SectionHeader` (kicker'lı editoryal başlık), `Card` (`default` /
+`inset` / `dark` yüzeyler). Eski bileşen çağrıları korundu; token adları
+değişmedi, yalnızca değerleri yeni palete taşındı.
+
+Gece teması tokenları `darkColors` altında hazır; bu fazda kullanıcıya tema
+seçimi sunulmuyor.
+
+Alt menüde görünen etiketler Privé diline taşındı (`Bugün`, `Keşfet`, `Kulüp`,
+`Mesajlar`, `Pati`) — **route adresleri değişmedi** (`/home`, `/discover`,
+`/events`, `/messages`, `/profile`), derin bağlantılar aynı çalışır.
 
 ---
 
@@ -335,7 +356,7 @@ npm run test:all        # hepsi
 cd apps/api && npm run typecheck
 cd apps/mobile && npx tsc --noEmit
 
-# Uçtan uca akışlar (API + web hedefi çalışırken) — 106 kontrol
+# Uçtan uca akışlar (API + web hedefi çalışırken) — 107 kontrol
 cd e2e && npm install && npm test
 ```
 

@@ -3,12 +3,11 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import type { CommunityAlert, DiscoverItem, EventSummary } from '../api';
 import {
-  alertTypeEmoji,
   alertTypeLabels,
+  alertTypeSymbol,
   dogAgeLabel,
   dogSizeLabels,
   energyLabels,
-  eventTypeEmoji,
   eventTypeLabels,
   formatEventDate,
   formatRelative,
@@ -17,58 +16,112 @@ import {
   urgentAlertTypes,
 } from '../labels';
 import { colors, radius, spacing } from '../theme';
-import { AppText, Avatar, Card, Tag } from './ui';
+import { AppText, Card, ImageHero, PatiLine, SubtleBadge, Tag } from './ui';
 import { MatchBadge } from './MatchScore';
 
-/** Keşfet listesindeki köpek kartı. Köpek görsel olarak ön planda. */
+/**
+ * Keşfet listesindeki editoryal köpek kartı.
+ *
+ * Büyük fotoğraf ana taşıyıcı; uyum skoru sol üstte, isim ve karar vermeye
+ * yarayan en fazla üç etiket fotoğrafın altında. Fotoğraf yoksa ImageHero
+ * tutarlı bir premium fallback gösterir.
+ */
 export function DogCard({ item, onPress }: { item: DiscoverItem; onPress: () => void }) {
   const { dog, owner } = item;
 
-  return (
-    <Card onPress={onPress} style={styles.dogCard}>
-      <View style={styles.row}>
-        {dog.photoUrl ? (
-          <Image source={{ uri: dog.photoUrl }} style={styles.dogPhoto} />
-        ) : (
-          <Avatar name={dog.name} size={58} />
-        )}
+  /** Karar vermeye yardım eden en fazla üç etiket. */
+  const traits = [
+    labelFor(dogSizeLabels, dog.size),
+    labelFor(energyLabels, dog.energy),
+    labelFor(sociabilityLabels, dog.sociability),
+  ];
 
-        <View style={styles.rowBody}>
-          <AppText variant="heading" numberOfLines={1}>
-            {dog.name}
-          </AppText>
-          <AppText variant="caption" color={colors.textMuted} numberOfLines={1}>
-            {dog.breed ?? 'Cins belirtilmemiş'} · {dogAgeLabel(dog.age)}
-          </AppText>
-          <AppText variant="caption" color={colors.textSubtle} numberOfLines={1}>
-            {owner.name} · {owner.district ?? 'Semt belirtilmemiş'}
+  return (
+    <View style={styles.dogCard}>
+      <ImageHero
+        uri={dog.photoUrl}
+        height={300}
+        onPress={onPress}
+        fallbackLabel={dog.name}
+        topLeft={
+          item.match ? (
+            <View style={styles.matchChip}>
+              <AppText variant="metric" color={colors.textOnDark}>
+                %{item.match.score}
+              </AppText>
+              <AppText variant="caption" color={colors.textOnDarkMuted}>
+                uyum
+              </AppText>
+            </View>
+          ) : null
+        }
+        topRight={
+          dog.vaccinated ? (
+            <SubtleBadge
+              label="Aşılı (beyan)"
+              tone="onDark"
+              icon={{ ios: 'checkmark.seal', android: 'verified', web: 'verified' }}
+            />
+          ) : null
+        }
+      >
+        <AppText variant="display" color={colors.textOnDark} numberOfLines={1}>
+          {dog.name}
+        </AppText>
+        <AppText variant="body" color={colors.textOnDarkMuted} numberOfLines={1}>
+          {dog.breed ?? 'Cins belirtilmemiş'} · {dogAgeLabel(dog.age)}
+        </AppText>
+
+        <View style={styles.dogMetaRow}>
+          <SymbolView
+            name={{ ios: 'mappin', android: 'place', web: 'place' }}
+            size={13}
+            tintColor={colors.textOnDarkMuted}
+          />
+          <AppText variant="caption" color={colors.textOnDarkMuted} numberOfLines={1}>
+            {owner.district ?? 'Semt belirtilmemiş'} · {owner.name}
           </AppText>
         </View>
-      </View>
+      </ImageHero>
 
-      <View style={styles.tagRow}>
-        {item.match ? <MatchBadge match={item.match} /> : null}
-        <Tag label={labelFor(dogSizeLabels, dog.size)} tone="primary" />
-        <Tag label={labelFor(energyLabels, dog.energy)} tone="accent" />
-        <Tag label={labelFor(sociabilityLabels, dog.sociability)} />
-        {dog.vaccinated ? <Tag label="Aşılı (beyan)" tone="success" /> : null}
-      </View>
+      <View style={styles.dogFooter}>
+        <View style={styles.tagRow}>
+          {traits.map((trait) => (
+            <Tag key={trait} label={trait} />
+          ))}
+        </View>
 
-      {dog.bio ? (
-        <AppText
-          variant="body"
-          color={colors.textMuted}
-          numberOfLines={2}
-          style={{ marginTop: spacing.sm }}
+        {/**
+         * Açık eylem. Doğrudan mesaj göndermek yerine profili açıyor: mesaj,
+         * engelleme ve şikâyet aynı ekranda; akış değişmediği için mevcut
+         * güvenlik kontrolleri korunuyor.
+         */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${dog.name} ile tanış`}
+          onPress={onPress}
+          style={({ pressed }) => [styles.meetButton, pressed && { opacity: 0.85 }]}
         >
-          {dog.bio}
-        </AppText>
-      ) : null}
-    </Card>
+          <AppText variant="label" color={colors.textOnPrimary}>
+            Tanış
+          </AppText>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
-/** Etkinlik listesi kartı. */
+/**
+ * Kulüp etkinlik kartı.
+ *
+ * Sinematik kapak, tarih/saat, yaklaşık bölge ve kapasite; tek baskın eylem
+ * "Yerini ayır". Kapak fotoğrafı sunucudan (`coverPhotoUrl`) gelir; yoksa
+ * ImageHero tutarlı bir fallback çizer — uydurma bir görsel kullanılmaz.
+ *
+ * Kart tıklanabilir bir kabuk DEĞİL: içinde ayrı bir eylem düğmesi var ve iç
+ * içe dokunma hedefi web'de geçersiz HTML (<button> içinde <button>) üretip
+ * hydration hatası veriyordu. Bunun yerine yalnızca bilgi alanı tıklanabilir.
+ */
 export function EventCard({
   event,
   onPress,
@@ -82,82 +135,105 @@ export function EventCard({
   onJoin?: () => void;
   joining?: boolean;
 }) {
-  const [imageFailed, setImageFailed] = useState(false);
-
   const date = new Date(event.startsAt);
   const day = date.toLocaleDateString('tr-TR', { day: 'numeric' });
   const month = date.toLocaleDateString('tr-TR', { month: 'short' });
 
-  /**
-   * Kart tıklanabilir bir kabuk DEĞİL: içinde "Katıl" düğmesi var ve iç içe
-   * dokunma hedefi web'de geçersiz HTML (<button> içinde <button>) üretip
-   * hydration hatası veriyordu. Bunun yerine yalnızca bilgi alanı tıklanabilir;
-   * "Katıl" kardeş öğe olarak duruyor. Böylece tek dokunuşun hem katılma hem
-   * detaya gitme tetikleme riski de ortadan kalkıyor.
-   */
-  return (
-    <Card style={styles.eventCard}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${event.title} etkinliğinin ayrıntıları`}
-        onPress={onPress}
-        style={({ pressed }) => [styles.eventContent, pressed && { opacity: 0.9 }]}
-      >
-        {!event.coverPhotoUrl || imageFailed ? (
-          <View style={[styles.eventPhoto, styles.eventPhotoFallback]}>
-            <AppText variant="title">{eventTypeEmoji[event.type] ?? '🐾'}</AppText>
-          </View>
-        ) : (
-          <Image
-            source={{ uri: event.coverPhotoUrl }}
-            style={styles.eventPhoto}
-            onError={() => setImageFailed(true)}
-          />
-        )}
-        <View style={styles.dateBlock}>
-          <AppText variant="title">{day}</AppText>
-          <AppText variant="caption" color={colors.textMuted}>{month}</AppText>
-        </View>
+  const statusLabel = event.isOwner
+    ? 'Etkinliğiniz'
+    : event.hasJoined
+      ? 'Yeriniz ayrıldı'
+      : event.isFull
+        ? 'Kontenjan doldu'
+        : null;
 
-        <View style={styles.rowBody}>
-          <AppText variant="bodyStrong" numberOfLines={2}>
-            {event.title}
-          </AppText>
-          <AppText variant="caption" color={colors.primary} style={{ marginTop: 2 }}>
+  return (
+    <View style={styles.eventCard}>
+      <ImageHero
+        uri={event.coverPhotoUrl}
+        height={compact ? 150 : 210}
+        onPress={onPress}
+        fallbackLabel={labelFor(eventTypeLabels, event.type)}
+        fallbackIcon={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
+        topLeft={
+          <View style={styles.dateChip}>
+            <AppText variant="metric" color={colors.textOnDark}>
+              {day}
+            </AppText>
+            <AppText variant="caption" color={colors.textOnDarkMuted}>
+              {month}
+            </AppText>
+          </View>
+        }
+        topRight={
+          statusLabel ? (
+            <SubtleBadge
+              label={statusLabel}
+              tone="onDark"
+              icon={
+                event.hasJoined || event.isOwner
+                  ? { ios: 'checkmark.seal', android: 'verified', web: 'verified' }
+                  : undefined
+              }
+            />
+          ) : null
+        }
+      >
+        <AppText variant="title" color={colors.textOnDark} numberOfLines={2}>
+          {event.title}
+        </AppText>
+
+        <View style={styles.eventMeta}>
+          <SymbolView
+            name={{ ios: 'clock', android: 'schedule', web: 'schedule' }}
+            size={13}
+            tintColor={colors.textOnDarkMuted}
+          />
+          <AppText variant="caption" color={colors.textOnDarkMuted}>
             {formatEventDate(event.startsAt)}
           </AppText>
-          <AppText variant="caption" color={colors.textMuted} numberOfLines={1}>
+        </View>
+
+        <View style={styles.eventMeta}>
+          <SymbolView
+            name={{ ios: 'mappin', android: 'place', web: 'place' }}
+            size={13}
+            tintColor={colors.textOnDarkMuted}
+          />
+          <AppText variant="caption" color={colors.textOnDarkMuted} numberOfLines={1}>
             {event.district} · {labelFor(eventTypeLabels, event.type)}
           </AppText>
-          <View style={styles.eventMeta}>
-            <SymbolView name={{ ios: 'clock', android: 'schedule', web: 'schedule' }} size={14} tintColor={colors.textMuted} />
-            <AppText variant="caption" color={colors.textMuted}>{formatEventDate(event.startsAt).split('·').pop()?.trim()}</AppText>
-            <SymbolView name={{ ios: 'person.2', android: 'group', web: 'group' }} size={14} tintColor={colors.textMuted} />
-            <AppText variant="caption" color={colors.textMuted}>{event.participantCount}/{event.capacity}</AppText>
-          </View>
         </View>
-      </Pressable>
+      </ImageHero>
 
       {!compact ? (
         <View style={styles.eventFooter}>
-          <View style={styles.tagRowCompact}>
-            {event.isOwner ? <Tag label="Etkinliğiniz" tone="accent" /> : null}
-            {event.hasJoined && !event.isOwner ? <Tag label="Katıldınız" tone="success" /> : null}
-            {event.isFull ? <Tag label="Dolu" tone="danger" /> : null}
+          <View style={{ flex: 1 }}>
+            <AppText variant="label" color={colors.primary}>
+              {event.participantCount}/{event.capacity} kişi
+            </AppText>
+            <PatiLine
+              progress={event.capacity > 0 ? event.participantCount / event.capacity : 0}
+              style={{ marginTop: spacing.sm, maxWidth: 120 }}
+            />
           </View>
+
           {onJoin ? (
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel={`${event.title} etkinliğinde yerini ayır`}
               onPress={onJoin}
               disabled={joining}
-              style={({ pressed }) => [styles.joinButton, pressed && { opacity: 0.82 }]}
+              style={({ pressed }) => [styles.joinButton, pressed && { opacity: 0.85 }]}
             >
-              <AppText variant="label" color={colors.textOnPrimary}>{joining ? 'Katılıyor…' : 'Katıl'}</AppText>
+              <AppText variant="label" color={colors.textOnPrimary}>
+                {joining ? 'Ayrılıyor…' : 'Yerini ayır'}
+              </AppText>
             </Pressable>
           ) : null}
         </View>
       ) : null}
-    </Card>
+    </View>
   );
 }
 
@@ -168,12 +244,16 @@ export function AlertCard({ alert, onPress }: { alert: CommunityAlert; onPress: 
 
   return (
     <Card onPress={onPress} style={styles.alertCard}>
-      <View style={styles.row}>
+      <View style={styles.alertRow}>
         {cover ? (
           <Image source={{ uri: cover }} style={styles.alertCover} />
         ) : (
           <View style={[styles.alertCover, styles.alertCoverFallback]}>
-            <AppText variant="title">{alertTypeEmoji[alert.type] ?? '📣'}</AppText>
+            <SymbolView
+              name={alertTypeSymbol(alert.type)}
+              size={22}
+              tintColor={urgent ? colors.danger : colors.primary}
+            />
           </View>
         )}
 
@@ -201,43 +281,18 @@ export function AlertCard({ alert, onPress }: { alert: CommunityAlert; onPress: 
             {alert.description}
           </AppText>
 
-          <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.xs }}>
-            📍 {alert.district}
-            {alert.areaNote ? ` · ${alert.areaNote}` : ''} · {formatRelative(alert.createdAt)}
-          </AppText>
+          <View style={styles.alertMetaRow}>
+            <SymbolView
+              name={{ ios: 'mappin', android: 'place', web: 'place' }}
+              size={12}
+              tintColor={colors.textSubtle}
+            />
+            <AppText variant="caption" color={colors.textSubtle} numberOfLines={1}>
+              {alert.district}
+              {alert.areaNote ? ` · ${alert.areaNote}` : ''} · {formatRelative(alert.createdAt)}
+            </AppText>
+          </View>
         </View>
-      </View>
-    </Card>
-  );
-}
-
-/** Ana sayfada hızlı aksiyon kartı. */
-export function ActionCard({
-  emoji,
-  title,
-  description,
-  onPress,
-}: {
-  emoji: string;
-  title: string;
-  description: string;
-  onPress: () => void;
-}) {
-  return (
-    <Card onPress={onPress} style={{ marginBottom: spacing.md }}>
-      <View style={styles.row}>
-        <View style={styles.actionIcon}>
-          <AppText variant="title">{emoji}</AppText>
-        </View>
-        <View style={styles.rowBody}>
-          <AppText variant="bodyStrong">{title}</AppText>
-          <AppText variant="caption" color={colors.textMuted}>
-            {description}
-          </AppText>
-        </View>
-        <AppText variant="heading" color={colors.textSubtle}>
-          ›
-        </AppText>
       </View>
     </Card>
   );
@@ -245,53 +300,52 @@ export function ActionCard({
 
 const styles = StyleSheet.create({
   dogCard: {
-    marginBottom: spacing.sm,
-    padding: spacing.md,
+    marginBottom: spacing.xl,
   },
-  dogPhoto: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: colors.surfaceMuted,
+  matchChip: {
+    backgroundColor: 'rgba(30, 58, 47, 0.86)',
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'flex-start',
   },
-  row: {
+  dogMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  rowBody: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: 5,
     marginTop: spacing.sm,
   },
-  eventCard: {
-    marginBottom: spacing.md,
-    padding: 0,
-    overflow: 'hidden',
+  dateChip: {
+    backgroundColor: 'rgba(18, 20, 16, 0.6)',
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    minWidth: 52,
   },
-  eventContent: {
+  dogFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.md,
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginTop: spacing.md,
   },
-  eventPhoto: {
-    width: 76,
-    height: 82,
-    borderRadius: radius.md,
-    backgroundColor: colors.surfaceMuted,
-  },
-  eventPhotoFallback: {
+  meetButton: {
+    backgroundColor: colors.copperAction,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.xl,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dateBlock: {
-    width: 42,
-    alignItems: 'center',
-    marginLeft: spacing.sm,
+  tagRow: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  eventCard: {
+    marginBottom: spacing.xl,
   },
   eventMeta: {
     flexDirection: 'row',
@@ -301,22 +355,23 @@ const styles = StyleSheet.create({
   },
   eventFooter: {
     minHeight: 44,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  tagRowCompact: {
-    flexDirection: 'row',
-    gap: spacing.xs,
+    gap: spacing.md,
   },
   joinButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    backgroundColor: colors.copperAction,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.xl,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertRow: {
+    flexDirection: 'row',
   },
   alertCard: {
     marginBottom: spacing.sm,
@@ -341,12 +396,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.xs,
   },
-  actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: colors.primaryLight,
+  alertMetaRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
+    marginTop: spacing.xs,
   },
 });

@@ -49,7 +49,12 @@ async function main() {
   await inputs.nth(1).fill('patimeet123');
   await page.getByText('Giriş yap', { exact: true }).first().click();
   await page.waitForTimeout(8000);
-  check('Zeynep giriş yaptı', (await page.textContent('body')).includes('Merhaba Zeynep'));
+  const zeynepHome = await page.textContent('body');
+  check(
+    'Zeynep giriş yaptı',
+    /Günaydın|İyi günler|İyi akşamlar/.test(zeynepHome) && zeynepHome.includes('Zeynep'),
+    zeynepHome.slice(0, 160)
+  );
 
   // --- Keşfet → köpek kartı → profil detayı ---
   console.log('\n→ Keşfet ve profil detayı');
@@ -107,7 +112,7 @@ async function main() {
 
   // --- Etkinliğe katılma ---
   console.log('\n→ Etkinliğe katılma');
-  const events = await go('/events', 'Etkinlikler');
+  const events = await go('/events', 'Kulüp');
   await shot(page, '35-etkinlikler');
 
   // Elif'in Kadıköy yürüyüşünü aç

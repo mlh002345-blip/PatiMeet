@@ -52,7 +52,12 @@ async function main() {
   await inputs.nth(1).fill('patimeet123');
   await page.getByText('Giriş yap', { exact: true }).first().click();
   await page.waitForTimeout(8000);
-  check('Mert giriş yaptı', (await page.textContent('body')).includes('Merhaba Mert'));
+  const mertHome = await page.textContent('body');
+  check(
+    'Mert giriş yaptı',
+    /Günaydın|İyi günler|İyi akşamlar/.test(mertHome) && mertHome.includes('Mert'),
+    mertHome.slice(0, 160)
+  );
 
   // --- Ana sayfada Güvenli Topluluk bölümü ---
   console.log('\n→ Ana sayfa Güvenli Topluluk bölümü');
