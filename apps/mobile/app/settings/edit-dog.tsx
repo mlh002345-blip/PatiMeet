@@ -50,7 +50,6 @@ export default function EditDogScreen() {
     return (
       <Screen>
         <EmptyState
-          emoji="🐕"
           title="Köpek profili bulunamadı"
           description="Devam etmek için bir köpek profili oluşturman gerekiyor."
           actionLabel="Köpek profili oluştur"

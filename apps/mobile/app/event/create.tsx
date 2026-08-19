@@ -117,7 +117,8 @@ export default function CreateEventScreen() {
     >
       <Screen>
         <View style={{ paddingTop: spacing.lg }}>
-          <AppText variant="display">Yürüyüş oluştur</AppText>
+          <AppText variant="kicker" color={colors.copper}>YENİ KULÜP BULUŞMASI</AppText>
+          <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Yürüyüş oluştur</AppText>
           <AppText
             variant="body"
             color={colors.textMuted}
@@ -153,7 +154,6 @@ export default function CreateEventScreen() {
             previewUrl={coverPhotoPreview}
             purpose="event_photo"
             fallbackName="Etkinlik"
-            emoji="📷"
             onChange={(next) => {
               setCoverPhotoKey(next?.key ?? null);
               setCoverPhotoPreview(next?.url ?? null);

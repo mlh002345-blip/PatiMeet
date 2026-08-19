@@ -115,7 +115,6 @@ export function DogForm({
           setPhotoPreview(next?.url ?? null);
         }}
         fallbackName={name || 'K'}
-        emoji="🐕"
       />
 
       <Field

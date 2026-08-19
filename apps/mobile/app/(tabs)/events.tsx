@@ -101,9 +101,10 @@ export default function EventsScreen() {
           />
         }
       />
-      <AppText variant="editorial">Kulüp</AppText>
+      <AppText variant="kicker" color={colors.copper}>PATIMEET BULUŞMALARI</AppText>
+      <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Kulüp</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm }}>
-        Semtindeki köpek sahipleriyle planlı buluşmalar.
+        İyi eşleşmelerin gerçek dostluğa dönüştüğü seçkin buluşmalar.
       </AppText>
 
       {actionError ? <Banner tone="error" message={actionError} /> : null}
@@ -170,9 +171,14 @@ export default function EventsScreen() {
         <ErrorState message={loader.error} onRetry={loader.reload} />
       ) : loader.data && loader.data.events.length > 0 ? (
         <View>
-          <AppText variant="caption" color={colors.textSubtle} style={{ marginBottom: spacing.lg }}>
-            {loader.data.events.length} etkinlik
-          </AppText>
+          <View style={styles.resultHeader}>
+            <View>
+              <AppText variant="kicker" color={colors.copper}>AJANDA</AppText>
+              <AppText variant="title" style={{ marginTop: 2 }}>
+                {loader.data.events.length} buluşma seni bekliyor
+              </AppText>
+            </View>
+          </View>
           {loader.data.events.map((event) => (
             <EventCard
               key={event.id}
@@ -199,8 +205,11 @@ export default function EventsScreen() {
 const styles = StyleSheet.create({
   scopeRow: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    padding: spacing.xs,
     marginTop: spacing.xl,
     marginBottom: spacing.lg,
   },
@@ -214,12 +223,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     height: 2,
     alignSelf: 'stretch',
-    marginHorizontal: spacing.md,
+    marginHorizontal: spacing.lg,
     backgroundColor: 'transparent',
   },
   districtToggle: {
     flexDirection: 'row',
     gap: spacing.xl,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.sm,
+  },
+  resultHeader: {
     marginBottom: spacing.lg,
   },
 });

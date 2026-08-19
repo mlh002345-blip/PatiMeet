@@ -3,7 +3,7 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SessionProvider } from '../src/session';
-import { colors } from '../src/theme';
+import { colors, fontFamily } from '../src/theme';
 
 export default function RootLayout() {
   return (
@@ -14,7 +14,7 @@ export default function RootLayout() {
           screenOptions={{
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
-            headerTitleStyle: { fontWeight: '600' },
+            headerTitleStyle: { fontWeight: '400', fontFamily: fontFamily.serif },
             headerShadowVisible: false,
             contentStyle: { backgroundColor: colors.background },
           }}
@@ -24,13 +24,13 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="user/[id]" options={{ title: 'Profil' }} />
-          <Stack.Screen name="event/[id]" options={{ title: 'Etkinlik' }} />
+          <Stack.Screen name="user/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="event/create" options={{ title: 'Yürüyüş oluştur' }} />
           {/* Eski yol; /alerts'e yönlendirir. Başlık görünmeden geçilir. */}
           <Stack.Screen name="community" options={{ headerShown: false }} />
           <Stack.Screen name="chat/[id]" options={{ title: 'Sohbet' }} />
-          <Stack.Screen name="alerts/index" options={{ title: 'Güvenli Topluluk' }} />
+          <Stack.Screen name="alerts/index" options={{ headerShown: false }} />
           <Stack.Screen name="alerts/create" options={{ title: 'Bildirim oluştur' }} />
           <Stack.Screen name="alerts/[id]" options={{ title: 'Bildirim' }} />
           <Stack.Screen name="legal/[slug]" options={{ title: 'Belge' }} />

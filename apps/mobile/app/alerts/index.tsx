@@ -1,10 +1,12 @@
 import { useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { api, type AreaSummary, type EventSummary } from '../../src/api';
 import { AlertCard } from '../../src/components/cards';
 import {
   AppText,
+  AppHeader,
   Button,
   Card,
   EmptyState,
@@ -14,7 +16,7 @@ import {
   SectionHeader,
   Tag,
 } from '../../src/components/ui';
-import { alertTypeEmoji, alertTypeLabels, formatShortDate } from '../../src/labels';
+import { alertTypeLabels, formatShortDate } from '../../src/labels';
 import { useSession } from '../../src/session';
 import { colors, radius, spacing } from '../../src/theme';
 import { useLoader } from '../../src/useLoader';
@@ -56,7 +58,9 @@ export default function AlertsScreen() {
 
   return (
     <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
-      <AppText variant="display">Güvenli Topluluk</AppText>
+      <AppHeader onNotifications={() => router.push('/settings/notifications')} />
+      <AppText variant="kicker" color={colors.copper}>MAHALLE DAYANIŞMASI</AppText>
+      <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Güvenli Topluluk</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
         Semtindeki acil durumları ve yardım çağrılarını burada paylaşırsın. İlanlar kullanıcı
         beyanıdır; PatiMeet doğrulamaz.
@@ -78,7 +82,7 @@ export default function AlertsScreen() {
         {Object.entries(alertTypeLabels).map(([value, label]) => (
           <FilterChip
             key={value}
-            label={`${alertTypeEmoji[value] ?? '📣'} ${label}`}
+            label={label}
             active={type === value}
             onPress={() => setType(type === value ? null : value)}
           />
@@ -88,7 +92,7 @@ export default function AlertsScreen() {
       {user?.district ? (
         <View style={styles.filterRow}>
           <FilterChip
-            label={`📍 Yalnızca ${user.district}`}
+            label={`Yalnızca ${user.district}`}
             active={onlyMyDistrict}
             onPress={() => setOnlyMyDistrict((v) => !v)}
           />
@@ -101,7 +105,7 @@ export default function AlertsScreen() {
         <ErrorState message={loader.error} onRetry={loader.reload} />
       ) : alerts.length === 0 ? (
         <EmptyState
-          emoji="🛡️"
+          icon={{ ios: 'checkmark.shield', android: 'verified_user', web: 'verified_user' }}
           title="Şu an açık bildirim yok"
           description="Bu iyi haber. Bir şey fark edersen komşularını buradan uyarabilirsin."
           actionLabel="Bildirim oluştur"
@@ -172,12 +176,16 @@ function AreaMapCard({
         <View style={[styles.zone, { left: '12%', top: 35, width: 120, height: 90 }]} />
         <View style={[styles.zone, { right: '8%', top: 75, width: 145, height: 110, opacity: 0.55 }]} />
         <View style={styles.pin}>
-          <AppText variant="title">🐾</AppText>
+          <SymbolView
+            name={{ ios: 'shield.lefthalf.filled', android: 'shield', web: 'shield' }}
+            size={24}
+            tintColor={colors.copper}
+          />
         </View>
       </View>
 
       <View style={styles.summaryTags}>
-        <Tag label={`📍 ${district ?? 'Semtin'} çevresi`} tone="primary" />
+        <Tag label={`${district ?? 'Semtin'} çevresi`} tone="primary" />
         <Tag label={`${summary?.nearbyDogs ?? 0} köpek`} tone="success" />
         <Tag label={`${summary?.upcomingEvents ?? 0} etkinlik`} tone="accent" />
         <Tag label={`${summary?.lostDogAlerts ?? 0} kayıp ilanı`} tone="danger" />
@@ -222,16 +230,16 @@ const styles = StyleSheet.create({
   map: {
     height: 210,
     borderRadius: radius.lg,
-    backgroundColor: '#E8E1D7',
+    backgroundColor: colors.obsidian,
     overflow: 'hidden',
     marginBottom: spacing.md,
   },
   zone: {
     position: 'absolute',
     borderRadius: 80,
-    backgroundColor: colors.primaryLight,
-    borderWidth: 2,
-    borderColor: colors.primary,
+    backgroundColor: 'rgba(181, 113, 60, 0.18)',
+    borderWidth: 1,
+    borderColor: colors.copper,
   },
   pin: {
     position: 'absolute',
@@ -240,7 +248,9 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.obsidianSoft,
+    borderWidth: 1,
+    borderColor: colors.copper,
     alignItems: 'center',
     justifyContent: 'center',
   },

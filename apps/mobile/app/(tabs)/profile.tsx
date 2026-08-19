@@ -4,6 +4,7 @@ import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 import { api, ApiError, API_URL } from '../../src/api';
 import {
   AppText,
+  AppHeader,
   Avatar,
   Banner,
   Button,
@@ -77,10 +78,20 @@ export default function ProfileScreen() {
 
   return (
     <ScrollScreen>
+      <AppHeader onNotifications={() => router.push('/settings/notifications')} />
+      <AppText variant="kicker" color={colors.copper}>ÜYELİK & PROFİL</AppText>
+      <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Senin alanın</AppText>
+      <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm, marginBottom: spacing.xl }}>
+        Dostlarının profilleri, tercihlerin ve güvenlik ayarların.
+      </AppText>
       {error ? <Banner tone="error" message={error} /> : null}
 
       {/* Kullanıcı kartı */}
-      <Card>
+      <Card style={styles.memberCard}>
+        <View style={styles.memberTopline}>
+          <AppText variant="kicker" color={colors.copperPale}>PATIMEET PRIVÉ</AppText>
+          <Tag label="AKTİF ÜYE" tone="success" />
+        </View>
         <View style={styles.headerRow}>
           {user?.photoUrl ? (
             <Image source={{ uri: user.photoUrl }} style={styles.photo} />
@@ -89,8 +100,8 @@ export default function ProfileScreen() {
           )}
 
           <View style={{ flex: 1, marginLeft: spacing.lg }}>
-            <AppText variant="title">{user?.name}</AppText>
-            <AppText variant="caption" color={colors.textMuted}>
+            <AppText variant="title" color={colors.textOnDark}>{user?.name}</AppText>
+            <AppText variant="caption" color={colors.textOnDarkMuted}>
               {user?.district ?? 'Semt seçilmemiş'}
             </AppText>
             {user && user.purposes.length > 0 ? (
@@ -104,20 +115,21 @@ export default function ProfileScreen() {
         </View>
 
         {user?.bio ? (
-          <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.lg }}>
+          <AppText variant="body" color={colors.textOnDarkMuted} style={{ marginTop: spacing.lg }}>
             {user.bio}
           </AppText>
         ) : null}
 
         <Button
           label="Profili düzenle"
-          variant="secondary"
+          variant="primary"
           onPress={() => router.push('/settings/edit-profile')}
           style={{ marginTop: spacing.lg }}
         />
       </Card>
 
       {/* Köpek kartları — çoklu köpek desteklenir */}
+      <AppText variant="kicker" color={colors.copper} style={{ marginTop: spacing.xl }}>DOSTLARIN</AppText>
       {dogs.map((dog) => (
         <Card key={dog.id} style={{ marginTop: spacing.md }}>
           <View style={styles.headerRow}>
@@ -165,7 +177,10 @@ export default function ProfileScreen() {
       />
 
       {/* Tercihler */}
-      <AppText variant="heading" style={{ marginTop: spacing.xl, marginBottom: spacing.md }}>
+      <AppText variant="kicker" color={colors.copper} style={{ marginTop: spacing.xl, marginBottom: spacing.sm }}>
+        KİŞİSELLEŞTİR
+      </AppText>
+      <AppText variant="heading" style={{ marginBottom: spacing.md }}>
         Tercihler
       </AppText>
       <View style={styles.group}>
@@ -290,6 +305,16 @@ function SettingsRow({
 }
 
 const styles = StyleSheet.create({
+  memberCard: {
+    backgroundColor: colors.obsidian,
+    borderColor: colors.copper,
+  },
+  memberTopline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xl,
+  },
   purposeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

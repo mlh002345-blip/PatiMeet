@@ -391,6 +391,12 @@ const styles = StyleSheet.create({
   },
   eventCard: {
     marginBottom: spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    ...shadow.card,
   },
   eventMeta: {
     flexDirection: 'row',
@@ -401,11 +407,12 @@ const styles = StyleSheet.create({
   eventFooter: {
     minHeight: 44,
     marginTop: spacing.md,
-    paddingHorizontal: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.xs,
   },
   joinButton: {
     backgroundColor: colors.copperAction,

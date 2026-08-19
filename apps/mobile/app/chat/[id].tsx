@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { api, ApiError, type ChatMessage } from '../../src/api';
+import { SymbolView } from 'expo-symbols';
 import { SafetySheet } from '../../src/components/SafetySheet';
 import {
   AppText,
@@ -142,7 +143,7 @@ export default function ChatScreen() {
 
         {messages.length === 0 ? (
           <EmptyState
-            emoji="👋"
+            icon={{ ios: 'hand.wave', android: 'waving_hand', web: 'waving_hand' }}
             title="Sohbeti başlat"
             description="Kendini tanıt ve köpeklerinizi tanıştırmak için bir buluşma öner."
           />
@@ -196,9 +197,11 @@ export default function ChatScreen() {
                 pressed && { opacity: 0.8 },
               ]}
             >
-              <AppText variant="bodyStrong" color={colors.textOnPrimary}>
-                ➤
-              </AppText>
+              <SymbolView
+                name={{ ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' }}
+                size={21}
+                tintColor={colors.textOnPrimary}
+              />
             </Pressable>
           </>
         ) : (
@@ -233,7 +236,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.md,
@@ -256,7 +259,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
   },
   mine: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.obsidian,
+    borderWidth: 1,
+    borderColor: colors.copper,
     borderBottomRightRadius: radius.sm,
   },
   theirs: {
@@ -269,7 +274,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: spacing.md,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.lg,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -277,10 +282,10 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: colors.background,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.xl,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.md,
@@ -293,7 +298,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.copperAction,
     alignItems: 'center',
     justifyContent: 'center',
   },

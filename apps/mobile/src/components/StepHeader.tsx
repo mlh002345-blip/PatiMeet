@@ -21,13 +21,13 @@ export function StepHeader({
         {Array.from({ length: total }, (_, index) => (
           <View
             key={index}
-            style={[styles.dot, index < step && { backgroundColor: colors.primary, flex: 1.4 }]}
+            style={[styles.dot, index < step && { backgroundColor: colors.copper, flex: 1.4 }]}
           />
         ))}
       </View>
 
-      <AppText variant="caption" color={colors.textSubtle} style={{ marginBottom: spacing.sm }}>
-        Adım {step} / {total}
+      <AppText variant="kicker" color={colors.copper} style={{ marginBottom: spacing.sm }}>
+        PATIMEET PRIVÉ · ADIM {step}/{total}
       </AppText>
       <AppText variant="display">{title}</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm }}>

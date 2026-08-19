@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { api } from '../../src/api';
 import {
   AppText,
+  AppHeader,
   Avatar,
   EmptyState,
   ErrorState,
@@ -21,14 +22,16 @@ export default function MessagesScreen() {
 
   return (
     <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
-      <AppText variant="display">Mesajlar</AppText>
+      <AppHeader onNotifications={() => router.push('/settings/notifications')} />
+      <AppText variant="kicker" color={colors.copper}>ÖZEL SOHBETLER</AppText>
+      <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Mesajlar</AppText>
       {loader.data && loader.data.totalUnread > 0 ? (
         <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
           {loader.data.totalUnread} okunmamış mesajın var.
         </AppText>
       ) : (
         <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
-          Buluşma planlamak için sohbet et.
+          Yeni dostlukların ve yürüyüş planlarının özel alanı.
         </AppText>
       )}
 
@@ -45,7 +48,10 @@ export default function MessagesScreen() {
               onPress={() => router.push(`/chat/${conversation.id}`)}
               style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
             >
-              <Avatar name={conversation.user.name} size={52} />
+              <View style={styles.avatarFrame}>
+                <Avatar name={conversation.user.name} size={52} />
+                {conversation.unreadCount > 0 ? <View style={styles.onlineDot} /> : null}
+              </View>
 
               <View style={styles.rowBody}>
                 <View style={styles.rowTop}>
@@ -82,7 +88,7 @@ export default function MessagesScreen() {
           ))
         ) : (
           <EmptyState
-            emoji="💬"
+            icon={{ ios: 'message', android: 'chat_bubble', web: 'chat_bubble' }}
             title="Henüz mesajın yok"
             description="Keşfet sekmesinden bir köpek sahibine mesaj göndererek başlayabilirsin."
             actionLabel="Keşfet'e git"
@@ -99,10 +105,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.md,
+    padding: spacing.lg,
     marginBottom: spacing.sm,
   },
   rowBody: {
@@ -123,5 +129,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 6,
     marginLeft: spacing.sm,
+  },
+  avatarFrame: {
+    position: 'relative',
+  },
+  onlineDot: {
+    position: 'absolute',
+    right: 0,
+    bottom: 1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.copper,
+    borderWidth: 2,
+    borderColor: colors.surface,
   },
 });

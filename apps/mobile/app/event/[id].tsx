@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { SafetySheet } from '../../src/components/SafetySheet';
 import {
@@ -12,13 +12,14 @@ import {
   ChoiceGroup,
   Field,
   ErrorState,
+  IconAction,
+  ImageHero,
   LoadingState,
   ScrollScreen,
   Tag,
 } from '../../src/components/ui';
 import {
   dogSizeLabels,
-  eventTypeEmoji,
   eventTypeLabels,
   formatEventDate,
   labelFor,
@@ -106,30 +107,36 @@ export default function EventDetailScreen() {
 
   return (
     <ScrollScreen topInset={false}>
+      <View style={styles.detailHeader}>
+        <IconAction
+          label="Geri"
+          name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+          onPress={() => router.back()}
+        />
+        <AppText variant="label" color={colors.textMuted}>Buluşma detayı</AppText>
+        <View style={{ width: 44 }} />
+      </View>
       {actionError ? <Banner tone="error" message={actionError} /> : null}
       {actionSuccess ? <Banner tone="success" message={actionSuccess} /> : null}
       {isCancelled ? (
         <Banner tone="warning" message="Bu etkinlik iptal edildi." />
       ) : null}
 
-      {event.coverPhotoUrl ? (
-        <Image source={{ uri: event.coverPhotoUrl }} style={styles.coverPhoto} />
-      ) : null}
+      <ImageHero
+        uri={event.coverPhotoUrl}
+        height={330}
+        fallbackLabel={labelFor(eventTypeLabels, event.type)}
+        fallbackIcon={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
+        topLeft={<Tag label={labelFor(eventTypeLabels, event.type)} tone="accent" />}
+        topRight={event.hasJoined ? <Tag label="Yerin ayrıldı" tone="success" /> : null}
+      >
+        <AppText variant="kicker" color={colors.copperPale}>PATIMEET BULUŞMASI</AppText>
+        <AppText variant="display" color={colors.textOnDark} numberOfLines={2}>{event.title}</AppText>
+        <AppText variant="body" color={colors.textOnDarkMuted}>{formatEventDate(event.startsAt)}</AppText>
+      </ImageHero>
 
-      <Card>
-        <View style={styles.headerRow}>
-          <View style={styles.icon}>
-            <AppText variant="display">{eventTypeEmoji[event.type] ?? '🐾'}</AppText>
-          </View>
-          <View style={{ flex: 1, marginLeft: spacing.md }}>
-            <Tag label={labelFor(eventTypeLabels, event.type)} tone="accent" />
-          </View>
-        </View>
-
-        <AppText variant="display" style={{ marginTop: spacing.lg }}>
-          {event.title}
-        </AppText>
-
+      <Card style={styles.detailCard}>
+        <AppText variant="kicker" color={colors.copper}>BULUŞMA PLANI</AppText>
         <View style={{ marginTop: spacing.lg, gap: spacing.md }}>
           <DetailRow icon="🗓️" label="Tarih ve saat" value={formatEventDate(event.startsAt)} />
           <DetailRow icon="📍" label="Semt" value={event.district} />
@@ -342,6 +349,18 @@ function DetailRow({
 }
 
 const styles = StyleSheet.create({
+  detailHeader: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  detailCard: {
+    marginTop: -22,
+    marginHorizontal: spacing.md,
+    paddingTop: spacing.xl,
+    borderColor: colors.borderStrong,
+  },
   coverPhoto: {
     width: '100%',
     height: 210,
