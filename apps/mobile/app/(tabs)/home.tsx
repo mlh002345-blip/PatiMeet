@@ -1,28 +1,27 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ImageBackground, StyleSheet, View } from 'react-native';
 import { api, type EventSummary } from '../../src/api';
 import { AlertCard, EventCard } from '../../src/components/cards';
 import {
   AppText,
-  AppHeader,
   Button,
   Card,
   EmptyState,
   ErrorState,
-  ImageHero,
   IconAction,
   LoadingState,
-  Metric,
   PatiLine,
   ScrollScreen,
   SectionHeader,
   SubtleBadge,
 } from '../../src/components/ui';
-import { dogAgeLabel, formatEventDate } from '../../src/labels';
+import { formatEventDate } from '../../src/labels';
 import { useSession } from '../../src/session';
 import { colors, spacing } from '../../src/theme';
 import { useLoader } from '../../src/useLoader';
+
+const defaultHomeHero = require('../../assets/prive-home-sunrise-v1.png');
 
 /** "Günaydın" / "İyi günler" / "İyi akşamlar" — cihaz saatine göre. */
 function greeting(date = new Date()): string {
@@ -81,109 +80,99 @@ export default function HomeScreen() {
   if (dog && !dog.photoUrl) missing.push('fotoğrafı');
 
   return (
-    <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
-      <AppHeader onNotifications={() => router.push('/settings/notifications')} />
-
-      {/* Kişisel selamlama — editoryal serif */}
-      <AppText variant="editorial">
-        {greeting()},{'\n'}
-        {user?.name}
-      </AppText>
-      <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm }}>
-        {dog ? `${dog.name}'in günü hazır.` : 'Köpeğini ekleyince günü birlikte planlarız.'}
-      </AppText>
-
-      {/* Sinematik hero — köpek merkezde */}
-      <ImageHero
-        uri={dog?.photoUrl}
-        height={300}
-        style={{ marginTop: spacing.xl }}
-        fallbackLabel={dog ? `${dog.name}'nin portresini ekle` : 'Köpek profili ekle'}
-        showFallbackPromptWithChildren
-        onPress={() =>
-          dog ? router.push(`/settings/edit-dog?dogId=${dog.id}`) : router.push('/settings/add-dog')
-        }
-        topLeft={
-          user?.district ? (
-            <SubtleBadge
-              label={user.district}
-              tone="onDark"
-              icon={{ ios: 'mappin', android: 'place', web: 'place' }}
-            />
-          ) : null
-        }
-        topRight={
-          !dog?.photoUrl ? (
-            <IconAction
-              label={`${dog?.name ?? 'Köpek'} fotoğrafı ekle`}
-              name={{ ios: 'camera', android: 'add_a_photo', web: 'add_a_photo' }}
-              tone="onDark"
-              onPress={() =>
-                dog
-                  ? router.push(`/settings/edit-dog?dogId=${dog.id}`)
-                  : router.push('/settings/add-dog')
-              }
-            />
-          ) : null
-        }
+    <ScrollScreen
+      padded={false}
+      refreshing={loader.refreshing}
+      onRefresh={loader.refresh}
+    >
+      {/*
+       * Onaylı 11/10 referansın ana kompozisyonu: tek, tam genişlikte
+       * sinematik sahne; marka, selamlama, günlük özet ve tek CTA fotoğrafın
+       * üzerinde yaşar. Fotoğraf yoksa markaya ait gün doğumu görseli gelir.
+       */}
+      <ImageBackground
+        source={dog?.photoUrl ? { uri: dog.photoUrl } : defaultHomeHero}
+        resizeMode="cover"
+        style={styles.flagshipHero}
+        imageStyle={styles.flagshipHeroImage}
       >
-        {dog ? (
-          <>
-            <AppText variant="display" color={colors.textOnDark}>
-              {dog.name}
+        <View style={styles.topWash} />
+        <View style={styles.bottomScrimSoft} />
+        <View style={styles.bottomScrimStrong} />
+
+        <View style={styles.flagshipContent}>
+          <View style={styles.flagshipHeader}>
+            <View>
+              <AppText variant="title" color={colors.primary}>PatiMeet</AppText>
+              <AppText variant="kicker" color={colors.copperDeep}>PRIVÉ</AppText>
+            </View>
+            <IconAction
+              label="Bildirimler"
+              name={{ ios: 'bell', android: 'notifications', web: 'notifications' }}
+              onPress={() => router.push('/settings/notifications')}
+            />
+          </View>
+
+          <View style={styles.greetingBlock}>
+            <AppText variant="editorial" color={colors.primary}>
+              {greeting()},{'\n'}{user?.name}
             </AppText>
-            <AppText variant="body" color={colors.textOnDarkMuted}>
-              {dog.breed ?? 'Cins belirtilmemiş'} · {dogAgeLabel(dog.age)}
+            <AppText variant="body" color={colors.textMuted} style={styles.greetingCaption}>
+              {dog ? `${dog.name}'nin günü hazır` : 'Bugün birlikte güzel bir gün olacak'}
             </AppText>
-          </>
-        ) : (
-          <AppText variant="title" color={colors.textOnDark}>
-            Pati profilin eksik
-          </AppText>
-        )}
-      </ImageHero>
+            <View style={styles.signatureLine} />
+          </View>
 
-      {/* Günün concierge özeti hero'nun üzerine hafifçe oturur. */}
-      <Card style={styles.conciergeCard}>
-        <View style={styles.conciergeHeader}>
-          <SubtleBadge
-            label="Bugünün planı"
-            tone="copper"
-            icon={{ ios: 'sun.max', android: 'wb_sunny', web: 'wb_sunny' }}
-          />
-          <AppText variant="caption" color={colors.textSubtle}>
-            {user?.district ?? 'Yakınında'}
-          </AppText>
+          <View style={styles.heroBottom}>
+            {!dog?.photoUrl ? (
+              <View style={styles.photoHintRow}>
+                <AppText variant="caption" color={colors.textOnDarkMuted}>
+                  Bu sinematik görünümü {dog?.name ?? 'köpeğinin'} fotoğrafıyla kişiselleştir
+                </AppText>
+                <IconAction
+                  label={`${dog?.name ?? 'Köpek'} fotoğrafı ekle`}
+                  name={{ ios: 'camera', android: 'add_a_photo', web: 'add_a_photo' }}
+                  tone="onDark"
+                  onPress={() =>
+                    dog
+                      ? router.push(`/settings/edit-dog?dogId=${dog.id}`)
+                      : router.push('/settings/add-dog')
+                  }
+                />
+              </View>
+            ) : null}
+
+            <View style={styles.glassRow}>
+              <View style={styles.glassCard}>
+                <AppText variant="metric" color={colors.textOnDark}>
+                  {loader.data?.nearby.length ?? 0}
+                </AppText>
+                <AppText variant="caption" color={colors.textOnDarkMuted}>
+                  Yakındaki buluşma{user?.district ? `\n${user.district}` : ''}
+                </AppText>
+              </View>
+              <View style={styles.glassCard}>
+                <AppText variant="metric" color={colors.textOnDark}>
+                  {nextEvent ? 'Hazır' : `%${Math.round(completion * 100)}`}
+                </AppText>
+                <AppText variant="caption" color={colors.textOnDarkMuted}>
+                  {nextEvent ? `${formatEventDate(nextEvent.startsAt)}\n${nextEvent.district}` : 'Profil tamamlanma\ndurumu'}
+                </AppText>
+              </View>
+            </View>
+
+            <Button
+              label={nextEvent ? 'Planımı aç' : 'Günü başlat'}
+              onPress={() =>
+                nextEvent ? router.push(`/event/${nextEvent.id}`) : router.push('/event/create')
+              }
+              style={styles.heroButton}
+            />
+          </View>
         </View>
+      </ImageBackground>
 
-        <AppText variant="title" style={{ marginTop: spacing.md }}>
-          {nextEvent ? 'Sıradaki buluşman hazır' : `${dog?.name ?? 'Dostun'} ile günü planla`}
-        </AppText>
-        <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
-          {nextEvent
-            ? `${formatEventDate(nextEvent.startsAt)} · ${nextEvent.district}`
-            : 'Yakınındaki güvenli bir yürüyüşü seç veya kendi buluşmanı oluştur.'}
-        </AppText>
-
-        <PatiLine progress={nextEvent ? 0.68 : completion} style={{ marginTop: spacing.lg }} />
-
-        <View style={styles.metricRow}>
-          <Metric value={String(loader.data?.joined.length ?? 0)} label="Planın" />
-          <View style={styles.metricDivider} />
-          <Metric value={String(loader.data?.nearby.length ?? 0)} label="Yakındaki buluşma" />
-        </View>
-
-        {/**
-         * Tek baskın eylem. Canlı yürüyüş takibi bu fazın kapsamı dışında
-         * olduğu için CTA gerçekten çalışan bir akışa — yürüyüş planlamaya —
-         * bağlanıyor; sahte bir GPS özelliği gösterilmiyor.
-         */}
-        <Button
-          label="Yürüyüş planla"
-          onPress={() => router.push('/event/create')}
-          style={{ marginTop: spacing.lg }}
-        />
-      </Card>
+      <View style={styles.pageBody}>
 
       {/* Profil tamamlama — uyarı bandı yerine sessiz ilerleme */}
       {completion < 1 ? (
@@ -329,30 +318,102 @@ export default function HomeScreen() {
           Güvenlik önerilerini oku
         </AppText>
       </Card>
+      </View>
     </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  metricRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: spacing.lg,
+  flagshipHero: {
+    height: 670,
+    width: '100%',
+    overflow: 'hidden',
+    backgroundColor: colors.background,
   },
-  metricDivider: {
-    width: 1,
-    alignSelf: 'stretch',
-    backgroundColor: colors.border,
-    marginHorizontal: spacing.lg,
+  flagshipHeroImage: {
+    backgroundColor: colors.background,
   },
-  conciergeCard: {
-    marginTop: spacing.md,
-    borderColor: colors.borderStrong,
+  topWash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: '52%',
+    backgroundColor: 'rgba(243, 237, 227, 0.56)',
   },
-  conciergeHeader: {
+  bottomScrimSoft: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '48%',
+    backgroundColor: 'rgba(18, 20, 16, 0.30)',
+  },
+  bottomScrimStrong: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '28%',
+    backgroundColor: 'rgba(18, 20, 16, 0.58)',
+  },
+  flagshipContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+  },
+  flagshipHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  greetingBlock: {
+    marginTop: 30,
+  },
+  greetingCaption: {
+    marginTop: spacing.sm,
+  },
+  signatureLine: {
+    marginTop: spacing.sm,
+    width: 88,
+    height: 1,
+    backgroundColor: colors.copper,
+    transform: [{ rotate: '4deg' }],
+  },
+  heroBottom: {
+    marginTop: 'auto',
+  },
+  photoHintRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  glassRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  glassCard: {
+    flex: 1,
+    minHeight: 92,
+    borderRadius: 14,
+    padding: spacing.md,
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(18, 20, 16, 0.58)',
+    borderWidth: 1,
+    borderColor: 'rgba(243, 237, 227, 0.24)',
+  },
+  heroButton: {
+    marginTop: spacing.md,
+    minHeight: 50,
+    borderRadius: 22,
+  },
+  pageBody: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
   },
   progressRow: {
     flexDirection: 'row',
