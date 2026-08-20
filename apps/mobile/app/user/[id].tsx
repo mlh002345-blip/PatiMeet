@@ -200,7 +200,7 @@ export default function UserProfileScreen() {
           <View style={{ flex: 1, marginLeft: spacing.md }}>
             <AppText variant="heading">{owner.name}</AppText>
             <AppText variant="caption" color={colors.textMuted}>
-              📍 {owner.district ?? 'Semt belirtilmemiş'}
+              {owner.district ?? 'Semt belirtilmemiş'}
             </AppText>
           </View>
         </View>
@@ -231,7 +231,7 @@ export default function UserProfileScreen() {
             .map((d) => (
               <Card key={d.id} style={{ marginBottom: spacing.sm }}>
                 <View style={styles.ownerRow}>
-                  <Avatar name={d.name} size={44} emoji="🐕" />
+                  <Avatar name={d.name} size={44} />
                   <View style={{ marginLeft: spacing.md }}>
                     <AppText variant="bodyStrong">{d.name}</AppText>
                     <AppText variant="caption" color={colors.textMuted}>

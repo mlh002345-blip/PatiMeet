@@ -136,7 +136,7 @@ export default function ProfileScreen() {
             {dog.photoUrl ? (
               <Image source={{ uri: dog.photoUrl }} style={styles.photo} />
             ) : (
-              <Avatar name={dog.name} size={72} emoji="🐕" />
+              <Avatar name={dog.name} size={72} />
             )}
 
             <View style={{ flex: 1, marginLeft: spacing.lg }}>

@@ -1,9 +1,10 @@
 import * as ImagePicker from 'expo-image-picker';
+import { SymbolView } from 'expo-symbols';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 import { api, ApiError } from '../api';
 import { colors, radius, spacing } from '../theme';
-import { AppText, Avatar } from './ui';
+import { AppText } from './ui';
 
 /**
  * Fotoğraf seçici ve yükleyici.
@@ -100,13 +101,32 @@ export function PhotoPicker({
         {label}
       </AppText>
 
-      <View style={styles.row}>
-        <Pressable onPress={pick} disabled={busy} accessibilityRole="button">
+      <View style={[styles.row, purpose === 'event_photo' && styles.eventRow]}>
+        <Pressable
+          onPress={pick}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={`${label} seç`}
+        >
           <View>
             {shownImage ? (
               <Image source={{ uri: shownImage }} style={[styles.preview, purpose === 'event_photo' && styles.eventPreview]} />
             ) : (
-              <Avatar name={fallbackName} size={80} emoji={emoji} />
+              <View style={[styles.preview, styles.fallback, purpose === 'event_photo' && styles.eventPreview]}>
+                <View style={styles.orbit} />
+                <SymbolView
+                  name={purpose === 'event_photo'
+                    ? { ios: 'photo', android: 'add_photo_alternate', web: 'add_photo_alternate' }
+                    : { ios: 'camera', android: 'add_a_photo', web: 'add_a_photo' }}
+                  size={purpose === 'event_photo' ? 28 : 24}
+                  tintColor={colors.copperPale}
+                />
+                {purpose !== 'event_photo' ? (
+                  <AppText variant="caption" color={colors.textOnDarkMuted} style={{ marginTop: 2 }}>
+                    {emoji ?? fallbackName.trim().slice(0, 1).toUpperCase()}
+                  </AppText>
+                ) : null}
+              </View>
             )}
 
             {busy ? (
@@ -118,6 +138,9 @@ export function PhotoPicker({
         </Pressable>
 
         <View style={{ marginLeft: spacing.lg, flex: 1 }}>
+          <AppText variant="kicker" color={colors.copper} style={{ marginBottom: spacing.xs }}>
+            {purpose === 'event_photo' ? 'KAPAK GÖRSELİ' : 'PORTRE'}
+          </AppText>
           <Pressable onPress={pick} disabled={busy} accessibilityRole="button" hitSlop={8}>
             <AppText variant="bodyStrong" color={busy ? colors.textSubtle : colors.primary}>
               {busy ? 'Yükleniyor…' : value ? 'Fotoğrafı değiştir' : 'Fotoğraf seç'}
@@ -156,6 +179,14 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  eventRow: {
+    alignItems: 'center',
   },
   preview: {
     width: 80,
@@ -165,7 +196,26 @@ const styles = StyleSheet.create({
   },
   eventPreview: {
     width: 144,
+    height: 88,
     borderRadius: radius.md,
+  },
+  fallback: {
+    backgroundColor: colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.copper,
+  },
+  orbit: {
+    position: 'absolute',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    borderColor: 'rgba(181, 113, 60, 0.36)',
+    top: -24,
+    right: -18,
   },
   overlay: {
     position: 'absolute',

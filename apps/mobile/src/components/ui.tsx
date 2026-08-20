@@ -156,6 +156,62 @@ export function AppHeader({
 }
 
 /**
+ * Sekme dışındaki tüm alt ekranların ortak Privé başlığı.
+ * Yerel Stack başlığı yerine kullanılır; böylece Android/iOS'ta çift başlık,
+ * farklı geri düğmesi ve tutarsız üst boşluk oluşmaz.
+ */
+export function DetailHeader({
+  label,
+  onBack,
+  action,
+}: {
+  label: string;
+  onBack: () => void;
+  action?: React.ReactNode;
+}) {
+  return (
+    <View style={styles.detailHeader}>
+      <IconAction
+        label="Geri"
+        name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+        onPress={onBack}
+      />
+      <AppText variant="label" color={colors.textMuted} numberOfLines={1} style={styles.detailHeaderLabel}>
+        {label}
+      </AppText>
+      <View style={styles.detailHeaderAction}>{action}</View>
+    </View>
+  );
+}
+
+/** Form, ayar ve belge ekranlarında ortak editoryal giriş hiyerarşisi. */
+export function PageIntro({
+  kicker,
+  title,
+  description,
+  compact = false,
+}: {
+  kicker: string;
+  title: string;
+  description?: string;
+  compact?: boolean;
+}) {
+  return (
+    <View style={{ marginBottom: compact ? spacing.lg : spacing.xl }}>
+      <AppText variant="kicker" color={colors.copper}>{kicker}</AppText>
+      <AppText variant={compact ? 'display' : 'editorial'} style={{ marginTop: spacing.xs }}>
+        {title}
+      </AppText>
+      {description ? (
+        <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm }}>
+          {description}
+        </AppText>
+      ) : null}
+    </View>
+  );
+}
+
+/**
  * PatiMeet Privé monogramı.
  *
  * Harici logo dosyasına bağımlı değildir; bakır rota noktası ve editoryal P
@@ -926,15 +982,20 @@ export function Banner({
   message: string;
 }) {
   const palette = {
-    error: { bg: colors.dangerLight, fg: colors.danger, icon: '⚠️' },
-    success: { bg: colors.successLight, fg: colors.success, icon: '✓' },
-    info: { bg: colors.primaryLight, fg: colors.primary, icon: 'ℹ️' },
-    warning: { bg: colors.warningLight, fg: colors.warning, icon: '⚠️' },
+    error: { bg: colors.dangerLight, fg: colors.danger },
+    success: { bg: colors.successLight, fg: colors.success },
+    info: { bg: colors.primaryLight, fg: colors.primary },
+    warning: { bg: colors.warningLight, fg: colors.warning },
   }[tone];
+  const icon: SymbolViewProps['name'] = tone === 'success'
+    ? { ios: 'checkmark.circle', android: 'check_circle', web: 'check_circle' }
+    : tone === 'info'
+      ? { ios: 'info.circle', android: 'info', web: 'info' }
+      : { ios: 'exclamationmark.triangle', android: 'warning', web: 'warning' };
 
   return (
     <View style={[styles.banner, { backgroundColor: palette.bg }]}>
-      <Text style={{ marginRight: spacing.sm }}>{palette.icon}</Text>
+      <SymbolView name={icon} size={18} tintColor={palette.fg} style={{ marginRight: spacing.sm }} />
       <Text style={[typography.body, { color: palette.fg, flex: 1 }]}>{message}</Text>
     </View>
   );
@@ -945,14 +1006,26 @@ export function Screen({
   children,
   scroll = true,
   padded = true,
+  topInset = false,
 }: {
   children: React.ReactNode;
   scroll?: boolean;
   padded?: boolean;
+  /** Yerel Stack başlığı gizli alt ekranlarda güvenli üst boşluk. */
+  topInset?: boolean;
 }) {
+  const insets = useSafeAreaInsets();
   if (!scroll) {
     return (
-      <View style={[styles.screen, padded && { paddingHorizontal: spacing.lg }]}>{children}</View>
+      <View
+        style={[
+          styles.screen,
+          padded && { paddingHorizontal: spacing.lg },
+          topInset && { paddingTop: insets.top },
+        ]}
+      >
+        {children}
+      </View>
     );
   }
   return (
@@ -960,6 +1033,7 @@ export function Screen({
       style={styles.screen}
       contentContainerStyle={[
         padded && { paddingHorizontal: spacing.lg },
+        topInset && { paddingTop: insets.top },
         { paddingBottom: spacing.xxl },
       ]}
       keyboardShouldPersistTaps="handled"
@@ -1265,6 +1339,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.lg,
+  },
+  detailHeader: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  detailHeaderLabel: {
+    flex: 1,
+    textAlign: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  detailHeaderAction: {
+    width: HIT_SIZE,
+    minHeight: HIT_SIZE,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   headerIcon: {
     width: 40,

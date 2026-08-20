@@ -1,12 +1,12 @@
 # PatiMeet — Devam Notu
 
-Son güncelleme: 19 Ağustos 2026
+Son güncelleme: 20 Ağustos 2026
 
 ## Kaynak ve çalışma durumu
 
 - GitHub: `mlh002345-blip/PatiMeet`
 - Çalışma dalı: `claude/bu-mvp-mobile-design-4qt3zc`
-- Uzak daldaki son doğrulanmış commit: `b7fa1d8`
+- Uzak daldaki son doğrulanmış sürüm: bu belgenin bulunduğu commit.
 - Yerel ve uzak dal eşit: önde/geride commit yok.
 - Tek kanonik çalışma dalı bu daldır; paralel Claude uygulaması veya ikinci özellik kaydı oluşturulmayacak.
 - `b7fa1d8`: Telefonda görülen kart yazısı çakışmaları, Android alt menü güvenli alanı ve aşırı yazı ölçekleme sorunları düzeltildi.
@@ -212,3 +212,18 @@ Codex, `d998cdf` commit'inin GitHub'a ulaştığını ve temel kod yapısını d
 - Telefonda kurulu APK, `53afd2c` sürümünden üretildi; `b7fa1d8` telefon yerleşimi düzeltmelerini henüz içermez.
 - Yeni APK başlatılmadı. Sonraki kullanıcı inceleme notları tamamlanınca tüm düzeltmeler tek pakette toplanacak ve yalnızca bir yeni APK üretilecek.
 - Devam ederken önce bu dosya ve uzak dal kontrol edilecek; başka bir çalışma dalından doğrudan özellik kopyalanmayacak.
+
+## 20 Ağustos 2026 — bütün ekranların Privé dönüşümü
+
+- Telefon görüntüleri ile mobil uygulamadaki tüm ana, detay, form, ayar, sohbet, yasal belge ve topluluk ekranları yeniden denetlendi.
+- Yerel başlıkla uygulama içi başlığın üst üste binmesi kaldırıldı; sekme dışındaki ekranlar tek bir ortak Privé geri başlığı kullanıyor.
+- Gizli başlıklı ekranlara Android ve iOS güvenli üst alanı eklendi.
+- Profil, köpek, etkinlik ve topluluk formlarında ortak editoryal giriş hiyerarşisi uygulandı.
+- Fotoğraf seçimi; orman yeşili sinematik boş durum, profesyonel semboller, ince bakır ayrıntı ve tutarlı kart yüzeyiyle yenilendi.
+- Kullanıcı arayüzündeki kalan dekoratif emojiler profesyonel sembol veya sade tipografik ayrıntıyla değiştirildi.
+- Sohbet başlığı, mesaj güvenlik eylemi, tarih seçici, köpek yönetimi, engellenenler, bildirim ayarları ve yasal metin ekranları aynı görsel sisteme alındı.
+- Mobil TypeScript denetimi temiz geçti.
+- API test paketleri başarıyla geçti; mevcut ürün davranışında gerileme görülmedi.
+- Expo üretim exportları başarılı: web 972 modül, Android 1400 modül, iOS 1264 modül.
+- Playwright görsel otomasyonu yerel tarayıcı sürüm uyumsuzluğu nedeniyle çalıştırılamadı; cihazdaki eski ekran görüntülerinde bulunan sistemik sorunlar doğrudan kodda giderildi.
+- Yeni APK bu turda oluşturulmadı. Sonraki cihaz paketi bu ekran dönüşümünü ve önceki telefon yerleşimi düzeltmelerini birlikte içerecek.

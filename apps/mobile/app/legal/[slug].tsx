@@ -1,8 +1,8 @@
-import { useLocalSearchParams, useNavigation } from 'expo-router';
-import React, { useEffect } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React from 'react';
 import { View } from 'react-native';
 import { api } from '../../src/api';
-import { AppText, ErrorState, LoadingState, Screen } from '../../src/components/ui';
+import { AppText, DetailHeader, ErrorState, LoadingState, PageIntro, Screen } from '../../src/components/ui';
 import { colors, spacing } from '../../src/theme';
 import { useLoader } from '../../src/useLoader';
 
@@ -15,21 +15,18 @@ import { useLoader } from '../../src/useLoader';
  */
 export default function LegalDocumentScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
-  const navigation = useNavigation();
+  const router = useRouter();
   const loader = useLoader(() => api.legalDocument(slug), [slug]);
-
-  useEffect(() => {
-    if (loader.data?.title) navigation.setOptions({ title: loader.data.title });
-  }, [navigation, loader.data?.title]);
 
   if (loader.loading) return <LoadingState label="Belge yükleniyor…" />;
   if (loader.error) return <ErrorState message={loader.error} onRetry={loader.reload} />;
   if (!loader.data) return <ErrorState message="Belge bulunamadı." />;
 
   return (
-    <Screen>
+    <Screen topInset>
       <View style={{ paddingTop: spacing.lg }}>
-        <AppText variant="display">{loader.data.title}</AppText>
+        <DetailHeader label="PatiMeet belgeleri" onBack={() => router.back()} />
+        <PageIntro kicker="ŞEFFAFLIK" title={loader.data.title} compact />
         <AppText variant="caption" color={colors.textSubtle} style={{ marginTop: spacing.xs }}>
           Son güncelleme: {loader.data.updatedAt}
         </AppText>

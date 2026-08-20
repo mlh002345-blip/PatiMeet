@@ -9,7 +9,9 @@ import {
   Banner,
   Button,
   ChoiceGroup,
+  DetailHeader,
   Field,
+  PageIntro,
   Screen,
 } from '../../src/components/ui';
 import { dogSizeLabels, eventTypeLabels } from '../../src/labels';
@@ -115,17 +117,14 @@ export default function CreateEventScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Screen>
+      <Screen topInset>
         <View style={{ paddingTop: spacing.lg }}>
-          <AppText variant="kicker" color={colors.copper}>YENİ KULÜP BULUŞMASI</AppText>
-          <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Yürüyüş oluştur</AppText>
-          <AppText
-            variant="body"
-            color={colors.textMuted}
-            style={{ marginTop: spacing.xs, marginBottom: spacing.xl }}
-          >
-            Buluşmanı planla, semtindeki köpek sahipleri katılsın.
-          </AppText>
+          <DetailHeader label="Yeni buluşma" onBack={() => router.back()} />
+          <PageIntro
+            kicker="YENİ KULÜP BULUŞMASI"
+            title="Yürüyüş oluştur"
+            description="Buluşmanı planla, semtindeki köpek sahipleri katılsın."
+          />
 
           {formError ? <Banner tone="error" message={formError} /> : null}
 

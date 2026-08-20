@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -11,12 +11,14 @@ import {
 } from 'react-native';
 import { api, ApiError, type ChatMessage } from '../../src/api';
 import { SymbolView } from 'expo-symbols';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafetySheet } from '../../src/components/SafetySheet';
 import {
   AppText,
   Avatar,
   Banner,
   Button,
+  DetailHeader,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -27,7 +29,7 @@ import { colors, radius, spacing, typography } from '../../src/theme';
 /** Sohbet (13/14) — bire bir metin mesajlaşma. */
 export default function ChatScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const scrollRef = useRef<ScrollView>(null);
@@ -62,21 +64,6 @@ export default function ChatScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Başlıkta karşı tarafın adı ve güvenlik menüsü gösterilir.
-  useEffect(() => {
-    navigation.setOptions({
-      title: other?.name ?? 'Sohbet',
-      headerRight: () =>
-        other ? (
-          <Pressable onPress={() => setSheetOpen(true)} hitSlop={10} accessibilityRole="button">
-            <AppText variant="heading" color={colors.textMuted}>
-              ⋯
-            </AppText>
-          </Pressable>
-        ) : null,
-    });
-  }, [navigation, other]);
-
   async function send() {
     const body = draft.trim();
     if (!body) return;
@@ -108,6 +95,23 @@ export default function ChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
+      <View style={[styles.chatHeader, { paddingTop: insets.top + spacing.sm }]}>
+        <DetailHeader
+          label={other?.name ?? 'Sohbet'}
+          onBack={() => router.back()}
+          action={
+            other ? (
+              <Pressable onPress={() => setSheetOpen(true)} hitSlop={10} accessibilityRole="button">
+                <SymbolView
+                  name={{ ios: 'ellipsis', android: 'more_horiz', web: 'more_horiz' }}
+                  size={22}
+                  tintColor={colors.textMuted}
+                />
+              </Pressable>
+            ) : null
+          }
+        />
+      </View>
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={{ padding: spacing.lg, flexGrow: 1 }}
@@ -230,6 +234,10 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  chatHeader: {
+    paddingHorizontal: spacing.lg,
     backgroundColor: colors.background,
   },
   profileLink: {

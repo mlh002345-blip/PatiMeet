@@ -8,6 +8,8 @@ import {
   Banner,
   Button,
   Card,
+  DetailHeader,
+  PageIntro,
   ScrollScreen,
   Tag,
 } from '../../src/components/ui';
@@ -66,16 +68,14 @@ export default function MyDogsScreen() {
 
   return (
     <ScrollScreen>
+      <DetailHeader label="Köpek profilleri" onBack={() => router.back()} />
       {error ? <Banner tone="error" message={error} /> : null}
 
-      <AppText variant="display">Köpeklerim</AppText>
-      <AppText
-        variant="body"
-        color={colors.textMuted}
-        style={{ marginTop: spacing.xs, marginBottom: spacing.xl }}
-      >
-        {dogs.length} köpek profilin var. En fazla {MAX_DOGS} ekleyebilirsin.
-      </AppText>
+      <PageIntro
+        kicker="PATİ AİLEN"
+        title="Köpeklerim"
+        description={`${dogs.length} köpek profilin var. En fazla ${MAX_DOGS} ekleyebilirsin.`}
+      />
 
       {dogs.map((dog) => (
         <Card key={dog.id} style={{ marginBottom: spacing.md }}>
@@ -83,7 +83,7 @@ export default function MyDogsScreen() {
             {dog.photoUrl ? (
               <Image source={{ uri: dog.photoUrl }} style={styles.photo} />
             ) : (
-              <Avatar name={dog.name} size={60} emoji="🐕" />
+              <Avatar name={dog.name} size={60} />
             )}
 
             <View style={{ flex: 1, marginLeft: spacing.md }}>

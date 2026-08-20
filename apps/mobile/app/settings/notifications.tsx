@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { api, ApiError, type NotificationPreferences } from '../../src/api';
@@ -7,8 +8,10 @@ import {
   Banner,
   Button,
   Card,
+  DetailHeader,
   ErrorState,
   LoadingState,
+  PageIntro,
   Screen,
 } from '../../src/components/ui';
 import { registerForPush } from '../../src/push';
@@ -23,6 +26,7 @@ import { colors, radius, spacing } from '../../src/theme';
  *   2. Kategori tercihleri — sunucuda saklanır ve gönderim öncesi kontrol edilir.
  */
 export default function NotificationSettingsScreen() {
+  const router = useRouter();
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [systemGranted, setSystemGranted] = useState<boolean | null>(null);
@@ -96,8 +100,15 @@ export default function NotificationSettingsScreen() {
   if (error && !preferences) return <ErrorState message={error} />;
 
   return (
-    <Screen>
+    <Screen topInset>
       <View style={{ paddingTop: spacing.lg }}>
+        <DetailHeader label="Bildirim tercihleri" onBack={() => router.back()} />
+        <PageIntro
+          kicker="SANA ÖZEL"
+          title="Bildirimler"
+          description="Yalnızca önemsediğin gelişmeler için haber al."
+          compact
+        />
         {error ? <Banner tone="error" message={error} /> : null}
 
         {!pushEnabled ? (
@@ -122,15 +133,6 @@ export default function NotificationSettingsScreen() {
             />
           </Card>
         ) : null}
-
-        <AppText variant="display">Bildirimler</AppText>
-        <AppText
-          variant="body"
-          color={colors.textMuted}
-          style={{ marginTop: spacing.xs, marginBottom: spacing.xl }}
-        >
-          Hangi konularda haber almak istediğini seç.
-        </AppText>
 
         <View style={styles.group}>
           <Row

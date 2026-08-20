@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { DogForm, type DogFormValues } from '../../src/components/DogForm';
-import { Banner, EmptyState, Screen } from '../../src/components/ui';
+import { Banner, DetailHeader, EmptyState, PageIntro, Screen } from '../../src/components/ui';
 import { useSession } from '../../src/session';
 import { spacing } from '../../src/theme';
 
@@ -48,7 +48,7 @@ export default function EditDogScreen() {
 
   if (!dog) {
     return (
-      <Screen>
+      <Screen topInset>
         <EmptyState
           title="Köpek profili bulunamadı"
           description="Devam etmek için bir köpek profili oluşturman gerekiyor."
@@ -64,8 +64,14 @@ export default function EditDogScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Screen>
+      <Screen topInset>
         <View style={{ paddingTop: spacing.lg }}>
+          <DetailHeader label="Köpek profili" onBack={() => router.back()} />
+          <PageIntro
+            kicker="PATİ KİMLİĞİ"
+            title={`${dog.name} için düzenle`}
+            description="Fotoğrafını, karakterini ve bakım bilgilerini güncel tut."
+          />
           {success ? <Banner tone="success" message={success} /> : null}
 
           <DogForm

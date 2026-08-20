@@ -8,8 +8,10 @@ import {
   Banner,
   Button,
   ChoiceGroup,
+  DetailHeader,
   Field,
   MultiChoiceGroup,
+  PageIntro,
   Screen,
 } from '../../src/components/ui';
 import { legacyPurposes, purposeLabels, SELECTABLE_PURPOSES } from '../../src/labels';
@@ -104,8 +106,14 @@ export default function EditProfileScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Screen>
+      <Screen topInset>
         <View style={{ paddingTop: spacing.lg }}>
+          <DetailHeader label="Üyelik profili" onBack={() => router.back()} />
+          <PageIntro
+            kicker="SENİN ALANIN"
+            title="Profilini düzenle"
+            description="Seni doğru insanlarla buluşturacak bilgileri güncel ve sade tut."
+          />
           {formError ? <Banner tone="error" message={formError} /> : null}
           {success ? <Banner tone="success" message={success} /> : null}
 

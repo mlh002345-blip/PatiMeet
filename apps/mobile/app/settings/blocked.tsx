@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { api, ApiError } from '../../src/api';
@@ -7,9 +8,11 @@ import {
   Banner,
   Button,
   Card,
+  DetailHeader,
   EmptyState,
   ErrorState,
   LoadingState,
+  PageIntro,
   Screen,
 } from '../../src/components/ui';
 import { colors, spacing } from '../../src/theme';
@@ -17,6 +20,7 @@ import { useLoader } from '../../src/useLoader';
 
 /** Engellenen kullanıcılar — engeli kaldırma buradan yapılır. */
 export default function BlockedUsersScreen() {
+  const router = useRouter();
   const loader = useLoader(() => api.blockedUsers());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,17 +45,20 @@ export default function BlockedUsersScreen() {
   if (loader.error) return <ErrorState message={loader.error} onRetry={loader.reload} />;
 
   return (
-    <Screen>
+    <Screen topInset>
       <View style={{ paddingTop: spacing.lg }}>
+        <DetailHeader label="Gizlilik ve güvenlik" onBack={() => router.back()} />
+        <PageIntro
+          kicker="GÜVENLİK"
+          title="Engellenenler"
+          description="Buradaki kişiler sana mesaj gönderemez ve profilini görüntüleyemez."
+          compact
+        />
         {error ? <Banner tone="error" message={error} /> : null}
         {success ? <Banner tone="success" message={success} /> : null}
 
         {loader.data && loader.data.blocked.length > 0 ? (
           <>
-            <AppText variant="body" color={colors.textMuted} style={{ marginBottom: spacing.lg }}>
-              Engellediğin kullanıcılar sana mesaj gönderemez ve profilini göremez.
-            </AppText>
-
             {loader.data.blocked.map((user) => (
               <Card key={user.id} style={{ marginBottom: spacing.sm }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -76,7 +83,7 @@ export default function BlockedUsersScreen() {
           </>
         ) : (
           <EmptyState
-            emoji="🛡️"
+            icon={{ ios: 'shield', android: 'shield', web: 'shield' }}
             title="Engellenen kullanıcı yok"
             description="Rahatsız edici bir kullanıcıyla karşılaşırsan profilinden veya sohbetten engelleyebilirsin."
           />

@@ -3,6 +3,7 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import React, { useState } from 'react';
+import { SymbolView } from 'expo-symbols';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { formatEventDate } from '../labels';
 import { colors, radius, spacing } from '../theme';
@@ -104,7 +105,14 @@ export function DateTimeField({
           pressed && { opacity: 0.85 },
         ]}
       >
-        <AppText variant="body">🗓️ {formatEventDate(value.getTime())}</AppText>
+        <View style={styles.dateValue}>
+          <SymbolView
+            name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
+            size={19}
+            tintColor={colors.copperDeep}
+          />
+          <AppText variant="body">{formatEventDate(value.getTime())}</AppText>
+        </View>
         <AppText variant="body" color={colors.primary}>
           Değiştir
         </AppText>
@@ -167,6 +175,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
     minHeight: 52,
+  },
+  dateValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.sm,
+    marginRight: spacing.sm,
   },
   iosPanel: {
     backgroundColor: colors.surface,

@@ -10,10 +10,12 @@ import {
   Button,
   Card,
   ChoiceGroup,
+  DetailHeader,
   Field,
+  PageIntro,
   Screen,
 } from '../../src/components/ui';
-import { alertTypeEmoji, alertTypeLabels } from '../../src/labels';
+import { alertTypeLabels } from '../../src/labels';
 import { useSession } from '../../src/session';
 import { colors, spacing } from '../../src/theme';
 
@@ -110,8 +112,14 @@ export default function CreateAlertScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Screen>
+      <Screen topInset>
         <View style={{ paddingTop: spacing.lg }}>
+          <DetailHeader label="Yeni topluluk bildirimi" onBack={() => router.back()} />
+          <PageIntro
+            kicker="GÜVENLİ TOPLULUK"
+            title="Komşularını haberdar et"
+            description="Yaklaşık bölgeyi ve doğrulanabilir ayrıntıları paylaş; kişisel iletişim bilgilerini gizli tut."
+          />
           {formError ? <Banner tone="error" message={formError} /> : null}
 
           <ChoiceGroup
@@ -121,10 +129,7 @@ export default function CreateAlertScreen() {
             options={(types.length > 0
               ? types.map((entry) => ({ value: entry.value, label: entry.label }))
               : Object.entries(alertTypeLabels).map(([value, label]) => ({ value, label }))
-            ).map((option) => ({
-              value: option.value,
-              label: `${alertTypeEmoji[option.value] ?? '📣'} ${option.label}`,
-            }))}
+            )}
             value={type}
             onChange={setType}
             error={errors.type}
@@ -180,7 +185,7 @@ export default function CreateAlertScreen() {
 
           <Card style={{ backgroundColor: colors.warningLight, borderColor: colors.warningLight, marginBottom: spacing.lg }}>
             <AppText variant="bodyStrong" color={colors.warning}>
-              🛡️ Kesin konum paylaşma
+              Kesin konum paylaşma
             </AppText>
             <AppText variant="body" color={colors.warning} style={{ marginTop: spacing.xs }}>
               Açık adres, kapı numarası, koordinat veya harita bağlantısı yazma. Bunlar hem senin

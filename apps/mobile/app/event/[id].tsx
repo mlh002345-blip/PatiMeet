@@ -138,16 +138,14 @@ export default function EventDetailScreen() {
       <Card style={styles.detailCard}>
         <AppText variant="kicker" color={colors.copper}>BULUŞMA PLANI</AppText>
         <View style={{ marginTop: spacing.lg, gap: spacing.md }}>
-          <DetailRow icon="🗓️" label="Tarih ve saat" value={formatEventDate(event.startsAt)} />
-          <DetailRow icon="📍" label="Semt" value={event.district} />
-          <DetailRow icon="🚩" label="Buluşma noktası" value={event.meetingPoint} />
+          <DetailRow label="Tarih ve saat" value={formatEventDate(event.startsAt)} />
+          <DetailRow label="Semt" value={event.district} />
+          <DetailRow label="Buluşma noktası" value={event.meetingPoint} />
           <DetailRow
-            icon="🐕"
             label="Uygun köpek boyutu"
             value={labelFor(dogSizeLabels, event.dogSize)}
           />
           <DetailRow
-            icon="👥"
             label="Katılım"
             value={`${event.participantCount} / ${event.capacity} kişi`}
           />
@@ -307,7 +305,7 @@ export default function EventDetailScreen() {
         }}
       >
         <AppText variant="bodyStrong" color={colors.warning}>
-          🛡️ Güvenli buluşma
+          Güvenli buluşma
         </AppText>
         <AppText variant="body" color={colors.warning} style={{ marginTop: spacing.xs }}>
           Kalabalık ve açık bir alanda buluş, adresini paylaşma ve nerede olduğunu bir yakınına
@@ -327,18 +325,16 @@ export default function EventDetailScreen() {
 }
 
 function DetailRow({
-  icon,
   label,
   value,
 }: {
-  icon: string;
   label: string;
   value: string;
 }) {
   return (
     <View style={styles.detailRow}>
-      <AppText variant="body">{icon}</AppText>
-      <View style={{ flex: 1, marginLeft: spacing.md }}>
+      <View style={styles.detailMarker} />
+      <View style={{ flex: 1 }}>
         <AppText variant="caption" color={colors.textSubtle}>
           {label}
         </AppText>
@@ -383,6 +379,13 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+  },
+  detailMarker: {
+    width: 3,
+    minHeight: 38,
+    borderRadius: 2,
+    backgroundColor: colors.copper,
+    marginRight: spacing.md,
   },
   participant: {
     flexDirection: 'row',

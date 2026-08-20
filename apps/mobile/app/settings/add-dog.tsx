@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { DogForm, type DogFormValues } from '../../src/components/DogForm';
-import { AppText, Banner, ScrollScreen } from '../../src/components/ui';
+import { Banner, DetailHeader, PageIntro, ScrollScreen } from '../../src/components/ui';
 import { useSession } from '../../src/session';
 import { colors, spacing } from '../../src/theme';
 
@@ -51,17 +51,14 @@ export default function AddDogScreen() {
     >
       <ScrollScreen>
         <View>
+          <DetailHeader label="Yeni köpek profili" onBack={() => router.back()} />
           {success ? <Banner tone="success" message={success} /> : null}
 
-          <AppText variant="display">Köpek ekle</AppText>
-          <AppText
-            variant="body"
-            color={colors.textMuted}
-            style={{ marginTop: spacing.xs, marginBottom: spacing.xl }}
-          >
-            Her köpeğin için ayrı profil tutabilirsin; keşfet ve etkinliklerde hangisiyle
-            katılacağını seçersin.
-          </AppText>
+          <PageIntro
+            kicker="PATİ AİLEN"
+            title="Yeni bir dost ekle"
+            description="Her köpeğin için ayrı profil tutabilir, keşfet ve etkinliklerde hangisiyle katılacağını seçebilirsin."
+          />
 
           <DogForm
             submitLabel="Köpeği ekle"

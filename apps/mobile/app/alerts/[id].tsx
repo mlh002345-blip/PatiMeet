@@ -9,13 +9,13 @@ import {
   Banner,
   Button,
   Card,
+  DetailHeader,
   ErrorState,
   LoadingState,
   ScrollScreen,
   Tag,
 } from '../../src/components/ui';
 import {
-  alertTypeEmoji,
   alertTypeLabels,
   formatEventDate,
   formatRelative,
@@ -110,6 +110,7 @@ export default function AlertDetailScreen() {
 
   return (
     <ScrollScreen>
+      <DetailHeader label="Topluluk bildirimi" onBack={() => router.back()} />
       {actionError ? <Banner tone="error" message={actionError} /> : null}
       {alert.status === 'resolved' ? (
         <Banner tone="success" message="Bu bildirim çözüldü olarak işaretlendi." />
@@ -135,10 +136,10 @@ export default function AlertDetailScreen() {
 
       <View style={styles.tagRow}>
         <Tag
-          label={`${alertTypeEmoji[alert.type] ?? '📣'} ${labelFor(alertTypeLabels, alert.type)}`}
+          label={labelFor(alertTypeLabels, alert.type)}
           tone={urgent ? 'danger' : 'primary'}
         />
-        <Tag label={`📍 ${alert.district}`} />
+        <Tag label={alert.district} />
       </View>
 
       {alert.animalName ? (
@@ -187,7 +188,7 @@ export default function AlertDetailScreen() {
               <View style={{ flex: 1, marginLeft: spacing.md }}>
                 <AppText variant="bodyStrong">{alert.author.name}</AppText>
                 <AppText variant="caption" color={colors.textMuted}>
-                  📍 {alert.author.district ?? 'Semt belirtilmemiş'}
+                  {alert.author.district ?? 'Semt belirtilmemiş'}
                 </AppText>
               </View>
             </View>
