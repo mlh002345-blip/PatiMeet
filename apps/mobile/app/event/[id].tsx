@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   ChoiceGroup,
+  DetailHeader,
   Field,
   ErrorState,
   IconAction,
@@ -106,16 +107,8 @@ export default function EventDetailScreen() {
   const isPast = event.startsAt <= Date.now();
 
   return (
-    <ScrollScreen topInset={false}>
-      <View style={styles.detailHeader}>
-        <IconAction
-          label="Geri"
-          name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
-          onPress={() => router.back()}
-        />
-        <AppText variant="label" color={colors.textMuted}>Buluşma detayı</AppText>
-        <View style={{ width: 44 }} />
-      </View>
+    <ScrollScreen>
+      <DetailHeader label="Buluşma detayı" onBack={() => router.back()} />
       {actionError ? <Banner tone="error" message={actionError} /> : null}
       {actionSuccess ? <Banner tone="success" message={actionSuccess} /> : null}
       {isCancelled ? (
@@ -352,9 +345,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   detailCard: {
-    marginTop: -22,
-    marginHorizontal: spacing.md,
-    paddingTop: spacing.xl,
+    marginTop: spacing.md,
     borderColor: colors.borderStrong,
   },
   coverPhoto: {

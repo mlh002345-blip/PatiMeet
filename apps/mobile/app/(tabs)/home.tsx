@@ -346,8 +346,7 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
   },
   conciergeCard: {
-    marginTop: -26,
-    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
     borderColor: colors.borderStrong,
   },
   conciergeHeader: {

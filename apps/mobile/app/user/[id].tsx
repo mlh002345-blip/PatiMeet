@@ -78,7 +78,7 @@ export default function UserProfileScreen() {
   const focused = dogs.find((d) => d.id === params.dogId) ?? dogs[0];
 
   return (
-    <ScrollScreen topInset={false}>
+    <ScrollScreen>
       <View style={styles.detailHeader}>
         <IconAction
           label="Geri"

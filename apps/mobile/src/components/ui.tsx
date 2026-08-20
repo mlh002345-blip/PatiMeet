@@ -1030,10 +1030,10 @@ export function Screen({
   }
   return (
     <ScrollView
-      style={styles.screen}
+      style={[styles.screen, topInset && { marginTop: insets.top }]}
       contentContainerStyle={[
         padded && { paddingHorizontal: spacing.lg },
-        topInset && { paddingTop: insets.top },
+        topInset && { paddingTop: spacing.lg },
         { paddingBottom: spacing.xxl },
       ]}
       keyboardShouldPersistTaps="handled"
@@ -1067,10 +1067,10 @@ export function ScrollScreen({
 
   return (
     <ScrollView
-      style={styles.screen}
+      style={[styles.screen, topInset && { marginTop: insets.top }]}
       contentContainerStyle={[
         padded && { paddingHorizontal: spacing.lg },
-        { paddingTop: (topInset ? insets.top : 0) + spacing.lg, paddingBottom: spacing.xxl },
+        { paddingTop: spacing.lg, paddingBottom: spacing.xxl },
       ]}
       keyboardShouldPersistTaps="handled"
       refreshControl={
