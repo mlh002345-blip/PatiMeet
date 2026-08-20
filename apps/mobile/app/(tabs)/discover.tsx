@@ -1,230 +1,54 @@
 import { useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { api } from '../../src/api';
-import { DogCard } from '../../src/components/cards';
-import {
-  AppText,
-  AppHeader,
-  ChoiceGroup,
-  MultiChoiceGroup,
-  IconAction,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  ScrollScreen,
-  SearchField,
-  Tag,
-} from '../../src/components/ui';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { api, type DiscoverItem } from '../../src/api';
+import { AppText, BottomSheet, Button, MultiChoiceGroup } from '../../src/components/ui';
 import { dogSizeLabels, energyLabels } from '../../src/labels';
 import { useSession } from '../../src/session';
 import { colors, radius, spacing } from '../../src/theme';
 import { useLoader } from '../../src/useLoader';
 
-/**
- * Keşfet (7/14).
- *
- * Semt, boyut ve enerji seviyesine göre temel filtreleme (MVP 4.4). Yalnızca
- * semt bilgisi gösterilir; tam konum veya adres hiçbir zaman dönmez.
- */
 export default function DiscoverScreen() {
-  const router = useRouter();
-  const { user } = useSession();
+  const router = useRouter(); const insets = useSafeAreaInsets(); const { user } = useSession();
+  const [search, setSearch] = useState(''); const [sizes, setSizes] = useState<string[]>([]); const [energies, setEnergies] = useState<string[]>([]); const [minimumMatch, setMinimumMatch] = useState(false); const [filters, setFilters] = useState(false);
+  const loader = useLoader(() => api.discover({ district: user?.district ?? undefined, search: search.trim() || undefined }), [user?.district, search]);
+  const items = loader.data ? Array.from(new Map(loader.data.items.map((i) => [i.dog.id, i])).values()).filter((i) => (!sizes.length || sizes.includes(i.dog.size)) && (!energies.length || energies.includes(i.dog.energy)) && (!minimumMatch || (i.match?.score ?? 0) >= 70)) : [];
+  const featured = items[0]; const rest = items.slice(1);
+  const open = (item: DiscoverItem) => router.push(`/user/${item.owner.id}?dogId=${item.dog.id}`);
 
-  const [district, setDistrict] = useState<string | null>(user?.district ?? null);
-  const [sizes, setSizes] = useState<string[]>([]);
-  const [energies, setEnergies] = useState<string[]>([]);
-  const [search, setSearch] = useState('');
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  return <>
+    <ScrollView style={s.screen} contentContainerStyle={[s.content, { paddingTop: insets.top + spacing.md }]} refreshControl={<RefreshControl refreshing={loader.refreshing} onRefresh={loader.refresh} tintColor={colors.copperPale} />}>
+      <View style={s.header}><AppText variant="title" color={colors.textOnDark}>Keşfet</AppText><Pressable onPress={() => setFilters(true)} style={s.circleButton}><SymbolView name={{ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' }} size={21} tintColor={colors.textOnDark} /></Pressable></View>
+      <View style={s.search}><SymbolView name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={20} tintColor={colors.textOnDarkMuted} /><TextInput value={search} onChangeText={setSearch} placeholder="Köpek adı veya cins ara" placeholderTextColor={colors.textOnDarkMuted} style={s.searchInput} /></View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
+        <FilterChip label="Yakındakiler" active icon="place" onPress={() => undefined} />
+        <FilterChip label="Boyut" active={sizes.length > 0} onPress={() => setFilters(true)} />
+        <FilterChip label="Enerji" active={energies.length > 0} onPress={() => setFilters(true)} />
+        <FilterChip label="Uyum %70+" active={minimumMatch} onPress={() => setMinimumMatch((v) => !v)} />
+      </ScrollView>
 
-  const loader = useLoader(
-    () =>
-      api.discover({
-        district: district ?? undefined,
-        search: search.trim() || undefined,
-      }),
-    [district, search]
-  );
-
-  const activeFilterCount = sizes.length + energies.length + (district ? 1 : 0);
-  // Eski/demo veride yinelenen kayıt olsa bile aynı köpek iki kez gösterilmez.
-  const visibleItems = loader.data
-    ? Array.from(new Map(loader.data.items.map((item) => [item.dog.id, item])).values()).filter(
-        (item) =>
-          (sizes.length === 0 || sizes.includes(item.dog.size)) &&
-          (energies.length === 0 || energies.includes(item.dog.energy))
-      )
-    : [];
-
-  function clearFilters() {
-    setSizes([]);
-    setEnergies([]);
-    setDistrict(null);
-    setSearch('');
-  }
-
-  return (
-    <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
-      <AppHeader
-        onNotifications={() => router.push('/settings/notifications')}
-        action={
-          <IconAction
-            label={filtersOpen ? 'Filtreleri gizle' : 'Filtrele'}
-            name={{ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' }}
-            tone={activeFilterCount > 0 ? 'copper' : 'default'}
-            onPress={() => setFiltersOpen((v) => !v)}
-          />
-        }
-      />
-      <AppText variant="kicker" color={colors.copper}>PATIMEET ÇEVREN</AppText>
-      <AppText variant="title" style={{ marginTop: spacing.xs }}>Keşfet</AppText>
-      <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm }}>
-        Yakınındaki dostları uyum, karakter ve ortak planlarına göre keşfet.
-      </AppText>
-
-      <View style={{ marginTop: spacing.lg }}>
-        <SearchField
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Köpek adı veya cins ara"
-        />
-      </View>
-
-      <View style={styles.filterBar}>
-        <AppText
-          variant="label"
-          color={colors.copperDeep}
-          onPress={() => setFiltersOpen((v) => !v)}
-        >
-          {filtersOpen ? 'Filtreleri gizle' : 'Filtrele'}
-          {activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-        </AppText>
-
-        {activeFilterCount > 0 ? (
-          <AppText variant="label" color={colors.textMuted} onPress={clearFilters}>
-            Temizle
-          </AppText>
-        ) : null}
-      </View>
-
-      {activeFilterCount > 0 && !filtersOpen ? (
-        <View style={styles.activeFilters}>
-          {district ? <Tag label={district} tone="primary" /> : null}
-          {sizes.map((value) => (
-            <Tag key={value} label={dogSizeLabels[value as keyof typeof dogSizeLabels]} tone="primary" />
-          ))}
-          {energies.map((value) => (
-            <Tag key={value} label={energyLabels[value as keyof typeof energyLabels]} tone="accent" />
-          ))}
-        </View>
-      ) : null}
-
-      {filtersOpen ? (
-        <View style={styles.filters}>
-          <ChoiceGroup
-            label="Semt"
-            options={[
-              ...(user?.district
-                ? [{ value: user.district, label: `${user.district} (semtim)` }]
-                : []),
-            ]}
-            value={district}
-            onChange={(value) => setDistrict(district === value ? null : value)}
-          />
-
-          <MultiChoiceGroup
-            label="Boyut"
-            hint="Birden fazla seçenek işaretleyebilirsin."
-            options={[
-              { value: 'kucuk', label: dogSizeLabels.kucuk },
-              { value: 'orta', label: dogSizeLabels.orta },
-              { value: 'buyuk', label: dogSizeLabels.buyuk },
-            ]}
-            values={sizes}
-            onChange={setSizes}
-          />
-
-          <MultiChoiceGroup
-            label="Enerji seviyesi"
-            hint="Sana uygun tüm enerji seviyelerini seç."
-            options={Object.entries(energyLabels).map(([value, label]) => ({ value, label }))}
-            values={energies}
-            onChange={setEnergies}
-          />
-        </View>
-      ) : null}
-
-      {loader.loading ? (
-        <LoadingState label="Köpekler yükleniyor…" />
-      ) : loader.error ? (
-        <ErrorState message={loader.error} onRetry={loader.reload} />
-      ) : visibleItems.length > 0 ? (
-        <View style={{ marginTop: spacing.md }}>
-          <View style={styles.resultHeader}>
-            <View>
-              <AppText variant="kicker" color={colors.copper}>SANA ÖZEL SEÇKİ</AppText>
-              <AppText variant="title" style={{ marginTop: 2 }}>
-                {visibleItems.length} yeni tanışma
-              </AppText>
-            </View>
-            <Tag label="Uyuma göre" tone="success" />
-          </View>
-
-          {visibleItems.map((item) => (
-            <DogCard
-              key={item.dog.id}
-              item={item}
-              onPress={() => router.push(`/user/${item.owner.id}?dogId=${item.dog.id}`)}
-            />
-          ))}
-        </View>
-      ) : activeFilterCount > 0 || search ? (
-        <EmptyState
-          icon={{ ios: 'magnifyingglass', android: 'search', web: 'search' }}
-          title="Sonuç bulunamadı"
-          description="Filtreleri değiştirip tekrar deneyebilirsin."
-          actionLabel="Filtreleri temizle"
-          onAction={clearFilters}
-        />
-      ) : (
-        <EmptyState
-          icon={{ ios: 'pawprint', android: 'pets', web: 'pets' }}
-          title="Henüz keşfedecek köpek yok"
-          description="Semtinde yeni kullanıcılar katıldıkça burada görünecekler. Bir etkinlik oluşturarak topluluğu başlatabilirsin."
-          actionLabel="Yürüyüş planla"
-          onAction={() => router.push('/event/create')}
-        />
-      )}
-    </ScrollScreen>
-  );
+      {items.length > 0 ? <>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.stories}>{items.slice(0, 8).map((item) => <Pressable key={item.dog.id} onPress={() => open(item)} style={s.story}><View style={s.storyRing}>{item.dog.photoUrl ? <Image source={{ uri: item.dog.photoUrl }} style={s.fill} /> : <AppText variant="heading" color={colors.textOnDark}>{item.dog.name[0]}</AppText>}</View><AppText variant="caption" color={colors.textOnDarkMuted} numberOfLines={1}>{item.dog.name}</AppText></Pressable>)}</ScrollView>
+        {featured ? <FeaturedCard item={featured} onPress={() => open(featured)} /> : null}
+        <View style={s.grid}>{rest.slice(0, 4).map((item) => <MiniCard key={item.dog.id} item={item} onPress={() => open(item)} />)}</View>
+        <AppText variant="kicker" color={colors.copper} style={{ marginTop: spacing.lg }}>YAKLAŞIK BÖLGE</AppText>
+        <AppText variant="heading" color={colors.textOnDark} style={{ marginTop: 3 }}>Semtinde kimler var?</AppText>
+        <MapPreview items={items.slice(0, 4)} />
+        <Pressable onPress={() => router.push('/(tabs)/events')} style={s.localEvent}><View style={s.eventIcon}><SymbolView name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }} size={22} tintColor={colors.copperPale} /></View><View style={{ flex: 1 }}><AppText variant="kicker" color={colors.copper}>YEREL ETKİNLİK</AppText><AppText variant="bodyStrong" color={colors.textOnDark} style={{ marginTop: 2 }}>{user?.district ?? 'Semtin'} Patili Buluşması</AppText><AppText variant="caption" color={colors.textOnDarkMuted}>Yakınındaki yürüyüşlere göz at</AppText></View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={20} tintColor={colors.copperPale} /></Pressable>
+      </> : <View style={s.empty}><SymbolView name={{ ios: 'pawprint', android: 'pets', web: 'pets' }} size={40} tintColor={colors.copperPale} /><AppText variant="heading" color={colors.textOnDark} center>{loader.loading ? 'Çevren hazırlanıyor…' : 'Yeni dostlar yakında burada'}</AppText><AppText variant="body" color={colors.textOnDarkMuted} center>Semtindeki topluluk büyüdükçe profiller burada görünecek.</AppText></View>}
+    </ScrollView>
+    <BottomSheet visible={filters} onClose={() => setFilters(false)}><AppText variant="title">Keşfini kişiselleştir</AppText><MultiChoiceGroup label="Boyut" options={Object.entries(dogSizeLabels).map(([value, label]) => ({ value, label }))} values={sizes} onChange={setSizes} /><MultiChoiceGroup label="Enerji" options={Object.entries(energyLabels).map(([value, label]) => ({ value, label }))} values={energies} onChange={setEnergies} /><Button label="Sonuçları göster" onPress={() => setFilters(false)} /></BottomSheet>
+  </>;
 }
 
-const styles = StyleSheet.create({
-  filterBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  filters: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-  },
-  activeFilters: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  resultHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
-  },
+function FilterChip({ label, active, icon, onPress }: { label: string; active?: boolean; icon?: string; onPress: () => void }) { return <Pressable onPress={onPress} style={[s.filterChip, active && s.filterChipActive]}>{icon ? <SymbolView name={{ ios: 'mappin', android: 'place', web: 'place' }} size={13} tintColor={active ? colors.primaryDark : colors.textOnDarkMuted} /> : null}<AppText variant="caption" color={active ? colors.primaryDark : colors.textOnDarkMuted}>{label}</AppText></Pressable>; }
+function FeaturedCard({ item, onPress }: { item: DiscoverItem; onPress: () => void }) { return <Pressable onPress={onPress} style={s.featured}>{item.dog.photoUrl ? <Image source={{ uri: item.dog.photoUrl }} style={s.cover} /> : <View style={[s.cover, s.photoFallback]}><SymbolView name={{ ios: 'pawprint.fill', android: 'pets', web: 'pets' }} size={56} tintColor={colors.copperPale} /></View>}<View style={s.cardShade} /><View style={s.distance}><SymbolView name={{ ios: 'mappin', android: 'place', web: 'place' }} size={12} tintColor={colors.textOnDark} /><AppText variant="caption" color={colors.textOnDark}>350 m</AppText></View><View style={s.cardBottom}><View style={{ flex: 1 }}><AppText variant="heading" color={colors.textOnDark}>{item.owner.name} & {item.dog.name}</AppText><AppText variant="caption" color={colors.textOnDarkMuted}>{item.dog.age ? `${item.dog.age} yaşında` : 'Yeni dost'} · {item.dog.breed ?? 'Patili'}</AppText></View><Score score={item.match?.score ?? 82} /></View></Pressable>; }
+function MiniCard({ item, onPress }: { item: DiscoverItem; onPress: () => void }) { return <Pressable onPress={onPress} style={s.mini}>{item.dog.photoUrl ? <Image source={{ uri: item.dog.photoUrl }} style={s.cover} /> : <View style={[s.cover, s.photoFallback]}><SymbolView name={{ ios: 'pawprint.fill', android: 'pets', web: 'pets' }} size={36} tintColor={colors.copperPale} /></View>}<View style={s.cardShade} /><View style={s.miniBottom}><AppText variant="label" color={colors.textOnDark} numberOfLines={1}>{item.dog.name}</AppText><Score score={item.match?.score ?? 76} small /></View></Pressable>; }
+function Score({ score, small }: { score: number; small?: boolean }) { return <View style={[s.score, small && s.scoreSmall]}><AppText variant={small ? 'caption' : 'heading'} color={colors.textOnDark}>%{score}</AppText><AppText variant="caption" color={colors.copperPale}>uyum</AppText></View>; }
+function MapPreview({ items }: { items: DiscoverItem[] }) { return <View style={s.map}><View style={[s.road, { top: 55, left: -20, transform: [{ rotate: '-12deg' }] }]} /><View style={[s.road, { top: 100, right: -30, transform: [{ rotate: '17deg' }] }]} /><AppText variant="kicker" color={colors.textOnDarkMuted} style={s.mapLabel}>KADIKÖY</AppText>{items.map((item, index) => <View key={item.dog.id} style={[s.mapPin, { left: `${15 + index * 21}%`, top: 44 + (index % 2) * 42 }]}>{item.dog.photoUrl ? <Image source={{ uri: item.dog.photoUrl }} style={s.fill} /> : <AppText variant="caption" color={colors.textOnDark}>{item.dog.name[0]}</AppText>}</View>)}</View>; }
+
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.primaryDark }, content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl }, header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, circleButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderOnDark, backgroundColor: colors.obsidianSoft }, search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, height: 48, borderRadius: radius.pill, paddingHorizontal: spacing.md, marginTop: spacing.md, backgroundColor: colors.obsidianSoft, borderWidth: 1, borderColor: colors.borderOnDark }, searchInput: { flex: 1, color: colors.textOnDark, fontSize: 14 }, chips: { gap: spacing.sm, paddingVertical: spacing.md }, filterChip: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 34, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderOnDark }, filterChipActive: { backgroundColor: colors.copperPale, borderColor: colors.copperPale }, stories: { gap: spacing.md, paddingBottom: spacing.md }, story: { width: 58, alignItems: 'center', gap: 5 }, storyRing: { width: 54, height: 54, borderRadius: 27, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.copper, backgroundColor: colors.forestSoft }, fill: { width: '100%', height: '100%' }, featured: { height: 230, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.obsidianSoft }, cover: { position: 'absolute', inset: 0, width: '100%', height: '100%' }, photoFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.forestSoft }, cardShade: { position: 'absolute', inset: 0, backgroundColor: 'rgba(10,20,15,.22)' }, distance: { position: 'absolute', top: spacing.md, left: spacing.md, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(18,20,16,.64)', borderRadius: radius.pill, paddingHorizontal: spacing.sm, minHeight: 28 }, cardBottom: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: spacing.md, flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md }, score: { width: 66, height: 66, borderRadius: 33, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(18,20,16,.76)', borderWidth: 3, borderColor: colors.copper }, scoreSmall: { width: 48, height: 48, borderRadius: 24, borderWidth: 2 }, grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }, mini: { width: '48.5%', height: 150, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.obsidianSoft }, miniBottom: { position: 'absolute', left: spacing.sm, right: spacing.sm, bottom: spacing.sm, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }, map: { height: 175, marginTop: spacing.md, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: '#193529', borderWidth: 1, borderColor: colors.borderOnDark }, road: { position: 'absolute', width: '130%', height: 2, backgroundColor: 'rgba(181,113,60,.5)' }, mapLabel: { position: 'absolute', top: spacing.md, left: spacing.md }, mapPin: { position: 'absolute', width: 42, height: 42, borderRadius: 21, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.copperPale, backgroundColor: colors.forestSoft }, localEvent: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 86, padding: spacing.md, marginTop: spacing.md, borderRadius: radius.lg, backgroundColor: colors.obsidianSoft, borderWidth: 1, borderColor: colors.borderOnDark }, eventIcon: { width: 48, height: 48, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.copperDeep }, empty: { minHeight: 420, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingHorizontal: spacing.xl },
 });

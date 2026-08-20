@@ -2,6 +2,7 @@ import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { StatusBar } from 'expo-status-bar';
 import { api } from '../../src/api';
 import { LoadingState } from '../../src/components/ui';
 import { useSession } from '../../src/session';
@@ -61,6 +62,8 @@ export default function TabsLayout() {
   if (!user.hasDog) return <Redirect href="/(onboarding)/create-dog" />;
 
   return (
+    <>
+    <StatusBar style="light" />
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -69,11 +72,11 @@ export default function TabsLayout() {
          * fildişi ve üstte tek bir ince çizgi var — Privé dilinde alt bar
          * kendini öne çıkarmaz, içeriği taşır.
          */
-        tabBarActiveTintColor: colors.copperDeep,
-        tabBarInactiveTintColor: colors.textSubtle,
+        tabBarActiveTintColor: colors.copperPale,
+        tabBarInactiveTintColor: colors.textOnDarkMuted,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: colors.primaryDark,
+          borderTopColor: colors.borderOnDark,
           borderTopWidth: 1,
           height: 62 + Math.max(insets.bottom, 10),
           paddingTop: 7,
@@ -89,7 +92,7 @@ export default function TabsLayout() {
           marginTop: 1,
         },
         tabBarHideOnKeyboard: true,
-        sceneStyle: { backgroundColor: colors.background },
+        sceneStyle: { backgroundColor: colors.primaryDark },
       }}
     >
       <Tabs.Screen
@@ -108,10 +111,18 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="live-walk"
+        options={{
+          title: 'Canlı yürüyüş',
+          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' }} focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="events"
         options={{
           // Route adı `events`; yalnızca görünen etiket "Kulüp".
           title: 'Kulüp',
+          href: null,
           tabBarIcon: ({ focused }) => (
             <TabIcon
               name={{ ios: 'shield.lefthalf.filled', android: 'workspace_premium', web: 'workspace_premium' }}
@@ -123,6 +134,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="messages"
         options={{
+          href: null,
           title: 'Mesajlar',
           tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'bubble.left.and.bubble.right', android: 'chat_bubble', web: 'chat_bubble' }} focused={focused} />,
           tabBarBadge: unread > 0 ? unread : undefined,
@@ -138,6 +150,7 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    </>
   );
 }
 
@@ -160,10 +173,10 @@ function TabIcon({ name, focused }: { name: SymbolViewProps['name']; focused: bo
         borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: focused ? colors.copperPale : 'transparent',
+        backgroundColor: focused ? colors.forestSoft : 'transparent',
       }}
     >
-      <SymbolView name={name} size={21} tintColor={focused ? colors.copperDeep : colors.textSubtle} />
+      <SymbolView name={name} size={21} tintColor={focused ? colors.copperPale : colors.textOnDarkMuted} />
     </View>
   );
 }
