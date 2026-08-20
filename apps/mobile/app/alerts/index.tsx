@@ -60,7 +60,7 @@ export default function AlertsScreen() {
     <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
       <AppHeader onNotifications={() => router.push('/settings/notifications')} />
       <AppText variant="kicker" color={colors.copper}>MAHALLE DAYANIŞMASI</AppText>
-      <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Güvenli Topluluk</AppText>
+      <AppText variant="title" style={{ marginTop: spacing.xs }}>Güvenli Topluluk</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
         Semtindeki acil durumları ve yardım çağrılarını burada paylaşırsın. İlanlar kullanıcı
         beyanıdır; PatiMeet doğrulamaz.

@@ -47,7 +47,7 @@ export function DogCard({ item, onPress }: { item: DiscoverItem; onPress: () => 
     <View style={styles.dogCard}>
       <ImageHero
         uri={dog.photoUrl}
-        height={300}
+        height={240}
         onPress={onPress}
         fallbackLabel={dog.name}
         topLeft={
@@ -169,7 +169,7 @@ export function EventCard({
     <View style={styles.eventCard}>
       <ImageHero
         uri={event.coverPhotoUrl}
-        height={compact ? 150 : 210}
+        height={compact ? 138 : 180}
         onPress={onPress}
         fallbackLabel={labelFor(eventTypeLabels, event.type)}
         fallbackIcon={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
@@ -318,9 +318,9 @@ export function AlertCard({ alert, onPress }: { alert: CommunityAlert; onPress: 
 
 const styles = StyleSheet.create({
   dogCard: {
-    marginBottom: spacing.xl,
+    marginBottom: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.sm,
@@ -390,9 +390,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.copper,
   },
   eventCard: {
-    marginBottom: spacing.xl,
+    marginBottom: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.sm,

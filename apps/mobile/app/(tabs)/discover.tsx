@@ -77,7 +77,7 @@ export default function DiscoverScreen() {
         }
       />
       <AppText variant="kicker" color={colors.copper}>PATIMEET ÇEVREN</AppText>
-      <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Keşfet</AppText>
+      <AppText variant="title" style={{ marginTop: spacing.xs }}>Keşfet</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm }}>
         Yakınındaki dostları uyum, karakter ve ortak planlarına göre keşfet.
       </AppText>

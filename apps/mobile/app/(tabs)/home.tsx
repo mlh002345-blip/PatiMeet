@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { ImageBackground, StyleSheet, View } from 'react-native';
+import { ImageBackground, Pressable, StyleSheet, View } from 'react-native';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { api, type EventSummary } from '../../src/api';
 import { AlertCard, EventCard } from '../../src/components/cards';
 import {
@@ -18,7 +19,7 @@ import {
 } from '../../src/components/ui';
 import { formatEventDate } from '../../src/labels';
 import { useSession } from '../../src/session';
-import { colors, spacing } from '../../src/theme';
+import { colors, fontFamily, spacing } from '../../src/theme';
 import { useLoader } from '../../src/useLoader';
 
 const defaultHomeHero = require('../../assets/prive-home-sunrise-v1.png');
@@ -103,7 +104,13 @@ export default function HomeScreen() {
         <View style={styles.flagshipContent}>
           <View style={styles.flagshipHeader}>
             <View>
-              <AppText variant="title" color={colors.primary}>PatiMeet</AppText>
+              <AppText
+                variant="title"
+                color={colors.primary}
+                style={{ fontFamily: fontFamily.serif, fontWeight: '400' }}
+              >
+                PatiMeet
+              </AppText>
               <AppText variant="kicker" color={colors.copperDeep}>PRIVÉ</AppText>
             </View>
             <IconAction
@@ -114,8 +121,8 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.greetingBlock}>
-            <AppText variant="editorial" color={colors.primary}>
-              {greeting()},{'\n'}{user?.name}
+            <AppText variant="display" color={colors.primary}>
+              {greeting()}, {user?.name}
             </AppText>
             <AppText variant="body" color={colors.textMuted} style={styles.greetingCaption}>
               {dog ? `${dog.name}'nin günü hazır` : 'Bugün birlikte güzel bir gün olacak'}
@@ -124,24 +131,6 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.heroBottom}>
-            {!dog?.photoUrl ? (
-              <View style={styles.photoHintRow}>
-                <AppText variant="caption" color={colors.textOnDarkMuted}>
-                  Bu sinematik görünümü {dog?.name ?? 'köpeğinin'} fotoğrafıyla kişiselleştir
-                </AppText>
-                <IconAction
-                  label={`${dog?.name ?? 'Köpek'} fotoğrafı ekle`}
-                  name={{ ios: 'camera', android: 'add_a_photo', web: 'add_a_photo' }}
-                  tone="onDark"
-                  onPress={() =>
-                    dog
-                      ? router.push(`/settings/edit-dog?dogId=${dog.id}`)
-                      : router.push('/settings/add-dog')
-                  }
-                />
-              </View>
-            ) : null}
-
             <View style={styles.glassRow}>
               <View style={styles.glassCard}>
                 <AppText variant="metric" color={colors.textOnDark}>
@@ -173,6 +162,23 @@ export default function HomeScreen() {
       </ImageBackground>
 
       <View style={styles.pageBody}>
+      <View style={styles.quickActions}>
+        <QuickAction
+          label="Yürüyüş planla"
+          icon={{ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' }}
+          onPress={() => router.push('/event/create')}
+        />
+        <QuickAction
+          label="Buluşma bul"
+          icon={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
+          onPress={() => router.push('/(tabs)/events')}
+        />
+        <QuickAction
+          label="Güvenli topluluk"
+          icon={{ ios: 'shield', android: 'shield', web: 'shield' }}
+          onPress={() => router.push('/alerts')}
+        />
+      </View>
 
       {/* Profil tamamlama — uyarı bandı yerine sessiz ilerleme */}
       {completion < 1 ? (
@@ -325,7 +331,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   flagshipHero: {
-    height: 670,
+    height: 430,
     width: '100%',
     overflow: 'hidden',
     backgroundColor: colors.background,
@@ -338,15 +344,15 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    bottom: '52%',
-    backgroundColor: 'rgba(243, 237, 227, 0.56)',
+    bottom: '43%',
+    backgroundColor: 'rgba(243, 237, 227, 0.62)',
   },
   bottomScrimSoft: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: '48%',
+    height: '45%',
     backgroundColor: 'rgba(18, 20, 16, 0.30)',
   },
   bottomScrimStrong: {
@@ -354,7 +360,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: '28%',
+    height: '25%',
     backgroundColor: 'rgba(18, 20, 16, 0.58)',
   },
   flagshipContent: {
@@ -369,7 +375,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   greetingBlock: {
-    marginTop: 30,
+    marginTop: spacing.lg,
   },
   greetingCaption: {
     marginTop: spacing.sm,
@@ -384,36 +390,46 @@ const styles = StyleSheet.create({
   heroBottom: {
     marginTop: 'auto',
   },
-  photoHintRow: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    marginBottom: spacing.sm,
-  },
   glassRow: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
   glassCard: {
     flex: 1,
-    minHeight: 92,
-    borderRadius: 14,
-    padding: spacing.md,
+    minHeight: 70,
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     justifyContent: 'space-between',
     backgroundColor: 'rgba(18, 20, 16, 0.58)',
     borderWidth: 1,
     borderColor: 'rgba(243, 237, 227, 0.24)',
   },
   heroButton: {
-    marginTop: spacing.md,
-    minHeight: 50,
-    borderRadius: 22,
+    marginTop: spacing.sm,
+    minHeight: 46,
+    borderRadius: 16,
   },
   pageBody: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  quickAction: {
+    flex: 1,
+    minHeight: 82,
+    borderRadius: 16,
+    padding: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   progressRow: {
     flexDirection: 'row',
@@ -421,3 +437,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
 });
+
+function QuickAction({
+  label,
+  icon,
+  onPress,
+}: {
+  label: string;
+  icon: SymbolViewProps['name'];
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.quickAction, pressed && { opacity: 0.76 }]}
+    >
+      <SymbolView name={icon} size={22} tintColor={colors.copperDeep} />
+      <AppText variant="caption" color={colors.primary} center numberOfLines={2}>
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}

@@ -194,10 +194,9 @@ export const typography = {
     letterSpacing: -0.2,
   },
   title: {
-    fontFamily: fontFamily.serif,
     fontSize: 22,
-    fontWeight: '400' as const,
-    lineHeight: 29,
+    fontWeight: '600' as const,
+    lineHeight: 28,
   },
   heading: { fontSize: 17, fontWeight: '600' as const, lineHeight: 23 },
   body: { fontSize: 15, fontWeight: '400' as const, lineHeight: 22 },

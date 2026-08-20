@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { colors, HIT_SIZE, radius, scrim, shadow, spacing, typography } from '../theme';
+import { colors, fontFamily, HIT_SIZE, radius, scrim, shadow, spacing, typography } from '../theme';
 
 // ---------------------------------------------------------------------------
 // Metin
@@ -107,6 +107,7 @@ export function Button({
           borderColor: palette.border,
           borderWidth: variant === 'secondary' ? 1.5 : 0,
           opacity: isDisabled ? 0.5 : pressed ? 0.85 : 1,
+          transform: [{ scale: pressed ? 0.985 : 1 }],
         },
         fullWidth && { alignSelf: 'stretch' },
         style,
@@ -140,7 +141,7 @@ export function AppHeader({
   return (
     <View style={styles.appHeader}>
       <View>
-        <Text style={[typography.title, { color: colors.primary }]}>PatiMeet</Text>
+        <Text style={[typography.title, { color: colors.primary, fontFamily: fontFamily.serif, fontWeight: '400' }]}>PatiMeet</Text>
         <Text style={[typography.kicker, { color: colors.copper, marginTop: 1 }]}>PRIVÉ</Text>
       </View>
 
@@ -199,7 +200,7 @@ export function PageIntro({
   return (
     <View style={{ marginBottom: compact ? spacing.lg : spacing.xl }}>
       <AppText variant="kicker" color={colors.copper}>{kicker}</AppText>
-      <AppText variant={compact ? 'display' : 'editorial'} style={{ marginTop: spacing.xs }}>
+      <AppText variant={compact ? 'heading' : 'title'} style={{ marginTop: spacing.xs }}>
         {title}
       </AppText>
       {description ? (
@@ -520,7 +521,12 @@ export function Card({
       <Pressable
         accessibilityRole="button"
         onPress={onPress}
-        style={({ pressed }) => [styles.card, toneStyle, pressed && { opacity: 0.92 }, style]}
+        style={({ pressed }) => [
+          styles.card,
+          toneStyle,
+          pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+          style,
+        ]}
       >
         {children}
       </Pressable>
@@ -1177,7 +1183,7 @@ export function SectionHeader({
             {kicker}
           </Text>
         ) : null}
-        <AppText variant={kicker ? 'title' : 'heading'}>{title}</AppText>
+        <AppText variant="heading">{title}</AppText>
       </View>
 
       {actionLabel && onAction ? (

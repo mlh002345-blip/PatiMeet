@@ -24,7 +24,7 @@ export default function MessagesScreen() {
     <ScrollScreen refreshing={loader.refreshing} onRefresh={loader.refresh}>
       <AppHeader onNotifications={() => router.push('/settings/notifications')} />
       <AppText variant="kicker" color={colors.copper}>ÖZEL SOHBETLER</AppText>
-      <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Mesajlar</AppText>
+      <AppText variant="title" style={{ marginTop: spacing.xs }}>Mesajlar</AppText>
       {loader.data && loader.data.totalUnread > 0 ? (
         <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.xs }}>
           {loader.data.totalUnread} okunmamış mesajın var.

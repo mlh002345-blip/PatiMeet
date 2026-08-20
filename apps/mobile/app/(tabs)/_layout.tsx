@@ -1,5 +1,6 @@
 import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { api } from '../../src/api';
 import { LoadingState } from '../../src/components/ui';
@@ -152,6 +153,17 @@ export default function TabsLayout() {
  */
 function TabIcon({ name, focused }: { name: SymbolViewProps['name']; focused: boolean }) {
   return (
-    <SymbolView name={name} size={22} tintColor={focused ? colors.copperDeep : colors.textSubtle} />
+    <View
+      style={{
+        width: 34,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: focused ? colors.copperPale : 'transparent',
+      }}
+    >
+      <SymbolView name={name} size={21} tintColor={focused ? colors.copperDeep : colors.textSubtle} />
+    </View>
   );
 }

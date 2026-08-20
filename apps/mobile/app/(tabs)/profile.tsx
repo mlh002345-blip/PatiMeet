@@ -80,7 +80,7 @@ export default function ProfileScreen() {
     <ScrollScreen>
       <AppHeader onNotifications={() => router.push('/settings/notifications')} />
       <AppText variant="kicker" color={colors.copper}>ÜYELİK & PROFİL</AppText>
-      <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Senin alanın</AppText>
+      <AppText variant="title" style={{ marginTop: spacing.xs }}>Senin alanın</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm, marginBottom: spacing.xl }}>
         Dostlarının profilleri, tercihlerin ve güvenlik ayarların.
       </AppText>

@@ -102,7 +102,7 @@ export default function EventsScreen() {
         }
       />
       <AppText variant="kicker" color={colors.copper}>PATIMEET BULUŞMALARI</AppText>
-      <AppText variant="editorial" style={{ marginTop: spacing.xs }}>Kulüp</AppText>
+      <AppText variant="title" style={{ marginTop: spacing.xs }}>Kulüp</AppText>
       <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm }}>
         İyi eşleşmelerin gerçek dostluğa dönüştüğü seçkin buluşmalar.
       </AppText>
