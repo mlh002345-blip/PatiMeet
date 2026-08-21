@@ -1,0 +1,101 @@
+name: Android APK
+
+# Expo yönetilen iş akışında android/ klasörü depoda tutulmaz; her derlemede
+# `expo prebuild` ile yeniden üretilir. Derleme EAS bulut servisine bağlı
+# değildir, tamamen GitHub çalıştırıcısındaki Android SDK ile yapılır.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/bu-mvp-mobile-design-4qt3zc
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/android-apk.yml'
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Release APK derle
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: Node kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: JDK 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle önbelleği
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('apps/mobile/package-lock.json') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Bağımlılıkları kur
+        working-directory: apps/mobile
+        run: npm ci
+
+      - name: Sürüm bilgisini oku
+        id: appinfo
+        working-directory: apps/mobile
+        run: |
+          echo "version=$(node -p "require('./app.json').expo.version")" >> "$GITHUB_OUTPUT"
+          echo "version_code=$(node -p "require('./app.json').expo.android.versionCode")" >> "$GITHUB_OUTPUT"
+
+      - name: Native projeyi üret (expo prebuild)
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --no-install --clean
+
+      - name: Gradle bellek ayarı
+        working-directory: apps/mobile
+        run: |
+          {
+            echo ''
+            echo 'org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g'
+          } >> android/gradle.properties
+
+      - name: APK derle
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: APK'yi adlandır
+        id: apk
+        working-directory: apps/mobile/android/app/build/outputs/apk/release
+        run: |
+          SHORT_SHA="$(echo '${{ github.sha }}' | cut -c1-7)"
+          NAME="PatiMeet-${{ steps.appinfo.outputs.version }}-vc${{ steps.appinfo.outputs.version_code }}-${SHORT_SHA}.apk"
+          mv app-release.apk "$NAME"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          ls -lh "$NAME"
+
+      - name: APK'yi yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: apps/mobile/android/app/build/outputs/apk/release/${{ steps.apk.outputs.name }}
+          if-no-files-found: error
+          retention-days: 30

@@ -2,7 +2,7 @@
   "expo": {
     "name": "PatiMeet",
     "slug": "patimeet",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "scheme": "patimeet",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.patimeet.app",
-      "buildNumber": "1",
+      "buildNumber": "10",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Profil ve köpek fotoğrafınızı seçebilmeniz için fotoğraf galerinize erişim izni gerekiyor.",
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "com.patimeet.app",
-      "versionCode": 1,
+      "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#16281F",
         "foregroundImage": "./assets/android-icon-foreground.png",
