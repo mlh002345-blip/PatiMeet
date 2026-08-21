@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { currentUser, requireAuth, signToken } from '../auth';
 import { getDb, nowMs } from '../db';
+import { track } from '../domain/analytics';
 import { privateUser, type UserRow } from '../domain/serialize';
 import { asyncRoute, badRequest, conflict, parseBody, unauthorized } from '../http';
 import { newId } from '../ids';
@@ -53,6 +54,7 @@ authRouter.post(
     );
 
     const row = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [id]);
+    await track('signup_completed', id, { provider_email: true });
     res.status(201).json({ token: signToken(id), user: await privateUser(row!) });
   })
 );
@@ -221,6 +223,24 @@ authRouter.post(
           WHERE id = $2`,
         [ts, me.id]
       );
+
+      /**
+       * Kişisel sağlık ve konum verisi hesapla birlikte silinir (KVKK).
+       * Bunlar yalnızca sahibine açık kayıtlar olduğu için başka kullanıcının
+       * görünümünü etkilemez.
+       */
+      await t.exec('DELETE FROM dog_journal_entries WHERE owner_id = $1', [me.id]);
+      await t.exec('DELETE FROM dog_documents WHERE owner_id = $1', [me.id]);
+      await t.exec('DELETE FROM dog_memories WHERE owner_id = $1', [me.id]);
+      await t.exec('DELETE FROM dog_emergency_cards WHERE owner_id = $1', [me.id]);
+      await t.exec(
+        'DELETE FROM walk_points WHERE walk_id IN (SELECT id FROM walks WHERE user_id = $1)',
+        [me.id]
+      );
+      await t.exec('DELETE FROM walk_shares WHERE walk_id IN (SELECT id FROM walks WHERE user_id = $1)', [me.id]);
+      await t.exec('DELETE FROM walks WHERE user_id = $1', [me.id]);
+      await t.exec(`UPDATE walk_invites SET status = 'cancelled', updated_at = $1 WHERE owner_id = $2 AND status = 'active'`, [ts, me.id]);
+      await t.exec('UPDATE analytics_events SET user_id = NULL WHERE user_id = $1', [me.id]);
 
       await t.exec(`UPDATE dogs SET status = 'deleted', photo_url = NULL, updated_at = $1 WHERE owner_id = $2`, [
         ts,

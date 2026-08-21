@@ -5,9 +5,13 @@ const OUT = process.env.SHOT_DIR || require('node:path').join(__dirname, 'screen
 require('node:fs').mkdirSync(OUT, { recursive: true });
 
 const SCREENS = [
-  ['bugun', '/home', 'Bugün'],
+  ['bugun', '/home', 'PatiMeet'],
   ['kesfet', '/discover', 'Keşfet'],
   ['kulup', '/events', 'Kulüp'],
+  ['canli-yuruyus', '/live-walk', 'Canlı yürüyüş'],
+  ['gunluk', '/journal', 'günlüğü'],
+  ['mahalle', '/neighbourhood', 'Mahalle akışı'],
+  ['davet', '/neighbourhood/create-invite', 'Ne zaman'],
 ];
 
 (async () => {
@@ -17,12 +21,23 @@ const SCREENS = [
   });
 
   // 390x844 = iPhone ölçüsü, 320x568 = küçük Android ölçüsü.
-  for (const [tag, width, height] of [['telefon', 390, 844], ['kucuk', 320, 568]]) {
+  /**
+   * `buyukyazi` sistem yazı büyütmesini benzetir: kritik düğme ve bilgilerin
+   * kaybolmadığını doğrular.
+   */
+  for (const [tag, width, height, fontScale] of [
+    ['telefon', 390, 844, 1],
+    ['kucuk', 320, 568, 1],
+    ['buyukyazi', 390, 844, 1.3],
+  ]) {
     const context = await browser.newContext({
       viewport: { width, height },
       deviceScaleFactor: 2,
     });
     const page = await context.newPage();
+    if (fontScale !== 1) {
+      await page.addStyleTag({ content: `html { font-size: ${16 * fontScale}px; }` }).catch(() => undefined);
+    }
     await page.goto(BASE, { waitUntil: 'networkidle', timeout: 120000 });
     await page.waitForTimeout(6000);
     const inputs = page.locator('input');
@@ -41,10 +56,37 @@ const SCREENS = [
       await page.screenshot({ path: `${OUT}/prive-${tag}-${name}.png` });
 
       // Yatay taşma kontrolü: gövde görünen alandan geniş olmamalı.
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+      const report = await page.evaluate(() => {
+        const overflow =
+          document.documentElement.scrollWidth - document.documentElement.clientWidth;
+        /**
+         * Görünür alanın dışına taşan buton var mı?
+         *
+         * Yatay kaydırılabilir bir satırın (filtre çipleri, köpek seçici)
+         * içindekiler sayılmaz: kullanıcı kaydırarak erişebiliyor, bu bir
+         * yerleşim hatası değil.
+         */
+        const inHorizontalScroller = (el) => {
+          for (let n = el.parentElement; n; n = n.parentElement) {
+            const overflowX = getComputedStyle(n).overflowX;
+            if (overflowX === 'auto' || overflowX === 'scroll') return true;
+          }
+          return false;
+        };
+
+        let clipped = 0;
+        for (const el of document.querySelectorAll('[role="button"]')) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) continue;
+          if (inHorizontalScroller(el)) continue;
+          if (r.right > window.innerWidth + 1 || r.left < -1) clipped += 1;
+        }
+        return { overflow, clipped };
+      });
+      console.log(
+        `${tag}/${name}: yatay taşma ${report.overflow}px · taşan buton ${report.clipped}`
       );
-      console.log(`${tag}/${name}: yatay taşma ${overflow}px`);
+      if (report.overflow > 0 || report.clipped > 0) process.exitCode = 1;
     }
     await context.close();
   }

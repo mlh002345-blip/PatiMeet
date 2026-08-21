@@ -73,12 +73,25 @@ export function isMediaKey(value: string): boolean {
  * İkinci durum, cihaz üzerindeki geçici URI'lerle çalışan eski kayıtların
  * bozulmaması için korundu.
  */
+/**
+ * Kalıcı herkese açık adres verilmeyecek amaçlar.
+ *
+ * Sağlık belgesi ve kişisel anı, CDN tabanı tanımlı olsa bile yalnızca süreli
+ * imzalı adresle sunulur; adres sızsa bile süresi dolar.
+ */
+const PRIVATE_PURPOSES = ['document', 'memory_photo'];
+
+function isPrivateKey(key: string): boolean {
+  const purpose = key.slice(MEDIA_KEY_PREFIX.length).split('/')[0];
+  return PRIVATE_PURPOSES.includes(purpose);
+}
+
 export async function resolveMediaUrl(stored: string | null): Promise<string | null> {
   if (!stored) return null;
   if (!isMediaKey(stored)) return stored;
 
   try {
-    return await getStorage().urlFor(stored);
+    return await getStorage().urlFor(stored, { forcePrivate: isPrivateKey(stored) });
   } catch {
     // Depo yapılandırması bozuksa profil ekranı tamamen çökmesin.
     return null;

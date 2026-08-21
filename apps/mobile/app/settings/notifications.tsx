@@ -150,6 +150,20 @@ export default function NotificationSettingsScreen() {
             onToggle={() => toggle('events')}
           />
           <Row
+            title="Bakım hatırlatmaları"
+            description="Aşı, ilaç ve bakım zamanı geldiğinde"
+            value={preferences?.care ?? true}
+            busy={saving === 'care'}
+            onToggle={() => toggle('care')}
+          />
+          <Row
+            title="Yürüyüş davetleri"
+            description="Semtinde hızlı yürüyüş daveti açıldığında"
+            value={preferences?.invites ?? true}
+            busy={saving === 'invites'}
+            onToggle={() => toggle('invites')}
+          />
+          <Row
             title="Güvenlik"
             description="Şikâyet sonucu ve topluluk güvenliği bildirimleri"
             value={preferences?.safety ?? true}

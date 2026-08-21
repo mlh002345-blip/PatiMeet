@@ -380,6 +380,210 @@ SELECT gen_random_uuid()::text, ca.id, d.photo_url, 0, ca.created_at
        );
 `,
   },
+
+  {
+    id: '0010_walks_journal_and_neighbourhood',
+    sql: `
+-- ===========================================================================
+-- Canlı Yürüyüş — gerçek GPS takibi
+-- ===========================================================================
+--
+-- Ham rota noktaları yalnızca yürüyüş sahibine açılır (bkz. domain/walks.ts).
+-- Sosyal yüzeylerde yalnızca semt ve uçları gizlenmiş özet paylaşılır.
+CREATE TABLE IF NOT EXISTS walks (
+  id                  TEXT PRIMARY KEY,
+  user_id             TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  dog_id              TEXT REFERENCES dogs(id) ON DELETE SET NULL,
+  -- active | paused | completed | cancelled
+  status              TEXT NOT NULL DEFAULT 'active',
+  started_at          BIGINT NOT NULL,
+  ended_at            BIGINT,
+  -- Duraklatmalar düşülmüş gerçek hareket süresi.
+  duration_seconds    INTEGER NOT NULL DEFAULT 0,
+  distance_meters     INTEGER NOT NULL DEFAULT 0,
+  pace_seconds_per_km INTEGER,
+  -- Rota özetinde başlangıç/bitiş bölgesini gizle.
+  hide_endpoints      BOOLEAN NOT NULL DEFAULT TRUE,
+  district            TEXT,
+  note                TEXT NOT NULL DEFAULT '',
+  photo_key           TEXT,
+  created_at          BIGINT NOT NULL,
+  updated_at          BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_walks_user ON walks(user_id, started_at DESC);
+-- Bir kullanıcının aynı anda yalnızca bir sürmekte olan yürüyüşü olabilir.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_walks_single_active
+  ON walks(user_id) WHERE status IN ('active', 'paused');
+
+CREATE TABLE IF NOT EXISTS walk_points (
+  id          TEXT PRIMARY KEY,
+  walk_id     TEXT NOT NULL REFERENCES walks(id) ON DELETE CASCADE,
+  seq         INTEGER NOT NULL,
+  lat         DOUBLE PRECISION NOT NULL,
+  lng         DOUBLE PRECISION NOT NULL,
+  accuracy    REAL,
+  recorded_at BIGINT NOT NULL,
+  UNIQUE(walk_id, seq)
+);
+CREATE INDEX IF NOT EXISTS idx_walk_points_walk ON walk_points(walk_id, seq);
+
+-- Süreli canlı konum paylaşımı. Süre dolunca paylaşım kendiliğinden kapanır.
+CREATE TABLE IF NOT EXISTS walk_shares (
+  id             TEXT PRIMARY KEY,
+  walk_id        TEXT NOT NULL REFERENCES walks(id) ON DELETE CASCADE,
+  shared_with_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at     BIGINT NOT NULL,
+  revoked_at     BIGINT,
+  created_at     BIGINT NOT NULL,
+  UNIQUE(walk_id, shared_with_id)
+);
+CREATE INDEX IF NOT EXISTS idx_walk_shares_target ON walk_shares(shared_with_id, expires_at);
+
+-- ===========================================================================
+-- Köpeğimin Günlüğü
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS dog_journal_entries (
+  id                   TEXT PRIMARY KEY,
+  dog_id               TEXT NOT NULL REFERENCES dogs(id) ON DELETE CASCADE,
+  owner_id             TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type                 TEXT NOT NULL,
+  title                TEXT NOT NULL DEFAULT '',
+  note                 TEXT NOT NULL DEFAULT '',
+  occurred_at          BIGINT NOT NULL,
+  -- Hatırlatma: pending | done | snoozed | cancelled
+  remind_at            BIGINT,
+  reminder_status      TEXT,
+  repeat_interval_days INTEGER,
+  -- Türe göre anlam kazanan sayısal alan (kilo kg, su ml, uyku dk).
+  value_numeric        DOUBLE PRECISION,
+  value_unit           TEXT,
+  created_at           BIGINT NOT NULL,
+  updated_at           BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_journal_dog ON dog_journal_entries(dog_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_journal_reminders
+  ON dog_journal_entries(owner_id, reminder_status, remind_at);
+
+-- Sağlık belgeleri. Yalnızca sahibine açık; adresler imzalı üretilir.
+CREATE TABLE IF NOT EXISTS dog_documents (
+  id          TEXT PRIMARY KEY,
+  dog_id      TEXT NOT NULL REFERENCES dogs(id) ON DELETE CASCADE,
+  owner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type        TEXT NOT NULL,
+  title       TEXT NOT NULL DEFAULT '',
+  storage_key TEXT NOT NULL,
+  created_at  BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dog_documents_dog ON dog_documents(dog_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS dog_memories (
+  id          TEXT PRIMARY KEY,
+  dog_id      TEXT NOT NULL REFERENCES dogs(id) ON DELETE CASCADE,
+  owner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  storage_key TEXT,
+  note        TEXT NOT NULL DEFAULT '',
+  occurred_at BIGINT NOT NULL,
+  walk_id     TEXT REFERENCES walks(id) ON DELETE SET NULL,
+  event_id    TEXT REFERENCES events(id) ON DELETE SET NULL,
+  created_at  BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dog_memories_dog ON dog_memories(dog_id, occurred_at DESC);
+
+-- Acil durum kartı varsayılan olarak özeldir; paylaşım kullanıcının açık
+-- eylemiyle üretilen bir jetona bağlıdır.
+CREATE TABLE IF NOT EXISTS dog_emergency_cards (
+  dog_id      TEXT PRIMARY KEY REFERENCES dogs(id) ON DELETE CASCADE,
+  owner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  health_note TEXT NOT NULL DEFAULT '',
+  allergies   TEXT NOT NULL DEFAULT '',
+  medications TEXT NOT NULL DEFAULT '',
+  chip_number TEXT,
+  clinic_name TEXT,
+  share_token TEXT,
+  shared_at   BIGINT,
+  updated_at  BIGINT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_emergency_share_token
+  ON dog_emergency_cards(share_token) WHERE share_token IS NOT NULL;
+
+-- ===========================================================================
+-- Mahalle Akışı — Hızlı Yürüyüş Daveti ve oyun grupları
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS walk_invites (
+  id               TEXT PRIMARY KEY,
+  owner_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  dog_id           TEXT REFERENCES dogs(id) ON DELETE SET NULL,
+  district         TEXT NOT NULL,
+  area_note        TEXT NOT NULL DEFAULT '',
+  starts_at        BIGINT NOT NULL,
+  expires_at       BIGINT NOT NULL,
+  duration_minutes INTEGER NOT NULL,
+  -- sakin | normal | hareketli
+  pace             TEXT NOT NULL DEFAULT 'normal',
+  dog_size         TEXT NOT NULL DEFAULT 'hepsi',
+  note             TEXT NOT NULL DEFAULT '',
+  status           TEXT NOT NULL DEFAULT 'active',
+  created_at       BIGINT NOT NULL,
+  updated_at       BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_walk_invites_browse
+  ON walk_invites(status, district, expires_at);
+
+CREATE TABLE IF NOT EXISTS walk_invite_participants (
+  id         TEXT PRIMARY KEY,
+  invite_id  TEXT NOT NULL REFERENCES walk_invites(id) ON DELETE CASCADE,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  dog_id     TEXT REFERENCES dogs(id) ON DELETE SET NULL,
+  created_at BIGINT NOT NULL,
+  UNIQUE(invite_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS play_groups (
+  id              TEXT PRIMARY KEY,
+  owner_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name            TEXT NOT NULL,
+  district        TEXT NOT NULL,
+  dog_size        TEXT NOT NULL DEFAULT 'hepsi',
+  -- sakin | dengeli | hareketli
+  play_style      TEXT NOT NULL DEFAULT 'dengeli',
+  description     TEXT NOT NULL DEFAULT '',
+  cover_photo_url TEXT,
+  status          TEXT NOT NULL DEFAULT 'active',
+  created_at      BIGINT NOT NULL,
+  updated_at      BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_play_groups_browse ON play_groups(status, district);
+
+CREATE TABLE IF NOT EXISTS play_group_members (
+  id         TEXT PRIMARY KEY,
+  group_id   TEXT NOT NULL REFERENCES play_groups(id) ON DELETE CASCADE,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role       TEXT NOT NULL DEFAULT 'member',
+  created_at BIGINT NOT NULL,
+  UNIQUE(group_id, user_id)
+);
+
+-- ===========================================================================
+-- Gizlilik odaklı ürün analitiği
+-- ===========================================================================
+--
+-- KURAL: props yalnızca sayı, boolean ve kapalı küme değerleri taşır. Mesaj
+-- içeriği, sağlık notu, tam konum ve serbest kullanıcı metni YAZILMAZ
+-- (bkz. domain/analytics.ts).
+CREATE TABLE IF NOT EXISTS analytics_events (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT REFERENCES users(id) ON DELETE SET NULL,
+  name       TEXT NOT NULL,
+  props      TEXT NOT NULL DEFAULT '{}',
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_analytics_name ON analytics_events(name, created_at DESC);
+
+-- Yeni bildirim kategorileri: bakım hatırlatmaları ve yürüyüş davetleri.
+ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS care BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS invites BOOLEAN NOT NULL DEFAULT TRUE;
+`,
+  },
 ];
 
 export interface MigrationResult {

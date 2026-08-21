@@ -76,9 +76,7 @@ export default function CreateAlertScreen() {
     if (selected?.requiresAnimalName && !animalName.trim()) {
       next.animalName = 'Hayvanın adını yazın.';
     }
-    if (selected?.requiresPhoto && photos.length === 0) {
-      next.photos = 'En az 1 fotoğraf ekleyin.';
-    }
+    // Fotoğraf hiçbir türde zorunlu değil (bkz. domain/alerts.ts).
     if (selected?.requiresOccurredAt && occurredAt.getTime() > Date.now()) {
       next.occurredAt = 'Son görülme zamanı gelecekte olamaz.';
     }
@@ -155,14 +153,17 @@ export default function CreateAlertScreen() {
           ) : null}
 
           <PhotoGridPicker
-            label="Fotoğraflar"
-            hint={`En fazla ${MAX_PHOTOS} fotoğraf. Tanınmasını kolaylaştıran net kareler seç.`}
+            label="Fotoğraf ekle — isteğe bağlı"
+            hint={
+              selected?.photoHint
+                ? `${selected.photoHint} En fazla ${MAX_PHOTOS} fotoğraf ekleyebilirsin.`
+                : `İstersen en fazla ${MAX_PHOTOS} fotoğraf ekleyebilirsin.`
+            }
             purpose="alert_photo"
             values={photos}
             onChange={setPhotos}
             max={MAX_PHOTOS}
             error={errors.photos}
-            required={selected?.requiresPhoto}
           />
 
           <ChoiceGroup

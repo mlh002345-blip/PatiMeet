@@ -63,19 +63,20 @@ async function main() {
   console.log('\n→ Ana sayfa Güvenli Topluluk bölümü');
   const home = await page.textContent('body');
   await shot(page, '50-ana-sayfa');
-  check('Güvenli Topluluk bölümü var', home.includes('Güvenli Topluluk'), home.slice(0, 300));
   /**
-   * İki ayrı topluluk yapısı birleşti: ana sayfada yalnızca tek giriş
-   * kalmalı. Eski ayrı aksiyon kartı ("Güvenli topluluk") kaldırıldı.
+   * Ana ekran hızlı işlem kartlarından biri Güvenli Topluluk'a götürür.
+   * Ekranda ikinci bir kopya giriş olmamalı.
    */
-  const entryCount = await page.evaluate(() => {
-    let n = 0;
-    for (const el of document.querySelectorAll('div')) {
-      const t = (el.textContent || '').trim();
-      if (/^güvenli topluluk$/i.test(t)) n += 1;
-    }
-    return n;
-  });
+  check(
+    'Güvenli Topluluk hızlı işlem kartı var',
+    home.includes('Güvenli') && home.includes('topluluk'),
+    home.slice(0, 400)
+  );
+  const entryCount = await page.evaluate(() =>
+    [...document.querySelectorAll('div')].filter((el) =>
+      /^güvenli\s*topluluk$/i.test((el.textContent || '').trim())
+    ).length
+  );
   check('Ana sayfada tek Güvenli Topluluk girişi var', entryCount === 1, `bulunan: ${entryCount}`);
 
   // --- Çoklu seçim: "Ne arıyorsun?" ---
@@ -206,7 +207,7 @@ async function main() {
    * filtre çipinde de var ve o ekran gezinme sonrası DOM'da kalıyor. Form
    * seçenekleri `radio`, filtre çipleri `button` rolünde.
    */
-  const lostOption = page.getByRole('radio', { name: '🔎 Kayıp hayvan' }).first();
+  const lostOption = page.getByRole('radio', { name: 'Kayıp hayvan' }).first();
   await lostOption.scrollIntoViewIfNeeded();
   await page.waitForTimeout(500);
   await lostOption.click();
@@ -214,7 +215,16 @@ async function main() {
   await shot(page, '56-kayip-hayvan-secildi');
   form = await page.textContent('body');
   check('Hayvanın adı alanı çıktı', form.includes('Hayvanın adı'), form.slice(0, 400));
-  check('Fotoğraf alanı var', form.includes('Fotoğraflar'));
+  check(
+    'Fotoğraf alanı isteğe bağlı olarak sunuluyor',
+    form.includes('Fotoğraf ekle — isteğe bağlı'),
+    form.slice(0, 600)
+  );
+  check(
+    'Kayıp hayvanda fotoğraf tavsiyesi gösteriliyor',
+    form.includes('Fotoğraf eklemek bulunmasını kolaylaştırır.'),
+    form.slice(0, 800)
+  );
   check('Son görülme tarihi alanı çıktı', form.includes('Son görülme tarihi ve saati'), form.slice(0, 500));
   check('Son görüldüğü semt soruluyor', form.includes('Son görüldüğü semt'));
 
@@ -224,13 +234,18 @@ async function main() {
   form = await page.textContent('body');
   check(
     'Eksik zorunlu alanlarla yayınlanamaz',
-    form.includes('Hayvanın adını yazın.') || form.includes('En az 1 fotoğraf ekleyin.'),
+    form.includes('Hayvanın adını yazın.'),
+    form.slice(0, 500)
+  );
+  check(
+    'Fotoğraf eksikliği hata olarak gösterilmiyor',
+    !form.includes('En az 1 fotoğraf ekleyin.'),
     form.slice(0, 500)
   );
 
   // Fotoğraf gerektirmeyen bir tür ile gerçek bir bildirim yayınla.
   console.log('\n→ Fotoğrafsız tür ile yayınlama');
-  const supportOption = page.getByRole('radio', { name: '🥫 Mama veya ulaşım desteği' }).first();
+  const supportOption = page.getByRole('radio', { name: 'Mama veya ulaşım desteği' }).first();
   await supportOption.scrollIntoViewIfNeeded();
   await page.waitForTimeout(500);
   await supportOption.click();

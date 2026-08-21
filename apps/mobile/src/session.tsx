@@ -1,9 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, ApiError, setAuthToken, type CurrentUser } from './api';
 import { unregisterPush } from './push';
+import { clearToken, readToken, writeToken } from './tokenStore';
 
-const TOKEN_KEY = 'patimeet.token';
+/**
+ * Jeton okuma/yazma `tokenStore` içinde: güvenli depo + eski kayıttan
+ * kayıpsız geçiş. Jeton hiçbir yerde loglanmaz.
+ */
 
 interface SessionValue {
   /** Açılış ekranı boyunca true; kaydedilmiş oturum okunuyor. */
@@ -30,7 +33,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem(TOKEN_KEY);
+        const stored = await readToken();
         if (!stored) return;
 
         setAuthToken(stored);
@@ -43,7 +46,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         // Token geçersiz veya hesap kapatılmışsa oturumu temizle. Ağ hatasında
         // da giriş ekranına düşmek, yarı açık bir oturumdan daha öngörülebilir.
         if (error instanceof ApiError && error.status !== 0) {
-          await AsyncStorage.removeItem(TOKEN_KEY);
+          await clearToken();
         }
         setAuthToken(null);
       } finally {
@@ -58,7 +61,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(async (nextToken: string, nextUser: CurrentUser) => {
     setAuthToken(nextToken);
-    await AsyncStorage.setItem(TOKEN_KEY, nextToken);
+    await writeToken(nextToken);
     setToken(nextToken);
     setUser(nextUser);
   }, []);
@@ -74,7 +77,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // Sunucuya ulaşılamasa bile yerel oturumu kapatıyoruz.
     }
     setAuthToken(null);
-    await AsyncStorage.removeItem(TOKEN_KEY);
+    await clearToken();
     setToken(null);
     setUser(null);
   }, []);

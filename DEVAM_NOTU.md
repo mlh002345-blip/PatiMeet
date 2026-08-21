@@ -36,6 +36,65 @@ Son güncelleme: 20 Ağustos 2026
    bağımlı kalma ve tokenı GitHub'a ekleme.
 5. `DEVAM_NOTU.md` dosyasını okuyup yalnızca bu kanonik daldan devam et.
 
+## 21 Ağustos 2026 — beş ürün paketi tamamlandı
+
+Kanonik dal ve tek doğruluk kaynağı değişmedi: `claude/bu-mvp-mobile-design-4qt3zc`.
+`188b99d` ile gelen koyu orman yeşili ürün kimliği, fotoğraf merkezli ana ekran,
+zengin Keşfet, Canlı Yürüyüş sekmesi ve dört sekmeli koyu navigasyon korundu;
+yeni özellikler bu tasarımın üzerine eklendi.
+
+### Paket 1 — Güvenli Topluluk fotoğrafı isteğe bağlı
+- Fotoğraf artık hiçbir bildirim türünde zorunlu değil; kayıp hayvan dahil.
+- Form alanı: `Fotoğraf ekle — isteğe bağlı`.
+- Kayıp hayvanda tavsiye: `Fotoğraf eklemek bulunmasını kolaylaştırır.`
+- Fotoğrafsız ilanlarda türe uygun premium sembol gösteriliyor.
+- Eski fotoğraflı ilanlar ve R2 kayıtları olduğu gibi korundu.
+
+### Paket 2 — Gerçek GPS Canlı Yürüyüş
+- Sahte harita ve zamana göre uydurulmuş mesafe kaldırıldı.
+- `expo-location` ile gerçek rota; izin yalnızca yürüyüş başlatılırken istenir.
+- Düşük doğruluk, mantıksız sıçrama ve duruş titremesi sunucuda süzülür.
+- Süre, geçen gerçek zamanla sınırlanır; geriye dönük şişirilemez.
+- Aktif yürüyüş kurtarılabilir; aynı anda tek aktif yürüyüş kuralı veritabanında.
+- Ham rota yalnızca sahibine açık; özette uçlar gizlenebilir.
+- Canlı konum yalnızca seçilen kişiyle, seçilen süre boyunca; süre dolunca kapanır.
+- Tamamlanan yürüyüş özet kartı, cihaz paylaşımı ve günlüğe anı olarak eklenebilir.
+- Haftalık hedef ve ana ekrandaki günlük hedef artık gerçek veriden hesaplanıyor.
+
+### Paket 3 — Köpeğimin Günlüğü
+- 17 kayıt türü; her türde yalnızca anlamlı alanlar gösteriliyor.
+- Hatırlatmalar: tamamlandı/ertelendi/iptal, tekrarlayan bakımda otomatik sıradaki kayıt.
+- Push kapalıyken de uygulama içi hatırlatma çalışıyor; kayıt kaybolmuyor.
+- Sağlık belgeleri (PDF dahil) yalnızca sahibine açık, adresler süreli imzalı.
+- Kilo grafiği, fotoğraflı anılar ve varsayılan olarak özel acil durum kartı.
+
+### Paket 4 — Mahalle Akışı ve Hızlı Yürüyüş Daveti
+- Akış etkinlik, bildirim ve daveti tek listede birleştiriyor; kopya tablo yok.
+- Davetler otomatik sona eriyor; süresi dolana katılım reddediliyor.
+- Aynı anda en fazla 3 açık davet; engellenen kullanıcıların davetleri görünmüyor.
+- Kesin buluşma noktası davette yok; mesajlaşmayla paylaşılıyor.
+- Basit oyun grupları: katılma/ayrılma, mevcut etkinlik sistemi yeniden kullanılıyor.
+
+### Paket 5 — Yayın güvenliği
+- Oturum jetonu `expo-secure-store` içine taşındı; eski AsyncStorage kaydı
+  başarılı taşımadan sonra siliniyor, oturum kaybolmuyor. Jeton loglanmıyor.
+- Yeni bildirim kategorileri: bakım hatırlatmaları ve yürüyüş davetleri.
+- Gizlilik odaklı analitik: yalnızca sayı/boolean; serbest metin ve kişisel veri
+  temizleyici tarafından atılıyor. Harici sağlayıcı yok, adaptör arayüzü hazır.
+
+### Doğrulama
+- API: `513/513` hem gömülü hem gerçek PostgreSQL 16 üzerinde.
+- E2E: `152/152`.
+- Mobil ve API tip denetimi temiz.
+- Production export: web 995, iOS 1287, Android 1423 modül.
+- 390×844, 320×568 ve %130 yazı ölçeğinde yatay taşma ve kesik buton yok.
+
+### Gerçek cihazda doğrulanması gerekenler
+- Konum izni akışı, arka plana geçiş ve gerçek rota doğruluğu.
+- Uygulama kapanıp açıldığında aktif yürüyüşün kurtarılması.
+- Galeri/kamera ile belge ve anı yükleme.
+- Push bildirimleriyle davet ve bakım hatırlatması derin bağlantıları.
+
 ## Kaynak ve çalışma durumu
 
 - GitHub: `mlh002345-blip/PatiMeet`

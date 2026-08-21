@@ -47,7 +47,7 @@ export function setAuthToken(token: string | null): void {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** Bazı uçlar (yasal metinler) oturum gerektirmez. */
   skipAuth?: boolean;
@@ -246,7 +246,15 @@ export interface DiscoverItem {
 
 
 /** Yükleme türü — sunucudaki `MediaPurpose` ile aynı. */
-export type MediaPurpose = 'user_photo' | 'dog_photo' | 'event_photo' | 'alert_photo';
+export type MediaPurpose =
+  | 'user_photo'
+  | 'dog_photo'
+  | 'event_photo'
+  | 'alert_photo'
+  | 'walk_photo'
+  | 'memory_photo'
+  | 'group_photo'
+  | 'document';
 
 /** Güvenli Topluluk bildirim türü ve zorunlu alanları. */
 export interface AlertTypeInfo {
@@ -254,7 +262,10 @@ export interface AlertTypeInfo {
   label: string;
   description: string;
   requiresAnimalName: boolean;
+  /** Her zaman false — fotoğraf hiçbir türde zorunlu değil. */
   requiresPhoto: boolean;
+  /** Fotoğraf eklemeyi teşvik eden kısa tavsiye. */
+  photoHint?: string;
   requiresOccurredAt: boolean;
 }
 
@@ -318,6 +329,156 @@ export interface NotificationPreferences {
   messages: boolean;
   events: boolean;
   safety: boolean;
+  /** Aşı, ilaç ve bakım hatırlatmaları. */
+  care: boolean;
+  /** Hızlı yürüyüş davetleri. */
+  invites: boolean;
+}
+
+// --- Canlı Yürüyüş ---
+
+export interface WalkPoint {
+  lat: number;
+  lng: number;
+  recordedAt: number;
+}
+
+export interface Walk {
+  id: string;
+  dogId: string | null;
+  status: 'active' | 'paused' | 'completed' | 'cancelled';
+  startedAt: number;
+  endedAt: number | null;
+  durationSeconds: number;
+  distanceMeters: number;
+  paceSecondsPerKm: number | null;
+  /** TAHMİNDİR — sağlık ölçümü değildir. */
+  estimatedCalories: number;
+  hideEndpoints: boolean;
+  district: string | null;
+  note: string;
+  photoUrl: string | null;
+  createdAt: number;
+  /** Uçları gizlenmiş rota özeti; ham rota yalnızca ayrı uçtan gelir. */
+  route?: WalkPoint[];
+}
+
+export interface WalkSummary {
+  weeklySeconds: number;
+  weeklyMeters: number;
+  weeklyWalks: number;
+  todaySeconds: number;
+}
+
+// --- Köpeğimin Günlüğü ---
+
+export interface JournalTypeInfo {
+  value: string;
+  label: string;
+  numeric?: { label: string; unit: string; min: number; max: number };
+  repeatDays?: number[];
+  remindable?: boolean;
+}
+
+export interface JournalEntry {
+  id: string;
+  dogId: string;
+  type: string;
+  typeLabel: string;
+  title: string;
+  note: string;
+  occurredAt: number;
+  remindAt: number | null;
+  reminderStatus: string | null;
+  repeatIntervalDays: number | null;
+  value: number | null;
+  valueUnit: string | null;
+  createdAt: number;
+  /** Yalnızca hatırlatma listesinde dolu. */
+  dogName?: string;
+}
+
+export interface JournalOverview {
+  upcoming: JournalEntry[];
+  overdue: JournalEntry[];
+  recent: JournalEntry[];
+  weightSeries: Array<{ occurredAt: number; value: number | null }>;
+}
+
+export interface DogDocument {
+  id: string;
+  type: string;
+  typeLabel: string;
+  title: string;
+  url: string | null;
+  createdAt: number;
+}
+
+export interface DogMemory {
+  id: string;
+  photoUrl: string | null;
+  note: string;
+  occurredAt: number;
+  walkId: string | null;
+  eventId: string | null;
+}
+
+export interface EmergencyCard {
+  healthNote: string;
+  allergies: string;
+  medications: string;
+  chipNumber: string | null;
+  clinicName: string | null;
+  shared: boolean;
+  shareToken: string | null;
+  updatedAt: number;
+}
+
+// --- Mahalle Akışı ---
+
+export interface WalkInvite {
+  id: string;
+  district: string;
+  areaNote: string;
+  startsAt: number;
+  expiresAt: number;
+  durationMinutes: number;
+  pace: string;
+  dogSize: string;
+  note: string;
+  status: string;
+  expired: boolean;
+  participantCount: number;
+  isOwner: boolean;
+  hasJoined: boolean;
+  owner: PublicUser | null;
+  createdAt: number;
+}
+
+export interface PlayGroup {
+  id: string;
+  name: string;
+  district: string;
+  dogSize: string;
+  playStyle: string;
+  description: string;
+  coverPhotoUrl: string | null;
+  memberCount: number;
+  isMember: boolean;
+  isOwner: boolean;
+  upcomingEventCount: number;
+  createdAt: number;
+}
+
+export interface FeedItem {
+  kind: 'event' | 'alert' | 'invite';
+  id: string;
+  title: string;
+  subtitle: string;
+  district: string;
+  sortAt: number;
+  photoUrl: string | null;
+  meta: Record<string, string | number | boolean | null>;
 }
 /** @deprecated Kayıp ilanları artık `CommunityAlert` (`kayip_hayvan` türü). */
 export interface LostDogPost { id:string; district:string; lastSeenArea:string; details:string; status:string; createdAt:number; isOwner:boolean; dog:Dog|null; owner:PublicUser|null }
@@ -612,6 +773,209 @@ export const api = {
   blockedUsers: () => apiRequest<{ blocked: PublicUser[] }>('/api/safety/blocks'),
 
   // --- Güvenli Topluluk bildirimleri ---
+
+  // --- Canlı Yürüyüş ---
+
+  activeWalk: () =>
+    apiRequest<{ walk: Walk | null; pointCount?: number; shares?: Array<{ shared_with_id: string; expires_at: number; name: string }> }>(
+      '/api/walks/active'
+    ),
+
+  startWalk: (body: { dogId?: string | null; district?: string | null; hideEndpoints?: boolean }) =>
+    apiRequest<{ walk: Walk }>('/api/walks', { method: 'POST', body }),
+
+  /** Toplu nokta gönderimi; sunucu gürültüyü süzer ve mesafeyi hesaplar. */
+  addWalkPoints: (
+    id: string,
+    body: { points: Array<WalkPoint & { accuracy?: number | null }>; durationSeconds: number }
+  ) =>
+    apiRequest<{
+      walk: Walk;
+      accepted: number;
+      rejected: { accuracy: number; jump: number; jitter: number };
+    }>(`/api/walks/${id}/points`, { method: 'POST', body }),
+
+  setWalkStatus: (id: string, status: 'active' | 'paused') =>
+    apiRequest<{ walk: Walk }>(`/api/walks/${id}`, { method: 'PATCH', body: { status } }),
+
+  finishWalk: (
+    id: string,
+    body: { durationSeconds?: number; note?: string; photoUrl?: string | null; cancel?: boolean }
+  ) => apiRequest<{ walk: Walk }>(`/api/walks/${id}/finish`, { method: 'POST', body }),
+
+  walkRoute: (id: string) => apiRequest<{ points: WalkPoint[] }>(`/api/walks/${id}/route`),
+
+  walkSummary: () => apiRequest<WalkSummary>('/api/walks/summary'),
+
+  walks: () => apiRequest<{ walks: Walk[] }>('/api/walks'),
+
+  shareWalk: (id: string, body: { userId: string; minutes: number }) =>
+    apiRequest<{ ok: boolean; expiresAt: number }>(`/api/walks/${id}/share`, {
+      method: 'POST',
+      body,
+    }),
+
+  stopWalkSharing: (id: string) =>
+    apiRequest<{ ok: boolean; message: string }>(`/api/walks/${id}/share`, { method: 'DELETE' }),
+
+  // --- Köpeğimin Günlüğü ---
+
+  journalTypes: () =>
+    apiRequest<{ types: JournalTypeInfo[]; documentTypes: Array<{ value: string; label: string }> }>(
+      '/api/journal/types',
+      { skipAuth: true }
+    ),
+
+  journalOverview: (dogId: string) =>
+    apiRequest<JournalOverview>(`/api/journal/${dogId}/overview`),
+
+  journalEntries: (dogId: string, type?: string) =>
+    apiRequest<{ entries: JournalEntry[] }>(
+      `/api/journal/${dogId}/entries${type ? `?type=${encodeURIComponent(type)}` : ''}`
+    ),
+
+  addJournalEntry: (body: {
+    dogId: string;
+    type: string;
+    title?: string;
+    note?: string;
+    occurredAt: number;
+    remindAt?: number | null;
+    repeatIntervalDays?: number | null;
+    value?: number | null;
+  }) => apiRequest<{ entry: JournalEntry }>('/api/journal/entries', { method: 'POST', body }),
+
+  updateReminder: (
+    id: string,
+    body: { status: 'pending' | 'done' | 'snoozed' | 'cancelled'; snoozeUntil?: number | null }
+  ) =>
+    apiRequest<{ entry: JournalEntry }>(`/api/journal/entries/${id}/reminder`, {
+      method: 'PATCH',
+      body,
+    }),
+
+  deleteJournalEntry: (id: string) =>
+    apiRequest<{ ok: boolean }>(`/api/journal/entries/${id}`, { method: 'DELETE' }),
+
+  /** Uygulama içi hatırlatmalar — push olmasa da çalışır. */
+  reminders: () => apiRequest<{ reminders: JournalEntry[] }>('/api/journal/reminders'),
+
+  documents: (dogId: string) =>
+    apiRequest<{ documents: DogDocument[] }>(`/api/journal/${dogId}/documents`),
+
+  addDocument: (body: { dogId: string; type: string; title?: string; storageKey: string }) =>
+    apiRequest<{ id: string; ok: boolean }>('/api/journal/documents', { method: 'POST', body }),
+
+  deleteDocument: (id: string) =>
+    apiRequest<{ ok: boolean }>(`/api/journal/documents/${id}`, { method: 'DELETE' }),
+
+  memories: (dogId: string) =>
+    apiRequest<{ memories: DogMemory[] }>(`/api/journal/${dogId}/memories`),
+
+  addMemory: (body: {
+    dogId: string;
+    storageKey?: string | null;
+    note?: string;
+    occurredAt: number;
+    walkId?: string | null;
+    eventId?: string | null;
+  }) => apiRequest<{ id: string; ok: boolean }>('/api/journal/memories', { method: 'POST', body }),
+
+  emergencyCard: (dogId: string) =>
+    apiRequest<{ card: EmergencyCard | null }>(`/api/journal/${dogId}/emergency`),
+
+  saveEmergencyCard: (
+    dogId: string,
+    body: {
+      healthNote?: string;
+      allergies?: string;
+      medications?: string;
+      chipNumber?: string | null;
+      clinicName?: string | null;
+    }
+  ) => apiRequest<{ card: EmergencyCard }>(`/api/journal/${dogId}/emergency`, { method: 'PUT', body }),
+
+  setEmergencySharing: (dogId: string, enabled: boolean) =>
+    apiRequest<{ shared: boolean; shareToken: string | null }>(
+      `/api/journal/${dogId}/emergency/share`,
+      { method: 'POST', body: { enabled } }
+    ),
+
+  // --- Mahalle Akışı ---
+
+  feed: (params: { district?: string; kinds?: string } = {}) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<{ items: FeedItem[] }>(`/api/neighbourhood/feed${suffix}`);
+  },
+
+  inviteOptions: () =>
+    apiRequest<{ paces: Array<{ value: string; label: string }>; maxActive: number }>(
+      '/api/neighbourhood/invite-options',
+      { skipAuth: true }
+    ),
+
+  invites: (params: { district?: string; scope?: 'all' | 'mine' } = {}) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<{ invites: WalkInvite[] }>(`/api/neighbourhood/invites${suffix}`);
+  },
+
+  invite: (id: string) =>
+    apiRequest<{ invite: WalkInvite }>(`/api/neighbourhood/invites/${id}`),
+
+  createInvite: (body: {
+    dogId?: string | null;
+    district: string;
+    areaNote?: string;
+    startsAt: number;
+    durationMinutes: number;
+    pace: string;
+    dogSize?: string;
+    note?: string;
+  }) =>
+    apiRequest<{ invite: WalkInvite; notified: number }>('/api/neighbourhood/invites', {
+      method: 'POST',
+      body,
+    }),
+
+  joinInvite: (id: string, dogId?: string | null) =>
+    apiRequest<{ invite: WalkInvite; message: string }>(
+      `/api/neighbourhood/invites/${id}/join`,
+      { method: 'POST', body: { dogId: dogId ?? null } }
+    ),
+
+  leaveInvite: (id: string) =>
+    apiRequest<{ invite: WalkInvite }>(`/api/neighbourhood/invites/${id}/leave`, { method: 'POST' }),
+
+  cancelInvite: (id: string) =>
+    apiRequest<{ ok: boolean; message: string }>(`/api/neighbourhood/invites/${id}/cancel`, {
+      method: 'POST',
+    }),
+
+  groups: (params: { district?: string; scope?: 'all' | 'mine' } = {}) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<{ groups: PlayGroup[] }>(`/api/neighbourhood/groups${suffix}`);
+  },
+
+  createGroup: (body: {
+    name: string;
+    district: string;
+    dogSize?: string;
+    playStyle?: string;
+    description?: string;
+    coverPhotoUrl?: string | null;
+  }) => apiRequest<{ group: PlayGroup }>('/api/neighbourhood/groups', { method: 'POST', body }),
+
+  joinGroup: (id: string) =>
+    apiRequest<{ group: PlayGroup }>(`/api/neighbourhood/groups/${id}/join`, { method: 'POST' }),
+
+  leaveGroup: (id: string) =>
+    apiRequest<{ group: PlayGroup }>(`/api/neighbourhood/groups/${id}/leave`, { method: 'POST' }),
 
   alertTypes: () =>
     apiRequest<{ types: AlertTypeInfo[]; maxPhotos: number }>('/api/safety/alert-types', {

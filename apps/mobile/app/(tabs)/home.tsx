@@ -19,15 +19,33 @@ export default function HomeScreen() {
   const { user } = useSession();
   const dog = user?.dogs?.[0];
   const loader = useLoader(async () => {
-    const [joined, nearby, discover] = await Promise.all([
+    const [joined, nearby, discover, summary, reminders] = await Promise.all([
       api.events({ scope: 'joined' }), api.events({ district: user?.district ?? undefined }),
       api.discover({ district: user?.district ?? undefined }).catch(() => ({ items: [], hasMore: false })),
+      /**
+       * Günlük hedef artık gerçek yürüyüş verisinden geliyor; sabit kodlanmış
+       * bir ilerleme yok. Uç hata verirse ekran yine açılır.
+       */
+      api.walkSummary().catch(() => ({ weeklySeconds: 0, weeklyMeters: 0, weeklyWalks: 0, todaySeconds: 0 })),
+      api.reminders().catch(() => ({ reminders: [] })),
     ]);
-    return { joined: joined.events, nearby: nearby.events, discover: discover.items };
+    return {
+      joined: joined.events,
+      nearby: nearby.events,
+      discover: discover.items,
+      summary,
+      reminders: reminders.reminders,
+    };
   }, [user?.district]);
   const nextEvent = loader.data?.joined[0] ?? loader.data?.nearby[0] ?? null;
-  const completedMinutes = nextEvent ? 45 : 20;
-  const progress = completedMinutes / 60;
+  /** Günlük hedef: 60 dakika. İlerleme bugünkü gerçek yürüyüş süresinden. */
+  const goalMinutes = 60;
+  const completedMinutes = Math.round((loader.data?.summary.todaySeconds ?? 0) / 60);
+  const progress = Math.min(1, completedMinutes / goalMinutes);
+  /** Gecikmiş veya bugün gelen bakım hatırlatmaları. */
+  const dueReminders = (loader.data?.reminders ?? []).filter(
+    (r) => r.remindAt !== null && r.remindAt <= Date.now() + 24 * 60 * 60 * 1000
+  );
 
   return (
     <ScrollView style={s.screen} contentContainerStyle={{ paddingBottom: spacing.xxl }} refreshControl={<RefreshControl refreshing={loader.refreshing} onRefresh={loader.refresh} tintColor={colors.copperPale} />}>
@@ -47,11 +65,21 @@ export default function HomeScreen() {
 
       <View style={s.body}>
         <View style={s.quickRow}>
-          <QuickAction label={'Yürüyüş\nplanla'} icon={{ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' }} tone="forest" onPress={() => router.push('/event/create')} />
-          <QuickAction label={'Buluşma\nbul'} icon={{ ios: 'person.2.fill', android: 'groups', web: 'groups' }} tone="lavender" onPress={() => router.push('/(tabs)/events')} />
+          <QuickAction label={'Yürüyüşe\nçık'} icon={{ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' }} tone="forest" onPress={() => router.push('/(tabs)/live-walk')} />
+          <QuickAction label={'Mahalle\nakışı'} icon={{ ios: 'person.2.fill', android: 'groups', web: 'groups' }} tone="lavender" onPress={() => router.push('/neighbourhood')} />
           <QuickAction label={'Güvenli\ntopluluk'} icon={{ ios: 'shield.fill', android: 'shield', web: 'shield' }} tone="sage" onPress={() => router.push('/alerts')} />
         </View>
-        <View style={s.goalCard}><View style={{ flex: 1 }}><AppText variant="label" color={colors.textOnDark}>Günlük hedefin</AppText><View style={s.goalTrack}><View style={[s.goalFill, { width: `${progress * 100}%` }]} /></View><AppText variant="caption" color={colors.textOnDarkMuted} style={{ marginTop: spacing.sm }}>Harika gidiyorsunuz · hedef 60 dk</AppText></View><View style={s.progressRing}><AppText variant="heading" color={colors.textOnDark}>%{Math.round(progress * 100)}</AppText><AppText variant="caption" color={colors.copperPale}>{completedMinutes} dk</AppText></View></View>
+        <View style={s.goalCard}><View style={{ flex: 1 }}><AppText variant="label" color={colors.textOnDark}>Günlük hedefin</AppText><View style={s.goalTrack}><View style={[s.goalFill, { width: `${progress * 100}%` }]} /></View><AppText variant="caption" color={colors.textOnDarkMuted} style={{ marginTop: spacing.sm }}>{completedMinutes > 0 ? `Bugün ${completedMinutes} dk yürüdünüz` : 'Bugün henüz yürüyüş yok'} · hedef {goalMinutes} dk</AppText></View><View style={s.progressRing}><AppText variant="heading" color={colors.textOnDark}>%{Math.round(progress * 100)}</AppText><AppText variant="caption" color={colors.copperPale}>{completedMinutes} dk</AppText></View></View>
+        {dueReminders.length > 0 ? (
+          <Pressable onPress={() => router.push('/journal')} style={({ pressed }) => [s.reminderCard, pressed && s.pressed]}>
+            <View style={s.reminderIcon}><SymbolView name={{ ios: 'cross.case.fill', android: 'medical_services', web: 'medical_services' }} size={20} tintColor={colors.copperPale} /></View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="bodyStrong" color={colors.textOnDark} numberOfLines={1}>{dueReminders[0].typeLabel}{dueReminders[0].dogName ? ` · ${dueReminders[0].dogName}` : ''}</AppText>
+              <AppText variant="caption" color={colors.textOnDarkMuted}>{dueReminders.length > 1 ? `${dueReminders.length} bakım hatırlatması bekliyor` : 'Bakım zamanı geldi'}</AppText>
+            </View>
+            <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={colors.textOnDarkMuted} />
+          </Pressable>
+        ) : null}
         <SectionHead kicker="SIRADAKİ ETKİNLİK" title={nextEvent?.title ?? 'Birlikte yeni bir rota keşfedin'} action="Tümü" onAction={() => router.push('/(tabs)/events')} />
         <Pressable onPress={() => nextEvent ? router.push(`/event/${nextEvent.id}`) : router.push('/event/create')} style={({ pressed }) => [s.eventCard, pressed && s.pressed]}><View style={s.eventIcon}><SymbolView name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }} size={24} tintColor={colors.copperPale} /></View><View style={{ flex: 1 }}><AppText variant="bodyStrong" color={colors.textOnDark} numberOfLines={1}>{nextEvent?.title ?? 'Yürüyüşünü planla'}</AppText><AppText variant="caption" color={colors.textOnDarkMuted} style={{ marginTop: 3 }} numberOfLines={1}>{nextEvent ? `${formatEventDate(nextEvent.startsAt)} · ${nextEvent.district}` : `${user?.district ?? 'Semtin'} · uygun zamanı sen seç`}</AppText><AppText variant="caption" color={colors.copperPale} style={{ marginTop: spacing.sm }}>{nextEvent ? `${nextEvent.participantCount} kişi katılıyor` : 'İlk buluşmayı sen başlat'}</AppText></View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={20} tintColor={colors.textOnDarkMuted} /></Pressable>
         {loader.data?.discover.length ? <><SectionHead kicker="YAKININDAKİLER" title="Bugün kimler dışarıda?" action="Keşfet" onAction={() => router.push('/(tabs)/discover')} /><View style={s.peopleRow}>{loader.data.discover.slice(0, 5).map((item) => <Pressable key={item.dog.id} onPress={() => router.push(`/user/${item.owner.id}?dogId=${item.dog.id}`)} style={s.personWrap}><View style={s.personAvatar}>{item.dog.photoUrl ? <Image source={{ uri: item.dog.photoUrl }} style={s.fill} /> : <AppText variant="heading" color={colors.textOnDark}>{item.dog.name[0]}</AppText>}<View style={s.onlineDot} /></View><AppText variant="caption" color={colors.textOnDarkMuted} numberOfLines={1}>{item.dog.name}</AppText></Pressable>)}</View></> : null}
@@ -69,6 +97,8 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm }, pawMark: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(20,48,36,.72)', borderWidth: 1, borderColor: 'rgba(255,255,255,.28)' }, headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm }, ownerAvatar: { width: 44, height: 44, borderRadius: 22, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.forestSoft, borderWidth: 2, borderColor: colors.copperPale }, fill: { width: '100%', height: '100%' },
   greeting: { gap: spacing.sm }, locationPill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.md, minHeight: 36, borderRadius: radius.pill, backgroundColor: 'rgba(18,20,16,.55)', borderWidth: 1, borderColor: 'rgba(255,255,255,.28)' }, dogInfo: { paddingBottom: spacing.xl }, traits: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md }, darkChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.md, minHeight: 30, borderRadius: radius.pill, backgroundColor: 'rgba(18,20,16,.62)', borderWidth: 1, borderColor: 'rgba(255,255,255,.18)' },
   body: { paddingHorizontal: spacing.lg }, quickRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }, quickAction: { flex: 1, minHeight: 116, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', gap: spacing.md, borderWidth: 1, borderColor: 'rgba(255,255,255,.15)', ...shadow.card }, forest: { backgroundColor: '#294F3D' }, lavender: { backgroundColor: '#514862' }, sage: { backgroundColor: '#4D5B36' }, pressed: { opacity: .78, transform: [{ scale: .985 }] },
+  reminderCard: { marginTop: spacing.sm, minHeight: 72, borderRadius: radius.lg, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.obsidianSoft, borderWidth: 1, borderColor: colors.copperDeep },
+  reminderIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,.07)' },
   goalCard: { marginTop: spacing.md, borderRadius: radius.lg, padding: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.lg, backgroundColor: colors.obsidianSoft, borderWidth: 1, borderColor: colors.borderOnDark }, goalTrack: { height: 5, borderRadius: 3, marginTop: spacing.md, backgroundColor: 'rgba(255,255,255,.12)', overflow: 'hidden' }, goalFill: { height: '100%', borderRadius: 3, backgroundColor: colors.copperPale }, progressRing: { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 6, borderColor: colors.copper },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: spacing.md, marginTop: spacing.xl, marginBottom: spacing.md }, eventCard: { minHeight: 92, borderRadius: radius.lg, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.obsidianSoft, borderWidth: 1, borderColor: colors.borderOnDark }, eventIcon: { width: 54, height: 54, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.copperDeep },
   peopleRow: { flexDirection: 'row', justifyContent: 'space-between', paddingBottom: spacing.lg }, personWrap: { width: 58, alignItems: 'center', gap: 5 }, personAvatar: { width: 52, height: 52, borderRadius: 26, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.forestSoft, borderWidth: 2, borderColor: colors.copperPale }, onlineDot: { position: 'absolute', width: 11, height: 11, borderRadius: 6, right: 0, bottom: 1, backgroundColor: '#4FDB93', borderWidth: 2, borderColor: colors.primaryDark },

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
 import { getDb, nowMs, type CountRow, type Db } from '../db';
+import { track } from '../domain/analytics';
 import { isBlockedBetween } from '../domain/blocks';
 import { notifyUser } from '../domain/push';
 import { publicUser, type UserRow } from '../domain/serialize';
@@ -190,6 +191,7 @@ messagesRouter.post(
     const other = await assertCanMessage(db, me.id, input.userId);
     const conversation = await findOrCreateConversation(db, me.id, input.userId);
 
+    await track('message_started', me.id);
     res.json({ conversation: { id: conversation.id, user: await publicUser(other) } });
   })
 );

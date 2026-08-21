@@ -32,6 +32,7 @@ const SUITES = [
   // 'absent' — yapılandırma olmadan düğmenin gizlendiğini doğrular.
   [`Google ile giriş arayüzü (mod: ${GOOGLE_MODE})`, '04-google-giris.js'],
   ['Güvenli Topluluk ve çoklu seçim (bildirimler, "Ne arıyorsun?")', '05-guvenli-topluluk.js'],
+  ['Ürün paketleri (canlı yürüyüş, günlük, mahalle akışı, hızlı davet)', '06-urun-paketleri.js'],
 ];
 
 let failed = 0;

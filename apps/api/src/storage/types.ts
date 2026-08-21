@@ -26,8 +26,11 @@ export interface ObjectStorage {
    * Genel bir CDN adresi tanımlıysa kalıcı adres döner; tanımlı değilse
    * süreli imzalı adres üretilir. İmzalı adres, kovanın herkese açık
    * olmasını gerektirmediği için varsayılan güvenli seçenektir.
+   *
+   * `forcePrivate` verildiğinde CDN adresi tanımlı olsa bile kalıcı adres
+   * ÜRETİLMEZ. Sağlık belgeleri ve özel anılar bunu kullanır.
    */
-  urlFor(key: string): Promise<string>;
+  urlFor(key: string, options?: { forcePrivate?: boolean }): Promise<string>;
 
   exists(key: string): Promise<boolean>;
 }

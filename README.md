@@ -33,6 +33,19 @@ Tek kod tabanı hem iOS hem Android'e derlenir; ayrı Swift/Kotlin projesi yoktu
   seçilir.
 - **Üç giriş yöntemi** — e-posta, Google ve Apple. Sağlayıcı yapılandırılmamışsa
   ilgili düğme hiç gösterilmez.
+- **Canlı Yürüyüş** — gerçek GPS ile rota, mesafe ve tempo. Konum izni yalnızca
+  yürüyüş başlatılırken istenir; izin yoksa sahte veri üretilmez, durum açıkça
+  gösterilir. Düşük doğruluk, mantıksız sıçrama ve duruş titremesi sunucuda
+  süzülür. Ham rota **yalnızca sahibine** açıktır; özette başlangıç ve bitiş
+  bölümü gizlenebilir. Canlı konum yalnızca seçilen kişiyle, seçilen süre
+  boyunca paylaşılır ve süre dolunca kendiliğinden kapanır.
+- **Köpeğimin Günlüğü** — 17 bakım/sağlık kayıt türü, hatırlatmalar ve
+  tekrarlayan bakım, kilo grafiği, sağlık belgeleri (süreli imzalı adres),
+  fotoğraflı anılar ve varsayılan olarak özel acil durum kartı.
+- **Mahalle Akışı** — etkinlik, Güvenli Topluluk bildirimi ve hızlı yürüyüş
+  daveti tek listede. Kaynak kayıtların ikinci kopyası tutulmaz.
+- **Hızlı Yürüyüş Daveti** — kısa süreli, otomatik sona eren davetler; kesin
+  buluşma noktası davette görünmez, mesajlaşmayla paylaşılır.
 - **Güvenli Topluluk** — sekiz bildirim türü (kayıp hayvan, bulunan hayvan,
   zehirli yem / tehlikeli bölge, yaralı veya başıboş hayvan, salgın hastalık
   uyarısı, acil kan ihtiyacı, geçici yuva / sahiplendirme, mama veya ulaşım
@@ -343,20 +356,21 @@ Her iki yol da denetim kaydına yazar.
 ## Test
 
 ```bash
-# Sunucu — beş paket, 392 kontrol
+# Sunucu — altı paket, 513 kontrol
 cd apps/api
 npm run test            # iş kuralları (89)
 npm run test:google     # Google ile giriş (54)
 npm run test:platform   # yayın altyapısı (102)
 npm run test:matching   # uyum skoru ve çoklu köpek (34)
-npm run test:alerts     # çoklu seçim + Güvenli Topluluk + veri geçişi (113)
+npm run test:alerts     # çoklu seçim + Güvenli Topluluk + veri geçişi (116)
+npm run test:product    # canlı yürüyüş, günlük, mahalle akışı, analitik (118)
 npm run test:all        # hepsi
 
 # Tip denetimi
 cd apps/api && npm run typecheck
 cd apps/mobile && npx tsc --noEmit
 
-# Uçtan uca akışlar (API + web hedefi çalışırken) — 107 kontrol
+# Uçtan uca akışlar (API + web hedefi çalışırken) — 152 kontrol
 cd e2e && npm install && npm test
 ```
 
@@ -386,6 +400,7 @@ Kapsam:
 | `test:google` | Token doğrulama kuralları, hesap eşleştirme, ele geçirme senaryoları |
 | `test:platform` | Migration'lar, sağlık kontrolleri, görsel yükleme ve yetkilendirme, Apple girişi, push altyapısı, moderasyon paneli, hız sınırı |
 | `test:matching` | Skor kuralları, eksik bilgi davranışı, keşfet sıralaması, çoklu köpek iş kuralları |
+| `test:product` | Gerçek GPS süzme ve mesafe, yürüyüş sahipliği ve kurtarma, süreli konum paylaşımı, günlük kayıtları ve hatırlatmalar, sağlık belgesi yetkisi, acil durum kartı gizliliği, hızlı davet kuralları, mahalle akışı, analitik temizleme, hesap silmede kişisel veri temizliği |
 | `test:alerts` | Çoklu seçimli "Ne arıyorsun?" ve veri geçişi, Güvenli Topluluk bildirimleri, fotoğraf sahipliği, kesin konum reddi, moderasyon, eski kayıp ilanlarının birleştirilmesi (veri kaybı / çift kayıt / geriye uyumluluk), etkinlik değerlendirmesi |
 | `e2e` | Gerçek tarayıcıda telefon ölçüsünde kullanıcı yolculukları |
 

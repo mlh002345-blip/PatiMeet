@@ -280,7 +280,11 @@ async function main(): Promise<void> {
   const photo2 = await upload(ada.token, 'alert_photo');
   check('Bildirim fotoğrafı yüklenebilir', photo1.status === 201, photo1.body);
 
-  const missingPhoto = await req('POST', '/api/safety/alerts', {
+  /**
+   * Fotoğraf artık HİÇBİR türde zorunlu değil (kullanıcı kararı): acil bir
+   * durumu bildiren kişi fotoğraf çekemeyecek durumda olabilir.
+   */
+  const noPhotoLost = await req('POST', '/api/safety/alerts', {
     token: ada.token,
     body: {
       type: 'kayip_hayvan',
@@ -291,7 +295,28 @@ async function main(): Promise<void> {
       description: 'Kahverengi tasması vardı, ürkek bir köpek. Gören olursa haber versin.',
     },
   });
-  check('Fotoğrafsız kayıp ilanı reddedilir', missingPhoto.status === 400, missingPhoto.body);
+  check('Fotoğrafsız kayıp ilanı yayımlanabilir', noPhotoLost.status === 201, noPhotoLost.body);
+  check(
+    'Fotoğrafsız ilan boş fotoğraf listesiyle döner',
+    noPhotoLost.body.alert?.photos.length === 0,
+    noPhotoLost.body.alert?.photos
+  );
+
+  const types0 = await req('GET', '/api/safety/alert-types');
+  check(
+    'Hiçbir türde fotoğraf zorunlu değil',
+    (types0.body.types as any[]).every((t) => t.requiresPhoto === false),
+    (types0.body.types as any[]).filter((t) => t.requiresPhoto).map((t) => t.value)
+  );
+  check(
+    'Kayıp hayvan türünde fotoğraf tavsiyesi gösteriliyor',
+    (types0.body.types as any[]).find((t) => t.value === 'kayip_hayvan')?.photoHint ===
+      'Fotoğraf eklemek bulunmasını kolaylaştırır.',
+    (types0.body.types as any[]).find((t) => t.value === 'kayip_hayvan')
+  );
+
+  // Temizlik: bu ilan sonraki liste sayımlarını etkilemesin.
+  await req('DELETE', `/api/safety/alerts/${noPhotoLost.body.alert.id}`, { token: ada.token });
 
   const missingName = await req('POST', '/api/safety/alerts', {
     token: ada.token,

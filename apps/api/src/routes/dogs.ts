@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
 import { getDb, nowMs, type CountRow, type Db } from '../db';
+import { track } from '../domain/analytics';
 import { normalizePhotoInput } from '../domain/media';
 import { publicDog, publicDogs, type DogRow } from '../domain/serialize';
 import { asyncRoute, badRequest, forbidden, notFound, parseBody } from '../http';
@@ -104,6 +105,7 @@ dogsRouter.post(
     );
 
     const row = await db.one<DogRow>('SELECT * FROM dogs WHERE id = $1', [id]);
+    await track('dog_profile_completed', me.id, { has_photo: Boolean(photo) });
     res.status(201).json({ dog: await publicDog(row!) });
   })
 );

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
 import { getDb, nowMs } from '../db';
 import { isBlockedBetween } from '../domain/blocks';
+import { track } from '../domain/analytics';
 import { computeMatchScore } from '../domain/matching';
 import { normalizePhotoInput } from '../domain/media';
 import { dedupe, PURPOSE_VALUES, type PurposeValue } from '../domain/purposes';
@@ -119,6 +120,8 @@ usersRouter.get(
     let matches: Array<{ viewerDogId: string; viewerDogName: string; targetDogId: string } & ReturnType<typeof computeMatchScore>> = [];
 
     if (targetId !== me.id) {
+      await track('discover_profile_opened', me.id);
+
       const [viewer, viewerDogs] = await Promise.all([
         db.one<UserRow>('SELECT * FROM users WHERE id = $1', [me.id]),
         db.query<DogRow>(

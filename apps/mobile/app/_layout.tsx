@@ -30,6 +30,16 @@ export default function RootLayout() {
           {/* Eski yol; /alerts'e yönlendirir. Başlık görünmeden geçilir. */}
           <Stack.Screen name="community" options={{ headerShown: false }} />
           <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
+          {/* Yeni ürün ekranları da ortak Privé başlığını kullanır (DetailHeader). */}
+          <Stack.Screen name="walk/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="walk/share" options={{ headerShown: false }} />
+          <Stack.Screen name="journal/index" options={{ headerShown: false }} />
+          <Stack.Screen name="journal/add" options={{ headerShown: false }} />
+          <Stack.Screen name="journal/documents" options={{ headerShown: false }} />
+          <Stack.Screen name="journal/emergency" options={{ headerShown: false }} />
+          <Stack.Screen name="neighbourhood/index" options={{ headerShown: false }} />
+          <Stack.Screen name="neighbourhood/create-invite" options={{ headerShown: false }} />
+          <Stack.Screen name="neighbourhood/invite/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="alerts/index" options={{ headerShown: false }} />
           <Stack.Screen name="alerts/create" options={{ headerShown: false }} />
           <Stack.Screen name="alerts/[id]" options={{ headerShown: false }} />

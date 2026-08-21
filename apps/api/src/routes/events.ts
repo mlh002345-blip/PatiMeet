@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
 import { getDb, nowMs, type CountRow, type Db } from '../db';
+import { track } from '../domain/analytics';
 import { hiddenUserIds, isBlockedBetween } from '../domain/blocks';
 import { notifyUser } from '../domain/push';
 import {
@@ -178,6 +179,7 @@ eventsRouter.post(
     });
 
     const row = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [id]);
+    await track('event_created', me.id, { capacity: input.capacity });
     res.status(201).json({ event: await publicEvent(row!, me.id, db) });
   })
 );
@@ -306,6 +308,7 @@ eventsRouter.post(
     }
 
     const updated = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [row.id]);
+    await track('event_joined', me.id);
     res.json({ event: await publicEvent(updated!, me.id, db) });
   })
 );

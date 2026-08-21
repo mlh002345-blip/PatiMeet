@@ -185,6 +185,14 @@ export default function ProfileScreen() {
       </AppText>
       <View style={styles.group}>
         <SettingsRow
+          label="Köpeğimin Günlüğü"
+          onPress={() => router.push('/journal')}
+        />
+        <SettingsRow
+          label="Mahalle akışı"
+          onPress={() => router.push('/neighbourhood')}
+        />
+        <SettingsRow
           label="Bildirimler"
           onPress={() => router.push('/settings/notifications')}
           last

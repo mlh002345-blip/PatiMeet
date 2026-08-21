@@ -157,7 +157,11 @@ async function main() {
   await page.waitForTimeout(4000);
   await shot(page, '38-bos-durum');
   const emptyText = await page.textContent('body');
-  check('Boş sonuç durumu gösteriliyor', emptyText.includes('Sonuç bulunamadı'), emptyText.slice(0, 250));
+  check(
+    'Boş sonuç durumu gösteriliyor',
+    emptyText.includes('Yeni dostlar yakında burada') || emptyText.includes('Çevren hazırlanıyor'),
+    emptyText.slice(0, 250)
+  );
 
   console.log(`\n=== Konsol/sayfa hataları: ${errors.length} ===`);
   for (const e of errors.slice(0, 10)) console.log('  !', e.slice(0, 250));

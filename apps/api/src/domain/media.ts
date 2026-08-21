@@ -3,7 +3,16 @@ import { badRequest, forbidden, notFound } from '../http';
 import { newId } from '../ids';
 import { getStorage, isMediaKey, MEDIA_KEY_PREFIX } from '../storage';
 
-export type MediaPurpose = 'user_photo' | 'dog_photo' | 'event_photo' | 'alert_photo';
+export type MediaPurpose =
+  | 'user_photo'
+  | 'dog_photo'
+  | 'event_photo'
+  | 'alert_photo'
+  | 'walk_photo'
+  | 'memory_photo'
+  | 'group_photo'
+  /** Sağlık belgeleri — görselin yanında PDF de kabul edilir. */
+  | 'document';
 
 export interface MediaRow {
   id: string;
@@ -67,7 +76,18 @@ const ALLOWED: Array<{
   },
 ];
 
+/**
+ * Sağlık belgeleri PDF olabilir. PDF yalnızca `document` amacında kabul edilir;
+ * profil ve ilan fotoğrafı alanlarına PDF yüklenemez.
+ */
+const PDF = {
+  contentType: 'application/pdf',
+  extension: 'pdf',
+  matches: (b: Buffer) => b.length > 4 && b.subarray(0, 4).toString('ascii') === '%PDF',
+};
+
 export const ALLOWED_CONTENT_TYPES = ALLOWED.map((entry) => entry.contentType);
+export const DOCUMENT_CONTENT_TYPES = [...ALLOWED_CONTENT_TYPES, PDF.contentType];
 
 export interface ValidatedImage {
   contentType: string;
@@ -80,7 +100,11 @@ export interface ValidatedImage {
  * Dosya türü gerçek içeriğe göre belirlenir; istemcinin gönderdiği tür yalnızca
  * ipucu olarak kullanılır.
  */
-export function validateImage(buffer: Buffer, maxBytes: number): ValidatedImage {
+export function validateImage(
+  buffer: Buffer,
+  maxBytes: number,
+  options: { allowPdf?: boolean } = {}
+): ValidatedImage {
   if (buffer.length === 0) {
     throw badRequest('Dosya boş.', 'empty_file');
   }
@@ -89,10 +113,13 @@ export function validateImage(buffer: Buffer, maxBytes: number): ValidatedImage 
     throw badRequest(`Dosya çok büyük. En fazla ${mb} MB yükleyebilirsiniz.`, 'file_too_large');
   }
 
-  const match = ALLOWED.find((entry) => entry.matches(buffer));
+  const candidates = options.allowPdf ? [...ALLOWED, PDF] : ALLOWED;
+  const match = candidates.find((entry) => entry.matches(buffer));
   if (!match) {
     throw badRequest(
-      'Yalnızca JPEG, PNG, WebP veya HEIC görseli yükleyebilirsiniz.',
+      options.allowPdf
+        ? 'Yalnızca JPEG, PNG, WebP, HEIC görseli veya PDF yükleyebilirsiniz.'
+        : 'Yalnızca JPEG, PNG, WebP veya HEIC görseli yükleyebilirsiniz.',
       'unsupported_file_type'
     );
   }
@@ -113,7 +140,10 @@ export async function storeImage(
   maxBytes: number,
   db: Db = getDb()
 ): Promise<{ id: string; key: string; url: string }> {
-  const { contentType, extension } = validateImage(buffer, maxBytes);
+  // Belge amacında PDF de kabul edilir; diğer amaçlarda yalnızca görsel.
+  const { contentType, extension } = validateImage(buffer, maxBytes, {
+    allowPdf: purpose === 'document',
+  });
 
   const key = `${MEDIA_KEY_PREFIX}${purpose}/${newId()}.${extension}`;
   const storage = getStorage();
@@ -215,6 +245,11 @@ export async function deleteMedia(
     ]);
     // Güvenli Topluluk ilanlarında da kırık görsel kalmasın.
     await t.exec('DELETE FROM community_alert_photos WHERE storage_key = $1', [row.storage_key]);
+    // Günlük belgeleri, anılar ve yürüyüş fotoğrafı da kırık kalmasın.
+    await t.exec('DELETE FROM dog_documents WHERE storage_key = $1', [row.storage_key]);
+    await t.exec('UPDATE dog_memories SET storage_key = NULL WHERE storage_key = $1', [row.storage_key]);
+    await t.exec('UPDATE walks SET photo_key = NULL WHERE photo_key = $1', [row.storage_key]);
+    await t.exec('UPDATE play_groups SET cover_photo_url = NULL WHERE cover_photo_url = $1', [row.storage_key]);
   });
 }
 

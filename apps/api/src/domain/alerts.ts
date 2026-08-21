@@ -37,8 +37,14 @@ export interface AlertTypeInfo {
   description: string;
   /** Hayvanın adı zorunlu mu? */
   requiresAnimalName: boolean;
-  /** En az bir fotoğraf zorunlu mu? */
+  /**
+   * Fotoğraf hiçbir türde ZORUNLU değil (kullanıcı kararı).
+   * Alan geriye uyumluluk için duruyor ve her zaman `false`.
+   * @deprecated Yerine `photoHint` kullanılır.
+   */
   requiresPhoto: boolean;
+  /** Fotoğraf eklemeyi teşvik eden kısa tavsiye; zorunluluk değil. */
+  photoHint?: string;
   /** Olay/son görülme zamanı zorunlu mu? */
   requiresOccurredAt: boolean;
 }
@@ -49,7 +55,8 @@ export const ALERT_TYPE_INFO: AlertTypeInfo[] = [
     label: 'Kayıp hayvan',
     description: 'Kaybolan hayvanı tarif edin; komşularınız görürse haber verir.',
     requiresAnimalName: true,
-    requiresPhoto: true,
+    requiresPhoto: false,
+    photoHint: 'Fotoğraf eklemek bulunmasını kolaylaştırır.',
     requiresOccurredAt: true,
   },
   {
@@ -57,7 +64,8 @@ export const ALERT_TYPE_INFO: AlertTypeInfo[] = [
     label: 'Bulunan hayvan',
     description: 'Bulduğunuz hayvanı bildirin; sahibi arıyor olabilir.',
     requiresAnimalName: false,
-    requiresPhoto: true,
+    requiresPhoto: false,
+    photoHint: 'Fotoğraf eklemek sahibinin tanımasını kolaylaştırır.',
     requiresOccurredAt: true,
   },
   {
@@ -97,7 +105,8 @@ export const ALERT_TYPE_INFO: AlertTypeInfo[] = [
     label: 'Geçici yuva / sahiplendirme',
     description: 'Geçici bakım veya kalıcı yuva arayan bir hayvan için ilan açın.',
     requiresAnimalName: false,
-    requiresPhoto: true,
+    requiresPhoto: false,
+    photoHint: 'Fotoğraf eklemek ilgi görmesini kolaylaştırır.',
     requiresOccurredAt: false,
   },
   {
@@ -225,12 +234,11 @@ export function validateAlertInput(
   if (photos.length > MAX_ALERT_PHOTOS) {
     throw badRequest(`En fazla ${MAX_ALERT_PHOTOS} fotoğraf ekleyebilirsiniz.`, 'too_many_photos');
   }
-  if (info.requiresPhoto && photos.length === 0 && !options.allowMissingPhoto) {
-    throw badRequest(
-      `${info.label} ilanı için en az 1 fotoğraf gerekiyor.`,
-      'photo_required'
-    );
-  }
+  /**
+   * Fotoğraf hiçbir türde zorunlu değil: acil bir durumu bildiren kullanıcı
+   * fotoğraf çekemeyecek durumda olabilir. Fotoğrafsız ilanlarda liste ve
+   * detay ekranı türe uygun premium sembol gösterir.
+   */
   if (new Set(photos).size !== photos.length) {
     throw badRequest('Aynı fotoğrafı birden fazla ekleyemezsiniz.', 'duplicate_photo');
   }

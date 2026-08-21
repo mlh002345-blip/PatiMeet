@@ -86,6 +86,17 @@ Taşınan her kayıt `source_lost_dog_id` ile işaretlendiği ve ekleme
 `NOT EXISTS` koşuluyla yapıldığı için geçiş **tekrar çalıştırılabilir** —
 ikinci kez çalışsa da çift kayıt üretmez. Kaynak tablo silinmez.
 
+`0010_walks_journal_and_neighbourhood` yalnızca yeni tablo ve kolon ekler
+(yürüyüşler ve rota noktaları, günlük kayıtları, sağlık belgeleri, anılar,
+acil durum kartı, hızlı yürüyüş davetleri, oyun grupları, analitik olayları ve
+`notification_preferences` için `care`/`invites` kolonları). Mevcut hiçbir
+tabloyu değiştirmez; `IF NOT EXISTS` kullandığı için tekrar çalıştırılabilir.
+
+**Yeni izinler:** mobil uygulama konum iznini yalnızca kullanıcı yürüyüş
+başlattığında ister. Mağaza gönderiminde iOS için `NSLocationWhenInUseUsageDescription`
+ve Android için `ACCESS_FINE_LOCATION` açıklamalarının Expo yapılandırmasında
+bulunması gerekir.
+
 ### 2.4 Yedekleme
 
 - **Sağlayıcı yedeği:** günlük otomatik yedek + noktaya dönüş (PITR) açın.

@@ -3,7 +3,14 @@ import { getDb, nowMs, type Db } from '../db';
 import { logger } from '../logger';
 import { newId } from '../ids';
 
-export type NotificationCategory = 'messages' | 'events' | 'safety';
+/**
+ * Bildirim kategorileri.
+ *
+ * `care`   — aşı, ilaç ve bakım hatırlatmaları
+ * `invites`— hızlı yürüyüş davetleri
+ * `safety` kullanıcı tercihiyle kapatılamaz (bkz. notifyUser).
+ */
+export type NotificationCategory = 'messages' | 'events' | 'safety' | 'care' | 'invites';
 
 export interface PushMessage {
   title: string;
@@ -183,6 +190,8 @@ export interface NotificationPreferences {
   messages: boolean;
   events: boolean;
   safety: boolean;
+  care: boolean;
+  invites: boolean;
 }
 
 export async function getPreferences(
@@ -190,11 +199,11 @@ export async function getPreferences(
   db: Db = getDb()
 ): Promise<NotificationPreferences> {
   const row = await db.one<NotificationPreferences>(
-    'SELECT messages, events, safety FROM notification_preferences WHERE user_id = $1',
+    'SELECT messages, events, safety, care, invites FROM notification_preferences WHERE user_id = $1',
     [userId]
   );
   // Satır yoksa varsayılan olarak hepsi açık.
-  return row ?? { messages: true, events: true, safety: true };
+  return row ?? { messages: true, events: true, safety: true, care: true, invites: true };
 }
 
 export async function setPreferences(
@@ -206,11 +215,12 @@ export async function setPreferences(
   const merged = { ...current, ...next };
 
   await db.exec(
-    `INSERT INTO notification_preferences (user_id, messages, events, safety, updated_at)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO notification_preferences
+       (user_id, messages, events, safety, care, invites, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (user_id) DO UPDATE
-        SET messages = $2, events = $3, safety = $4, updated_at = $5`,
-    [userId, merged.messages, merged.events, merged.safety, nowMs()]
+        SET messages = $2, events = $3, safety = $4, care = $5, invites = $6, updated_at = $7`,
+    [userId, merged.messages, merged.events, merged.safety, merged.care, merged.invites, nowMs()]
   );
 
   return merged;

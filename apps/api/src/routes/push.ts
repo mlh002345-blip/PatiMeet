@@ -66,6 +66,8 @@ pushRouter.get(
 
 const preferencesSchema = z.object({
   messages: z.boolean().optional(),
+  care: z.boolean().optional(),
+  invites: z.boolean().optional(),
   events: z.boolean().optional(),
   /**
    * Güvenlik bildirimleri kapatılabilir ancak sunucu tarafında yine gönderilir:

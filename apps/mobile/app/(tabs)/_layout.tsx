@@ -33,6 +33,10 @@ export default function TabsLayout() {
       router.push(`/event/${data.eventId}`);
     } else if (data.type === 'alert' && typeof data.alertId === 'string') {
       router.push(`/alerts/${data.alertId}`);
+    } else if (data.type === 'invite' && typeof data.inviteId === 'string') {
+      router.push(`/neighbourhood/invite/${data.inviteId}`);
+    } else if (data.type === 'care') {
+      router.push('/journal');
     } else if (data.type === 'safety') {
       router.push('/(tabs)/profile');
     }

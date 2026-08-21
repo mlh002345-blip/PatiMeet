@@ -80,7 +80,7 @@ async function main() {
   await shot(page, '44-onboarding-profil');
   body = await page.textContent('body');
   check('Kayıt başarılı, onboarding açıldı', body.includes('Kendini tanıt'), body.slice(0, 200));
-  check('Adım göstergesi var (1/3)', body.includes('Adım 1 / 3'));
+  check('Adım göstergesi var (1/3)', body.includes('ADIM 1/3'));
 
   // --- Adım 1: profil ---
   console.log('→ Adım 1: profil');
@@ -103,7 +103,7 @@ async function main() {
   body = await page.textContent('body');
   check('Semt seçimi ekranı açıldı', body.includes('Hangi semtte'), body.slice(0, 200));
   check('Gizlilik notu var', body.includes('Tam adresin hiçbir zaman paylaşılmaz'));
-  check('Adım 2/3 gösteriliyor', body.includes('Adım 2 / 3'));
+  check('Adım 2/3 gösteriliyor', body.includes('ADIM 2/3'));
 
   // --- Adım 2: semt ---
   console.log('→ Adım 2: semt');
@@ -115,7 +115,7 @@ async function main() {
   await shot(page, '48-kopek-profili');
   body = await page.textContent('body');
   check('Köpek profili ekranı açıldı', body.includes('Köpeğini tanıt'), body.slice(0, 200));
-  check('Adım 3/3 gösteriliyor', body.includes('Adım 3 / 3'));
+  check('Adım 3/3 gösteriliyor', body.includes('ADIM 3/3'));
 
   // --- Adım 3: köpek — zorunlu alan doğrulaması ---
   console.log('→ Adım 3: köpek profili');
@@ -161,7 +161,14 @@ async function main() {
 
   // --- Yeni kullanıcı için boş durumlar ---
   console.log('→ Yeni kullanıcı boş durumları');
-  check('Etkinlik yok mesajı var', body.includes('Henüz bir etkinliğe katılmadın'), body.slice(0, 400));
+  // Semtinde etkinlik olsun olmasın "sıradaki etkinlik" bölümü hep var.
+  check('Sıradaki etkinlik bölümü var', body.includes('SIRADAKİ ETKİNLİK'), body.slice(0, 400));
+  check('Günlük hedef göstergesi var', body.includes('Günlük hedefin'), body.slice(0, 400));
+  check(
+    'Yeni kullanıcıda hedef gerçek veriden geliyor (0 dk)',
+    body.includes('Bugün henüz yürüyüş yok'),
+    body.slice(0, 500)
+  );
 
   await page.goto(`${BASE}/messages`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(6000);

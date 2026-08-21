@@ -51,8 +51,8 @@ export function createS3Storage(options: S3Options): ObjectStorage {
       await client.send(new DeleteObjectCommand({ Bucket: options.bucket, Key: key }));
     },
 
-    async urlFor(key) {
-      if (options.publicBaseUrl) {
+    async urlFor(key, urlOptions) {
+      if (options.publicBaseUrl && !urlOptions?.forcePrivate) {
         return `${options.publicBaseUrl.replace(/\/$/, '')}/${key}`;
       }
       // Kova özel kalabilsin diye süreli imzalı adres üretiyoruz.

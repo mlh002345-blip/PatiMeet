@@ -129,7 +129,8 @@ async function main() {
     await page.waitForTimeout(500);
     await shot(page, '15-sohbet-yazildi');
     // Gönder butonu
-    await page.getByText('➤').first().click();
+    // Simge değişse de kırılmasın diye erişilebilir ada göre hedefliyoruz.
+    await page.getByRole('button', { name: 'Gönder' }).first().click();
     await page.waitForTimeout(4000);
     await shot(page, '16-sohbet-gonderildi');
     const after = await page.textContent('body');
