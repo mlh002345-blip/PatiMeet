@@ -95,6 +95,49 @@ yeni özellikler bu tasarımın üzerine eklendi.
 - Galeri/kamera ile belge ve anı yükleme.
 - Push bildirimleriyle davet ve bakım hatırlatması derin bağlantıları.
 
+## 21 Ağustos 2026 — APK öncesi yapılandırma hazırlığı
+
+APK bu konteynerde ÜRETİLEMEDİ. İki bağımsız engel var:
+
+1. Expo erişim tokenı yok (önceki turda bilinçli olarak silinmişti) ve gizli
+   değer istenmedi/eklenmedi.
+2. `api.expo.dev` çıkış vekili tarafından engelli (403 CONNECT); yalnızca npm
+   kayıt defterine erişim var. EAS bulut derlemesi bu ortamdan başlatılamıyor.
+
+Bunun yerine derlemenin doğru çıkması için gereken yapılandırma tamamlandı:
+
+- **Konum izni eklendi.** `expo-location` eklentisi, Android
+  `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` ve iOS
+  `NSLocationWhenInUseUsageDescription`. Bunlar olmadan üretilecek APK'da
+  Canlı Yürüyüş çalışmazdı. Arka plan konumu kapalı; istenmiyor.
+- **Gereksiz mikrofon izni engellendi.** `expo-image-picker` `RECORD_AUDIO`
+  ekliyordu; video kaydı yapmadığımız için `blockedPermissions` ile
+  kaldırılıyor (manifestte `tools:node="remove"`).
+- **Eski açık tema renkleri kimliğe alındı.** Açılış ekranı ve adaptif ikon
+  zemini `#16281F`, bildirim vurgusu eski lila `#5B3E8E` yerine bakır
+  `#A6602F`. `userInterfaceStyle: dark` ve bunun etkili olması için
+  `expo-system-ui` eklendi.
+- **`edgeToEdgeEnabled` kaldırıldı** — Android 16'da zorunlu olduğu için
+  desteklenmiyordu ve prebuild uyarısı veriyordu.
+- `expo prebuild --platform android` uyarısız tamamlanıyor ve manifestte konum
+  izinleri doğrulandı. Üretilen `android/`–`ios/` klasörleri depoya
+  girmiyor; `.gitignore`'a eklendi (yönetilen iş akışı korunuyor).
+
+### APK'yı üretmek için (kullanıcı tarafında)
+
+```
+cd apps/mobile
+npx eas-cli@latest login          # veya EXPO_TOKEN ortam değişkeni
+npx eas-cli@latest build --platform android --profile preview
+```
+
+`eas.json` içindeki `preview` profili APK üretir ve `autoIncrement` ile
+`versionCode` otomatik artar (uzak sürüm kaynağı). Önceki paket
+`versionCode: 7` idi; yeni derleme 8 olmalı.
+
+Derlemeden önce Railway'e dağıtım yapılıp `0010` migration'ının uygulandığı
+loglardan doğrulanmalı; APK canlı API'ye bağlanıyor.
+
 ## Kaynak ve çalışma durumu
 
 - GitHub: `mlh002345-blip/PatiMeet`

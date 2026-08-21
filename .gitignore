@@ -31,3 +31,8 @@ npm-debug.log*
 .idea/
 .vscode/
 *.swp
+
+# Expo prebuild çıktısı — yönetilen iş akışında depoya girmez.
+# EAS derleme sırasında bunları kendisi üretir.
+apps/mobile/android/
+apps/mobile/ios/
