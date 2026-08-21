@@ -2,6 +2,40 @@
 
 Son güncelleme: 20 Ağustos 2026
 
+## 21 Ağustos 2026 — bilgisayar sıfırlama öncesi kurtarma noktası
+
+- Kanonik GitHub deposu: `https://github.com/mlh002345-blip/PatiMeet`
+- Kanonik dal: `claude/bu-mvp-mobile-design-4qt3zc`
+- Son ürün commit'i: `188b99d` (`apply rich PatiMeet product experience`)
+- Bu commit; fotoğraf merkezli premium Ana Sayfa, zengin Keşfet, çalışan Canlı
+  Yürüyüş arayüzü ve koyu dört sekmeli navigasyonu içerir.
+- Son Android test paketi: Expo/EAS build `7c6aa681-2c30-41d2-8db5-bbbaaf81ed68`,
+  Android `versionCode: 7`.
+- Canlı servisler bilgisayarda değil, sağlayıcı hesaplarında durur:
+  Railway API/PostgreSQL, Cloudflare R2 ve Expo/EAS projesi.
+- Gizli anahtarlar GitHub'a yazılmadı. Railway değişkenleri ve Cloudflare R2
+  anahtarları ilgili sağlayıcı hesaplarında korunmalıdır.
+
+### Onaylanmış fakat henüz uygulanmamış kullanıcı notu
+
+- Güvenli Topluluk'ta fotoğraf yükleme seçeneği korunacak fakat **hiçbir
+  bildirim türünde zorunlu olmayacak**.
+- Kayıp hayvan ilanı dahil kullanıcı fotoğrafsız bildirim yayımlayabilecek.
+- Form metni `Fotoğraf ekle — isteğe bağlı` olacak; kayıp hayvan ilanında
+  fotoğraf eklemenin bulunmayı kolaylaştırdığı tavsiye olarak belirtilecek.
+- Değişiklik yalnızca mobil formda değil, API doğrulaması ve testlerde de
+  birlikte uygulanacak.
+
+### Yeni bilgisayarda geri yükleme
+
+1. GitHub hesabına ve `mlh002345-blip/PatiMeet` deposuna erişimi doğrula.
+2. Kanonik dalı klonla/çek: `claude/bu-mvp-mobile-design-4qt3zc`.
+3. Railway, Cloudflare ve Expo hesaplarına giriş yap; proje erişimlerini
+   doğrula. Gizli değerleri sohbet veya GitHub'a kopyalama.
+4. Gerekirse Expo erişim tokenını yeniden üret; eski yerel token dosyasına
+   bağımlı kalma ve tokenı GitHub'a ekleme.
+5. `DEVAM_NOTU.md` dosyasını okuyup yalnızca bu kanonik daldan devam et.
+
 ## Kaynak ve çalışma durumu
 
 - GitHub: `mlh002345-blip/PatiMeet`
