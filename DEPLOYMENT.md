@@ -373,6 +373,33 @@ olmalı; aksi halde uygulama `localhost` arar.
 Sürüm artırma: `app.json` içinde `version`, iOS için `ios.buildNumber`,
 Android için `android.versionCode`.
 
+### 8.1 EAS olmadan Android APK (GitHub Actions)
+
+Ağ politikası EAS'a (`api.expo.dev`) veya Android SDK dağıtımına
+(`dl.google.com`) erişimi kapattığında APK, `.github/workflows/android-apk.yml`
+iş akışıyla GitHub çalıştırıcısında üretilir. Çalıştırıcıda Android SDK hazır
+geldiği için ek kimlik bilgisi veya bulut servisi gerekmez.
+
+Akış: `npm ci` → `expo prebuild --platform android` → `gradlew assembleRelease`.
+`android/` klasörü depoda tutulmaz, her derlemede yeniden üretilir.
+
+Tetikleme:
+
+- `apps/mobile/**` altında bir değişiklik push edildiğinde otomatik,
+- veya Actions sekmesinden `Android APK` iş akışını elle çalıştırarak.
+
+APK, çalışma sayfasındaki derleme çıktısı (artifact) olarak
+`PatiMeet-<sürüm>-vc<versionCode>-<commit>.apk` adıyla 30 gün saklanır.
+
+**Bu APK mağaza sürümü değildir.** React Native şablonu release yapılandırmasını
+debug anahtarıyla imzalar; yalnızca yan yükleme (sideload) ve iç test içindir:
+
+- Cihazda farklı bir anahtarla imzalanmış eski bir PatiMeet varsa, imza
+  uyuşmadığı için önce onu kaldırmak gerekir.
+- Google Play'e gönderim için ayrı bir yükleme anahtarı (upload keystore)
+  oluşturulup deponun Actions gizli anahtarlarında saklanması ve release
+  `signingConfig` kaydının ona bağlanması gerekir.
+
 ---
 
 ## 9. Mağaza gönderim kontrol listesi
