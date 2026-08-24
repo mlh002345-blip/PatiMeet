@@ -5,6 +5,7 @@ import { config } from '../config';
 import {
   ALLOWED_CONTENT_TYPES,
   deleteMedia,
+  DOCUMENT_CONTENT_TYPES,
   storeImage,
   type MediaPurpose,
 } from '../domain/media';
@@ -66,9 +67,13 @@ mediaRouter.post(
 
 mediaRouter.get(
   '/allowed-types',
-  asyncRoute((_req, res) => {
+  asyncRoute((req, res) => {
+    // `document` amacında (sağlık belgeleri) PDF de kabul edilir — bkz.
+    // domain/media.ts#storeImage. Diğer tüm amaçlarda yalnızca görsel.
+    const purpose = typeof req.query.purpose === 'string' ? req.query.purpose : undefined;
+    const contentTypes = purpose === 'document' ? DOCUMENT_CONTENT_TYPES : ALLOWED_CONTENT_TYPES;
     res.json({
-      contentTypes: ALLOWED_CONTENT_TYPES,
+      contentTypes,
       maxBytes: config.storage.maxUploadBytes,
     });
   })

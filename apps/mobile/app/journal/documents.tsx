@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { AppText, Banner, Button, Card, ChoiceGroup, DetailHeader, Field, LoadingState } from '../../src/components/ui';
+import { readFileBytes } from '../../src/fileBytes';
 import { formatShortDate } from '../../src/labels';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../../src/theme';
@@ -94,9 +95,8 @@ export default function DocumentsScreen() {
     setBusy(true);
     setUploadStage('uploading');
     try {
-      const response = await fetch(pending.uri);
-      const blob = await response.blob();
-      const uploaded = await api.uploadPhoto('document', blob, pending.mimeType);
+      const bytes = await readFileBytes(pending.uri);
+      const uploaded = await api.uploadPhoto('document', bytes, pending.mimeType);
       setUploadStage('saving');
       await api.addDocument({
         dogId: params.dogId,

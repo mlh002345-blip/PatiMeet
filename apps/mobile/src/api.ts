@@ -589,7 +589,7 @@ export const api = {
    */
   uploadPhoto: (
     purpose: MediaPurpose,
-    data: Blob,
+    data: Blob | ArrayBuffer,
     contentType: string
   ) =>
     apiRequest<{ key: string; url: string; mediaId: string }>(`/api/media/${purpose}`, {
@@ -602,10 +602,12 @@ export const api = {
   deletePhoto: (mediaId: string) =>
     apiRequest<{ ok: boolean }>(`/api/media/${mediaId}`, { method: 'DELETE' }),
 
-  uploadLimits: () =>
-    apiRequest<{ contentTypes: string[]; maxBytes: number }>('/api/media/allowed-types', {
-      skipAuth: true,
-    }),
+  /** `document` amacı için PDF dahil izin verilen türleri döner. */
+  uploadLimits: (purpose?: MediaPurpose) =>
+    apiRequest<{ contentTypes: string[]; maxBytes: number }>(
+      `/api/media/allowed-types${purpose ? `?purpose=${purpose}` : ''}`,
+      { skipAuth: true }
+    ),
 
   // --- Push bildirimleri ---
 

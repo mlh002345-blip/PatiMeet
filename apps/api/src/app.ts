@@ -21,6 +21,7 @@ import { eventsRouter } from './routes/events';
 import { communityRouter } from './routes/community';
 import { legalRouter } from './routes/legal';
 import { createLocalMediaRouter, mediaRouter } from './routes/media';
+import { checkStorage } from './storage';
 import { messagesRouter } from './routes/messages';
 import { pushRouter } from './routes/push';
 import { safetyRouter } from './routes/safety';
@@ -119,7 +120,9 @@ export function createApp(deps: AppDependencies = {}): express.Express {
       checks.database = error instanceof Error ? error.message : 'hata';
     }
 
-    checks.storage = config.storage.driver;
+    const storageCheck = await checkStorage();
+    if (!storageCheck.ok) ok = false;
+    checks.storage = `${config.storage.driver} — ${storageCheck.detail}`;
     checks.push = config.push.driver;
     checks.googleSignIn = googleVerifier ? 'enabled' : 'disabled';
     checks.appleSignIn = appleVerifier ? 'enabled' : 'disabled';

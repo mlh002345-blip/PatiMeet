@@ -45,6 +45,7 @@ const { getDb, runMigrations, migrationIds } = require('./db') as typeof import(
 const pushDomain = require('./domain/push') as typeof import('./domain/push');
 const appleDomain = require('./domain/apple') as typeof import('./domain/apple');
 const mediaDomain = require('./domain/media') as typeof import('./domain/media');
+const storageDomain = require('./storage') as typeof import('./storage');
 const { createAdminUser } = require('./domain/moderation') as typeof import('./domain/moderation');
 const { ApiError } = require('./http') as typeof import('./http');
 
@@ -286,8 +287,14 @@ async function main(): Promise<void> {
     '/ready sağlayıcı ve altyapı durumunu bildirir',
     ready.body.checks?.appleSignIn === 'enabled' &&
       ready.body.checks?.googleSignIn === 'disabled' &&
-      ready.body.checks?.storage === 'local',
+      typeof ready.body.checks?.storage === 'string' &&
+      ready.body.checks.storage.startsWith('local'),
     ready.body.checks
+  );
+  check(
+    '/ready gerçekten depo erişimini kontrol eder (yalnız sürücü adını değil)',
+    typeof ready.body.checks?.storage === 'string' && ready.body.checks.storage.includes('erişilebilir'),
+    ready.body.checks?.storage
   );
 
   const securityHeaders = await req('GET', '/health');
@@ -443,6 +450,20 @@ async function main(): Promise<void> {
     Array.isArray(allowed.body.contentTypes) && allowed.body.contentTypes.includes('image/jpeg'),
     allowed.body
   );
+  check(
+    'Normal amaçlarda PDF listelenmez',
+    !allowed.body.contentTypes.includes('application/pdf'),
+    allowed.body
+  );
+
+  const allowedDocument = await req('GET', '/api/media/allowed-types?purpose=document');
+  check(
+    'document amacında PDF de listelenir',
+    Array.isArray(allowedDocument.body.contentTypes) &&
+      allowedDocument.body.contentTypes.includes('application/pdf') &&
+      allowedDocument.body.contentTypes.includes('image/jpeg'),
+    allowedDocument.body
+  );
 
   const noAuthUpload = await req('POST', '/api/media/user_photo', { raw: jpeg() });
   check('Yükleme oturum gerektirir', noAuthUpload.status === 401);
@@ -572,6 +593,87 @@ async function main(): Promise<void> {
     check('Doğrulama geçersiz içeriği reddeder', false);
   } catch (error) {
     check('Doğrulama geçersiz içeriği reddeder', error instanceof ApiError);
+  }
+
+  // ---------------------------------------------------------------------
+  // Depo erişilemez olduğunda: sağlayıcıya özgü ayrıntı sızdırmadan anlamlı
+  // hata kodu döner (bkz. domain/media.ts#toStorageApiError).
+  {
+    const realStorage = storageDomain.getStorage();
+
+    // Bağlantı hatası → storage_unavailable (503)
+    storageDomain.setStorage({
+      driver: 's3',
+      async put() {
+        const err = new Error('connect ECONNREFUSED 10.0.0.1:443') as Error & { code: string };
+        err.code = 'ECONNREFUSED';
+        throw err;
+      },
+      async remove() {},
+      async urlFor() {
+        return 'https://example.invalid/x';
+      },
+      async exists() {
+        return false;
+      },
+      async ping() {
+        throw new Error('unreachable');
+      },
+    });
+
+    const unreachable = await req('POST', '/api/media/user_photo', { token: adaToken, raw: jpeg() });
+    check(
+      'Depo erişilemezken storage_unavailable döner',
+      unreachable.status === 503 && unreachable.body.error?.code === 'storage_unavailable',
+      unreachable.body
+    );
+    check(
+      'storage_unavailable mesajı sağlayıcı ayrıntısı içermez',
+      !JSON.stringify(unreachable.body).includes('ECONNREFUSED') &&
+        !JSON.stringify(unreachable.body).includes('10.0.0.1'),
+      unreachable.body
+    );
+
+    const readyDown = await req('GET', '/ready');
+    check(
+      '/ready depo erişilemezken 503 döner',
+      readyDown.status === 503 && readyDown.body.ok === false,
+      readyDown.body
+    );
+    check(
+      '/ready yanıtı sağlayıcı ayrıntısı sızdırmaz',
+      !JSON.stringify(readyDown.body).includes('unreachable'),
+      readyDown.body
+    );
+
+    // Bağlantı dışı bir hata (ör. yetkisiz/kova hatası) → upload_failed (502)
+    storageDomain.setStorage({
+      driver: 's3',
+      async put() {
+        const err = new Error('Access Denied') as Error & { name: string };
+        err.name = 'AccessDenied';
+        throw err;
+      },
+      async remove() {},
+      async urlFor() {
+        return 'https://example.invalid/x';
+      },
+      async exists() {
+        return false;
+      },
+      async ping() {},
+    });
+
+    const denied = await req('POST', '/api/media/user_photo', { token: adaToken, raw: jpeg() });
+    check(
+      'Sağlayıcı isteği reddettiğinde upload_failed döner',
+      denied.status === 502 && denied.body.error?.code === 'upload_failed',
+      denied.body
+    );
+
+    storageDomain.setStorage(realStorage);
+    const recovered = await req('GET', '/ready');
+    check('Depo geri yüklenince /ready tekrar 200 döner', recovered.status === 200, recovered.body);
   }
 
   // ---------------------------------------------------------------------

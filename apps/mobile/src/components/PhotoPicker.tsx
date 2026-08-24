@@ -3,6 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 import { api, ApiError } from '../api';
+import { readFileBytes } from '../fileBytes';
 import { colors, radius, spacing } from '../theme';
 import { AppText } from './ui';
 
@@ -67,15 +68,9 @@ export function PhotoPicker({
       setLocalPreview(asset.uri);
       setBusy(true);
 
-      /**
-       * Dosyayı bayta çeviriyoruz. `fetch` yerel dosya URI'lerini okuyabilir;
-       * böylece ek bir dosya sistemi bağımlılığı gerekmiyor.
-       */
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-
-      const contentType = asset.mimeType || blob.type || 'image/jpeg';
-      const uploaded = await api.uploadPhoto(purpose, blob, contentType);
+      const bytes = await readFileBytes(asset.uri);
+      const contentType = asset.mimeType || 'image/jpeg';
+      const uploaded = await api.uploadPhoto(purpose, bytes, contentType);
 
       onChange({ key: uploaded.key, url: uploaded.url });
       setLocalPreview(null);

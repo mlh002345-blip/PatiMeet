@@ -1,7 +1,59 @@
+import { config } from '../config';
 import { getDb, nowMs, type Db } from '../db';
-import { badRequest, forbidden, notFound } from '../http';
+import { ApiError, badRequest, forbidden, notFound } from '../http';
 import { newId } from '../ids';
+import { logger } from '../logger';
 import { getStorage, isMediaKey, MEDIA_KEY_PREFIX } from '../storage';
+
+/**
+ * Ağ/erişim düzeyinde bir depo hatası mı, yoksa depoya ulaşılıp da isteğin
+ * kendisi mi reddedildi? Bu ayrım yalnız hata koduna yansır; sağlayıcıya
+ * özgü hiçbir ayrıntı (uç adresi, kova adı, kimlik bilgisi) istemciye
+ * dönmez — o yalnızca sunucu günlüğüne yazılır.
+ */
+function isConnectivityError(error: unknown): boolean {
+  const code = (error as { code?: string; name?: string } | null)?.code;
+  const name = (error as { code?: string; name?: string } | null)?.name;
+  return (
+    code === 'ENOTFOUND' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ETIMEDOUT' ||
+    name === 'TimeoutError' ||
+    name === 'NetworkingError'
+  );
+}
+
+/** Depo hatasını güvenli bağlamla loglar ve istemciye anlamlı ama sağlayıcı ayrıntısı içermeyen bir hata döner. */
+function toStorageApiError(
+  error: unknown,
+  action: 'upload' | 'remove' | 'configure'
+): ApiError {
+  logger.error(
+    {
+      action,
+      driver: config.storage.driver,
+      name: (error as { name?: string } | null)?.name,
+      message: error instanceof Error ? error.message : String(error),
+    },
+    'depo işlemi başarısız'
+  );
+
+  // Depo yapılandırılamadıysa (eksik/uyumsuz ortam değişkenleri) bu bir
+  // erişim/bağlantı sorunu değil, doğrudan hizmetin kullanılamaz olmasıdır.
+  if (action === 'configure' || isConnectivityError(error)) {
+    return new ApiError(
+      503,
+      'storage_unavailable',
+      'Depolama şu anda kullanılamıyor. Lütfen birazdan tekrar deneyin.'
+    );
+  }
+
+  return new ApiError(
+    502,
+    'upload_failed',
+    'Dosya yüklenemedi. Lütfen tekrar deneyin.'
+  );
+}
 
 export type MediaPurpose =
   | 'user_photo'
@@ -146,9 +198,19 @@ export async function storeImage(
   });
 
   const key = `${MEDIA_KEY_PREFIX}${purpose}/${newId()}.${extension}`;
-  const storage = getStorage();
+  let storage: ReturnType<typeof getStorage>;
+  try {
+    storage = getStorage();
+  } catch (error) {
+    // Yapılandırma hatası (eksik/uyumsuz ortam değişkenleri) — bkz. storage/index.ts.
+    throw toStorageApiError(error, 'configure');
+  }
 
-  await storage.put(key, buffer, contentType);
+  try {
+    await storage.put(key, buffer, contentType);
+  } catch (error) {
+    throw toStorageApiError(error, 'upload');
+  }
 
   const id = newId();
   try {
@@ -233,7 +295,13 @@ export async function deleteMedia(
   if (!row || row.status !== 'active') throw notFound('Görsel bulunamadı.');
   if (row.owner_id !== ownerId) throw forbidden('Bu görseli silme yetkiniz yok.');
 
-  await getStorage().remove(row.storage_key).catch(() => undefined);
+  // Kayıt (veritabanı) her koşulda silinir; depo hatası kullanıcının silme
+  // işlemini engellemez ama tanılama için loglanır (bkz. toStorageApiError).
+  try {
+    await getStorage().remove(row.storage_key);
+  } catch (error) {
+    toStorageApiError(error, 'remove');
+  }
 
   await db.tx(async (t) => {
     await t.exec(`UPDATE media_objects SET status = 'deleted' WHERE id = $1`, [mediaId]);

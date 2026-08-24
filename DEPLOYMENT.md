@@ -174,6 +174,31 @@ Uygulama tarafında zaten sağlanan korumalar:
 - Bir kullanıcı başkasının görselini profiline bağlayamaz veya silemez
 - İstemciden rastgele bir adres `photoUrl` olarak yazılamaz
 - Hesap silmede kullanıcının tüm görselleri depodan kaldırılır
+- Bir belge silindiğinde altındaki dosya da depodan (R2) kaldırılır
+
+### 3.4 Yapılandırma hatalarını tanılama
+
+`S3_REGION=auto` (R2 kuralı) verilmiş ama `S3_ENDPOINT` boşsa sunucu artık
+açıkça hata verir: bu kombinasyon sessizce gerçek AWS S3'e bağlanıp R2
+kimlik bilgileriyle her zaman başarısız olurdu (yükleme "Beklenmeyen bir
+hata oluştu" diye görünür, kök neden hiçbir yerde görünmezdi).
+
+`GET /ready` artık depo sürücüsünün adını değil, **gerçek erişimi** kontrol
+eder (kova var mı, kimlik bilgileri geçerli mi) — `checks.storage` alanı
+`"s3 — erişilebilir"` veya `"s3 — erişilemiyor"` döner (sonuç 30 saniye
+önbelleklenir). Sağlayıcıya özgü hata ayrıntısı (uç adresi, kova adı, hata
+kodu) yalnızca sunucu günlüğüne yazılır, `/ready` yanıtına veya istemciye
+asla dönmez.
+
+Yükleme uçları artık şu hata kodlarını döner (hepsi sağlayıcı ayrıntısı
+içermeyen genel mesajlarla):
+
+| Kod | HTTP | Anlamı |
+|---|---|---|
+| `storage_unavailable` | 503 | Depoya bağlanılamadı (yanlış yapılandırma veya ağ hatası) — tekrar deneyin |
+| `upload_failed` | 502 | Depo isteği reddetti (ör. yetki hatası) — tekrar deneyin |
+| `unsupported_file_type` | 400 | Dosya içeriği izin verilen türlerden değil |
+| `file_too_large` | 400 | `MAX_UPLOAD_BYTES` sınırı aşıldı |
 
 ---
 

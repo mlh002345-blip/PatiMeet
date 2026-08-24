@@ -46,5 +46,10 @@ export function createLocalStorage(baseDir: string, publicBaseUrl: string): Obje
         return false;
       }
     },
+
+    async ping() {
+      await fs.mkdir(baseDir, { recursive: true });
+      await fs.access(baseDir);
+    },
   };
 }

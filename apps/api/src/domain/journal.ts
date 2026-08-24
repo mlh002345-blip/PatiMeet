@@ -1,7 +1,7 @@
 import { getDb, nowMs, type Db } from '../db';
 import { badRequest, forbidden, notFound } from '../http';
 import { newId } from '../ids';
-import { assertOwnedMediaKey } from './media';
+import { assertOwnedMediaKey, deleteMedia } from './media';
 import { resolveMediaUrl } from '../storage';
 
 /**
@@ -322,13 +322,29 @@ export async function listDocuments(userId: string, dogId: string, db: Db = getD
 }
 
 export async function deleteDocument(userId: string, documentId: string, db: Db = getDb()) {
-  const row = await db.one<{ owner_id: string }>(
-    'SELECT owner_id FROM dog_documents WHERE id = $1',
+  const row = await db.one<{ owner_id: string; storage_key: string }>(
+    'SELECT owner_id, storage_key FROM dog_documents WHERE id = $1',
     [documentId]
   );
   if (!row) throw notFound('Belge bulunamadı.');
   if (row.owner_id !== userId) throw forbidden('Bu belgeyi silme yetkiniz yok.');
-  await db.exec('DELETE FROM dog_documents WHERE id = $1', [documentId]);
+
+  /**
+   * Belge kaydı silinirken altındaki dosya da depodan (R2) kaldırılır;
+   * aksi hâlde her silinen belge kovada sahipsiz kalırdı. `deleteMedia`
+   * hem `media_objects` kaydını hem gerçek dosyayı temizler, üstelik
+   * `dog_documents` satırını da kendisi siler (bkz. domain/media.ts).
+   */
+  const media = await db.one<{ id: string }>(
+    `SELECT id FROM media_objects WHERE storage_key = $1 AND owner_id = $2 AND status = 'active'`,
+    [row.storage_key, userId]
+  );
+  if (media) {
+    await deleteMedia(userId, media.id, db);
+  } else {
+    // Eski/uyumsuz kayıt: bağlı bir media_objects satırı yok, yalnız belgeyi sil.
+    await db.exec('DELETE FROM dog_documents WHERE id = $1', [documentId]);
+  }
 }
 
 // ---------------------------------------------------------------------------

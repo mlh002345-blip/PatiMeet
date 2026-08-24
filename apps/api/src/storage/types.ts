@@ -33,4 +33,13 @@ export interface ObjectStorage {
   urlFor(key: string, options?: { forcePrivate?: boolean }): Promise<string>;
 
   exists(key: string): Promise<boolean>;
+
+  /**
+   * Depoya gerçekten erişilebildiğini doğrular (kimlik bilgileri, uç adresi,
+   * kova varlığı). Nesne yazmadan/okumadan, yalnız kovanın kendisini
+   * sorgulayarak yapılır — `/ready` gibi sık çağrılan uçlarda ucuz olsun diye.
+   * Başarısızsa hata mesajını değil, çağıranın günlükleyeceği bir `Error`
+   * fırlatır; sağlayıcıya özgü ayrıntı istemciye asla dönmemeli.
+   */
+  ping(): Promise<void>;
 }

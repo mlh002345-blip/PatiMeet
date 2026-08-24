@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError, type ZodSchema } from 'zod';
+import { logger } from './logger';
 
 /** İstemciye anlamlı mesaj dönebilmek için kullanılan hata tipi. */
 export class ApiError extends Error {
@@ -53,7 +54,10 @@ export function errorHandler(
     res.status(error.status).json({ error: { code: error.code, message: error.message } });
     return;
   }
-  console.error('[patimeet] beklenmeyen hata:', error);
+  logger.error(
+    { err: error instanceof Error ? error.message : String(error) },
+    'beklenmeyen hata'
+  );
   res.status(500).json({
     error: { code: 'internal_error', message: 'Beklenmeyen bir hata oluştu. Tekrar deneyin.' },
   });

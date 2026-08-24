@@ -483,6 +483,46 @@ async function main(): Promise<void> {
   const foreignDocs = await req('GET', `/api/journal/${ali.dogId}/documents`, { token: beren.token });
   check('Başkası sağlık belgelerini göremez', foreignDocs.status === 404, foreignDocs.body);
 
+  // Belge silinince hem kayıt hem depodaki dosya kaldırılmalı.
+  const docBeforeDelete = await req('GET', `/api/journal/${ali.dogId}/documents`, {
+    token: ali.token,
+  });
+  const docUrl = docBeforeDelete.body.documents[0]?.url as string | undefined;
+  check('Silinmeden önce belge süreli adresi açılabiliyor', typeof docUrl === 'string' && docUrl.length > 0, docUrl);
+  check(
+    'Silinmeden önce dosya depoda mevcut',
+    fs.existsSync(path.join(uploadDir, pdf.body.key)),
+    pdf.body.key
+  );
+
+  const deleteDoc = await req('DELETE', `/api/journal/documents/${doc.body.id}`, { token: ali.token });
+  check('Belge silinir', deleteDoc.status === 200, deleteDoc.body);
+
+  const docsAfterDelete = await req('GET', `/api/journal/${ali.dogId}/documents`, {
+    token: ali.token,
+  });
+  check('Silinen belge listede görünmez', docsAfterDelete.body.documents.length === 0, docsAfterDelete.body.documents);
+  check(
+    'Belge silinince dosya depodan da kaldırılır',
+    !fs.existsSync(path.join(uploadDir, pdf.body.key)),
+    pdf.body.key
+  );
+
+  const mediaRowAfterDelete = await getDb().one<{ status: string }>(
+    'SELECT status FROM media_objects WHERE storage_key = $1',
+    [pdf.body.key]
+  );
+  check(
+    'Belgenin media_objects kaydı deleted olarak işaretlenir',
+    mediaRowAfterDelete?.status === 'deleted',
+    mediaRowAfterDelete
+  );
+
+  const foreignDelete = await req('DELETE', `/api/journal/documents/nonexistent-or-foreign`, {
+    token: beren.token,
+  });
+  check('Var olmayan/başkasının belgesi silinemez', foreignDelete.status === 404, foreignDelete.body);
+
   const berenFile = await upload(beren.token, 'document', PDF, 'application/pdf');
   const stolenDoc = await req('POST', '/api/journal/documents', {
     token: ali.token,

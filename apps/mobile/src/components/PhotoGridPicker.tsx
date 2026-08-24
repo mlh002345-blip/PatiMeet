@@ -2,6 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 import { api, ApiError, type MediaPurpose } from '../api';
+import { readFileBytes } from '../fileBytes';
 import { colors, radius, spacing } from '../theme';
 import { AppText } from './ui';
 
@@ -73,10 +74,9 @@ export function PhotoGridPicker({
       // Sırayla yüklüyoruz: mobil bağlantıda paralel yükleme zaman aşımı riskini artırır.
       for (const asset of result.assets.slice(0, remaining)) {
         try {
-          const response = await fetch(asset.uri);
-          const blob = await response.blob();
-          const contentType = asset.mimeType || blob.type || 'image/jpeg';
-          const res = await api.uploadPhoto(purpose, blob, contentType);
+          const bytes = await readFileBytes(asset.uri);
+          const contentType = asset.mimeType || 'image/jpeg';
+          const res = await api.uploadPhoto(purpose, bytes, contentType);
           uploaded.push({ key: res.key, url: res.url });
         } catch (err) {
           failures.push(err instanceof ApiError ? err.message : 'Bir fotoğraf yüklenemedi.');

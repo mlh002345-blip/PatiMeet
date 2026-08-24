@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -68,6 +69,14 @@ export function createS3Storage(options: S3Options): ObjectStorage {
       } catch {
         return false;
       }
+    },
+
+    async ping() {
+      // Nesne yazmadan/okumadan yalnız kovanın erişilebilirliğini doğrular
+      // (kimlik bilgileri, uç adresi, kova adı doğru mu). Yanlış `S3_ENDPOINT`
+      // ile gerçek AWS S3'e gidip R2 kimlik bilgileriyle imza uyuşmazlığı gibi
+      // "yapılandırma inşa edildi ama işe yaramıyor" durumlarını burada yakalarız.
+      await client.send(new HeadBucketCommand({ Bucket: options.bucket }));
     },
   };
 }
