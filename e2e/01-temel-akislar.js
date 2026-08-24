@@ -122,6 +122,25 @@ async function main() {
   check('Yasal metin bağlantıları var', settings.includes('Kullanıcı Sözleşmesi'));
   check('Hesap silme mevcut', settings.includes('Hesabımı sil'));
 
+  // --- Eski /neighbourhood derin bağlantısı ---
+  // Eski route dosyası artık yalnızca Mahalle sekmesine Redirect uyguluyor;
+  // ikinci bir Mahalle akışı yok, tab çubuğu da kaybolmuyor.
+  await page.goto(`${BASE}/neighbourhood`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3000);
+  const oldNeighbourhoodUrl = await page.evaluate(() => window.location.pathname);
+  const oldNeighbourhoodBody = await page.textContent('body');
+  check(
+    'Eski /neighbourhood bağlantısı Mahalle sekmesine yönlendiriyor',
+    oldNeighbourhoodUrl === '/neighbourhood' && oldNeighbourhoodBody.includes('Semtinde bugün'),
+    `url: ${oldNeighbourhoodUrl}`
+  );
+  const mahalleTabAfterRedirect = await page.evaluate(() =>
+    [...document.querySelectorAll('a[href]')].some(
+      (el) => el.getAttribute('href') === '/neighbourhood' && (el.textContent || '').includes('Mahalle')
+    )
+  );
+  check('Yönlendirme sonrası sekme çubuğu ve Mahalle sekmesi görünüyor', mahalleTabAfterRedirect);
+
   // --- Sohbet akışı ---
   console.log('\n→ Sohbet akışı');
   await goTab('Mesajlar', 'Mesajlar');
