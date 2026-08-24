@@ -99,6 +99,8 @@ walksRouter.post(
       accepted: result.accepted,
       /** İstemci kaç noktanın neden atıldığını görebilsin. */
       rejected: result.rejected,
+      /** Zaten kayıtlı zaman damgalarıyla eşleşip sessizce elenen tekrar gönderimler. */
+      duplicate: result.duplicate,
       maxAccuracyMeters: MAX_ACCURACY_METERS,
     });
   })

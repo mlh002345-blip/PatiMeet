@@ -208,7 +208,12 @@ export async function appendPoints(
   points: WalkPointInput[],
   durationSeconds: number,
   db: Db = getDb()
-): Promise<{ walk: WalkRow; rejected: FilterResult['rejected']; accepted: number }> {
+): Promise<{
+  walk: WalkRow;
+  rejected: FilterResult['rejected'];
+  accepted: number;
+  duplicate: number;
+}> {
   const walk = await ownedWalk(userId, walkId, db);
   if (walk.status !== 'active') {
     throw badRequest('Yalnızca süren bir yürüyüşe nokta eklenebilir.', 'walk_not_active');
@@ -219,9 +224,31 @@ export async function appendPoints(
     [walkId]
   );
 
+  /**
+   * Bağlantı kesilip yeniden gönderim (retry) idempotency'si.
+   *
+   * İstemci bir toplu gönderimin onayını (ack) alamazsa aynı noktaları
+   * tekrar gönderebilir. Cihaz saatindeki `recordedAt` her fiziksel nokta
+   * için doğal ve kalıcı bir anahtardır; bu yürüyüşte zaten kayıtlı olan
+   * zaman damgaları, mesafeyi ikinci kez artırmadan elenir. `walk_points`
+   * üzerindeki `UNIQUE(walk_id, recorded_at)` bunu veri tabanı seviyesinde
+   * de garanti eder (bkz. migration 0011).
+   */
+  const recordedTimes = points.map((p) => p.recordedAt);
+  const already =
+    recordedTimes.length === 0
+      ? []
+      : await db.query<{ recorded_at: number }>(
+          'SELECT recorded_at FROM walk_points WHERE walk_id = $1 AND recorded_at = ANY($2)',
+          [walkId, recordedTimes]
+        );
+  const alreadySet = new Set(already.map((row) => Number(row.recorded_at)));
+  const newPoints = points.filter((point) => !alreadySet.has(point.recordedAt));
+  const duplicateCount = points.length - newPoints.length;
+
   const filtered = filterPoints(
     last ? { lat: last.lat, lng: last.lng, recordedAt: last.recorded_at } : null,
-    points
+    newPoints
   );
 
   const ts = nowMs();
@@ -232,12 +259,13 @@ export async function appendPoints(
   await db.tx(async (t) => {
     let seq = (last?.seq ?? -1) + 1;
     for (const point of filtered.accepted) {
-      await t.exec(
+      const inserted = await t.exec(
         `INSERT INTO walk_points (id, walk_id, seq, lat, lng, accuracy, recorded_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (walk_id, recorded_at) DO NOTHING`,
         [newId(), walkId, seq, point.lat, point.lng, point.accuracy ?? null, point.recordedAt]
       );
-      seq += 1;
+      if (inserted.rowCount > 0) seq += 1;
     }
 
     await t.exec(
@@ -250,7 +278,12 @@ export async function appendPoints(
   });
 
   const row = await db.one<WalkRow>('SELECT * FROM walks WHERE id = $1', [walkId]);
-  return { walk: row!, rejected: filtered.rejected, accepted: filtered.accepted.length };
+  return {
+    walk: row!,
+    rejected: filtered.rejected,
+    accepted: filtered.accepted.length,
+    duplicate: duplicateCount,
+  };
 }
 
 export async function setWalkStatus(

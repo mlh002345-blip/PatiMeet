@@ -1,8 +1,36 @@
 import { createApp } from './app';
 import { config } from './config';
-import { getDb, runMigrations } from './db';
+import { getDb, runMigrations, type Db } from './db';
 import { ensureBootstrapAdmin } from './domain/moderation';
+import { reconcilePushReceipts } from './domain/push';
 import { logger } from './logger';
+
+/** Bekleyen Expo push "receipt"lerini kontrol etme sıklığı. */
+const RECEIPT_RECONCILE_INTERVAL_MS = 15 * 60_000;
+
+/**
+ * Receipt uzlaştırmasını periyodik çalıştırır.
+ *
+ * Yalnızca Expo push etkinken anlamlı; kapalıysa (`config.push.driver !==
+ * 'expo'`) hiç zamanlanmaz. Tek bir hata döngüyü durdurmaz.
+ */
+function schedulePushReceiptReconciliation(db: Db): NodeJS.Timeout | null {
+  if (config.push.driver !== 'expo') return null;
+
+  const tick = () => {
+    reconcilePushReceipts(db).catch((error) => {
+      logger.warn(
+        { err: error instanceof Error ? error.message : String(error) },
+        'push receipt uzlaştırması başarısız'
+      );
+    });
+  };
+
+  const timer = setInterval(tick, RECEIPT_RECONCILE_INTERVAL_MS);
+  timer.unref();
+  tick();
+  return timer;
+}
 
 async function main(): Promise<void> {
   const db = getDb();
@@ -30,6 +58,8 @@ async function main(): Promise<void> {
 
   await ensureBootstrapAdmin(config.adminBootstrapEmail, config.adminBootstrapPassword);
 
+  const receiptTimer = schedulePushReceiptReconciliation(db);
+
   const app = createApp();
   const server = app.listen(config.port, config.host, () => {
     logger.info(
@@ -51,6 +81,7 @@ async function main(): Promise<void> {
    */
   const shutdown = (signal: string) => {
     logger.info({ signal }, 'kapatma başladı');
+    if (receiptTimer) clearInterval(receiptTimer);
 
     // Kapanma takılırsa süreci zorla bitir; deployment sonsuz beklemesin.
     const force = setTimeout(() => {

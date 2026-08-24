@@ -1,31 +1,201 @@
-name: Android APK
+name: Android derlemesi
 
 # Expo yönetilen iş akışında android/ klasörü depoda tutulmaz; her derlemede
 # `expo prebuild` ile yeniden üretilir. Derleme EAS bulut servisine bağlı
 # değildir, tamamen GitHub çalıştırıcısındaki Android SDK ile yapılır.
+#
+# Tetikleme kasıtlı olarak manuel/etiket temellidir — her `apps/mobile`
+# değişikliğinde otomatik derleme yapmaz. `checks` işi (typecheck + API
+# testleri + E2E) ise her push ve pull request'te çalışır; derleme işleri
+# yalnız bu iş başarılıysa başlar.
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - claude/bu-mvp-mobile-design-4qt3zc
-    paths:
-      - 'apps/mobile/**'
-      - '.github/workflows/android-apk.yml'
+    tags:
+      - 'android-v*'
+  pull_request:
+    branches:
+      - claude/bu-mvp-mobile-design-4qt3zc
+  workflow_dispatch:
+    inputs:
+      build_android:
+        description: 'APK/AAB derlemesini de çalıştır'
+        type: boolean
+        default: true
 
 concurrency:
-  group: android-apk-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CI: '1'
+  EXPO_NO_TELEMETRY: '1'
+
 jobs:
-  build:
-    name: Release APK derle
+  # =========================================================================
+  # Zorunlu kontroller — derlemeden önce her zaman çalışır.
+  # =========================================================================
+  checks:
+    name: Typecheck ve API testleri
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: Node kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: API bağımlılıklarını kur
+        working-directory: apps/api
+        run: npm ci
+
+      - name: API typecheck
+        working-directory: apps/api
+        run: npm run typecheck
+
+      - name: API test paketi (tümü)
+        working-directory: apps/api
+        run: npm run test:all
+
+      - name: Mobil bağımlılıklarını kur
+        working-directory: apps/mobile
+        run: npm ci
+
+      - name: Mobil typecheck
+        working-directory: apps/mobile
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Sürüm/versionCode tutarlılığını doğrula
+        working-directory: apps/mobile
+        run: |
+          node -e "
+            const j = require('./app.json').expo;
+            const semver = /^\d+\.\d+\.\d+$/;
+            if (!semver.test(j.version)) {
+              console.error('Geçersiz version: ' + j.version + ' (major.minor.patch bekleniyor)');
+              process.exit(1);
+            }
+            if (!Number.isInteger(j.android.versionCode) || j.android.versionCode < 1) {
+              console.error('Geçersiz android.versionCode: ' + j.android.versionCode);
+              process.exit(1);
+            }
+            if (!/^\d+$/.test(String(j.ios.buildNumber))) {
+              console.error('Geçersiz ios.buildNumber: ' + j.ios.buildNumber);
+              process.exit(1);
+            }
+            console.log('Sürüm tutarlı: version=' + j.version + ' androidVersionCode=' + j.android.versionCode + ' iosBuildNumber=' + j.ios.buildNumber);
+          "
+
+  # =========================================================================
+  # Uçtan uca akış testleri — API + web hedefi bu işte ayağa kaldırılır.
+  # =========================================================================
+  e2e:
+    name: E2E akışları (web hedefi)
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: Node kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: API bağımlılıklarını kur
+        working-directory: apps/api
+        run: npm ci
+
+      - name: Mobil bağımlılıklarını kur
+        working-directory: apps/mobile
+        run: npm ci
+
+      - name: E2E bağımlılıklarını kur
+        working-directory: e2e
+        run: npm ci
+
+      - name: Playwright Chromium kur
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: API sunucusunu başlat (arka planda)
+        working-directory: apps/api
+        env:
+          JWT_SECRET: e2e-ci-secret
+          PGLITE_DATA_DIR: ./data/e2e-ci
+          STORAGE_DRIVER: local
+          PUSH_DRIVER: none
+          PORT: '4000'
+        run: |
+          rm -rf ./data/e2e-ci
+          nohup npx tsx src/server.ts > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4000/health > /dev/null && exit 0
+            sleep 1
+          done
+          echo "API 30 saniyede ayağa kalkmadı"; cat /tmp/api.log; exit 1
+
+      - name: Demo veriyi yükle
+        working-directory: apps/api
+        env:
+          JWT_SECRET: e2e-ci-secret
+          PGLITE_DATA_DIR: ./data/e2e-ci
+        run: npx tsx src/seed.ts
+
+      - name: Web hedefini başlat (arka planda)
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_API_URL: http://127.0.0.1:4000
+        run: |
+          nohup npx expo start --web --port 8081 > /tmp/web.log 2>&1 &
+          for i in $(seq 1 90); do
+            curl -sf http://127.0.0.1:8081 > /dev/null && exit 0
+            sleep 2
+          done
+          echo "Web hedefi 180 saniyede ayağa kalkmadı"; cat /tmp/web.log; exit 1
+
+      - name: E2E akışlarını çalıştır
+        working-directory: e2e
+        env:
+          APP_URL: http://127.0.0.1:8081
+          GOOGLE_EXPECTED: absent
+        run: npm test
+
+      - name: Sunucu günlüklerini yükle (başarısızlıkta)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: |
+            /tmp/api.log
+            /tmp/web.log
+          retention-days: 7
+
+  # =========================================================================
+  # Android APK — iç test için. Yalnız `checks` (ve push/tag olayında `e2e`)
+  # başarılıysa çalışır.
+  # =========================================================================
+  build-apk:
+    name: İç test APK'sı derle
+    needs: [checks, e2e]
+    # Yalnız manuel tetikleme (workflow_dispatch) veya `android-v*` etiketi
+    # APK derler — sıradan bir dal push'u yalnız `checks`+`e2e`'yi çalıştırır.
+    if: >
+      always() && needs.checks.result == 'success' && needs.e2e.result == 'success' &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.build_android == 'true') ||
+        startsWith(github.ref, 'refs/tags/android-v')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      CI: '1'
-      EXPO_NO_TELEMETRY: '1'
-
+    outputs:
+      apk_name: ${{ steps.apk.outputs.name }}
     steps:
       - name: Depoyu al
         uses: actions/checkout@v4
@@ -82,13 +252,14 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: APK'yi adlandır
+      - name: APK'yi adlandır ve SHA-256 üret
         id: apk
         working-directory: apps/mobile/android/app/build/outputs/apk/release
         run: |
           SHORT_SHA="$(echo '${{ github.sha }}' | cut -c1-7)"
           NAME="PatiMeet-${{ steps.appinfo.outputs.version }}-vc${{ steps.appinfo.outputs.version_code }}-${SHORT_SHA}.apk"
           mv app-release.apk "$NAME"
+          sha256sum "$NAME" | tee "${NAME}.sha256"
           echo "name=${NAME}" >> "$GITHUB_OUTPUT"
           ls -lh "$NAME"
 
@@ -96,6 +267,119 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.apk.outputs.name }}
-          path: apps/mobile/android/app/build/outputs/apk/release/${{ steps.apk.outputs.name }}
+          path: |
+            apps/mobile/android/app/build/outputs/apk/release/${{ steps.apk.outputs.name }}
+            apps/mobile/android/app/build/outputs/apk/release/${{ steps.apk.outputs.name }}.sha256
           if-no-files-found: error
           retention-days: 30
+
+  # =========================================================================
+  # Google Play için imzalı AAB — yalnız yükleme anahtarı secrets'ta varsa
+  # çalışır. Anahtar yoksa iş atlanır; hiçbir koşulda debug anahtarıyla
+  # mağaza paketi üretilmez.
+  # =========================================================================
+  build-aab:
+    name: Play Store AAB'si derle (imzalı)
+    needs: [checks, e2e]
+    if: >
+      always() && needs.checks.result == 'success' && needs.e2e.result == 'success' &&
+      startsWith(github.ref, 'refs/tags/android-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: Yükleme anahtarı yapılandırılmış mı kontrol et
+        id: keystore
+        run: |
+          if [ -n "${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}" ] && \
+             [ -n "${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}" ] && \
+             [ -n "${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}" ] && \
+             [ -n "${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::ANDROID_UPLOAD_KEYSTORE_BASE64 / ANDROID_UPLOAD_STORE_PASSWORD / ANDROID_UPLOAD_KEY_ALIAS / ANDROID_UPLOAD_KEY_PASSWORD secrets'tan biri veya birkaçı eksik. Play Store AAB'si atlanıyor — debug anahtarıyla mağaza paketi üretilmez. Kurulum için DEPLOYMENT.md §8.1'e bakın."
+          fi
+
+      - name: Node kur
+        if: steps.keystore.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: JDK 17 kur
+        if: steps.keystore.outputs.configured == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Bağımlılıkları kur
+        if: steps.keystore.outputs.configured == 'true'
+        working-directory: apps/mobile
+        run: npm ci
+
+      - name: Sürüm bilgisini oku
+        if: steps.keystore.outputs.configured == 'true'
+        id: appinfo
+        working-directory: apps/mobile
+        run: |
+          echo "version=$(node -p "require('./app.json').expo.version")" >> "$GITHUB_OUTPUT"
+          echo "version_code=$(node -p "require('./app.json').expo.android.versionCode")" >> "$GITHUB_OUTPUT"
+
+      - name: Native projeyi üret (expo prebuild)
+        if: steps.keystore.outputs.configured == 'true'
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --no-install --clean
+
+      - name: Yükleme anahtarını kur
+        if: steps.keystore.outputs.configured == 'true'
+        working-directory: apps/mobile/android
+        run: |
+          echo "${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > app/upload-keystore.jks
+          {
+            echo ''
+            echo "MYAPP_UPLOAD_STORE_FILE=upload-keystore.jks"
+            echo "MYAPP_UPLOAD_KEY_ALIAS=${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}"
+            echo "MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}"
+            echo "MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}"
+            echo 'org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g'
+          } >> gradle.properties
+
+      - name: build.gradle'ı release imzasına yönlendir
+        if: steps.keystore.outputs.configured == 'true'
+        working-directory: apps/mobile
+        run: node scripts/patch-android-release-signing.js
+
+      - name: AAB derle
+        if: steps.keystore.outputs.configured == 'true'
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: AAB'yi adlandır ve SHA-256 üret
+        if: steps.keystore.outputs.configured == 'true'
+        id: aab
+        working-directory: apps/mobile/android/app/build/outputs/bundle/release
+        run: |
+          SHORT_SHA="$(echo '${{ github.sha }}' | cut -c1-7)"
+          NAME="PatiMeet-${{ steps.appinfo.outputs.version }}-vc${{ steps.appinfo.outputs.version_code }}-${SHORT_SHA}.aab"
+          mv app-release.aab "$NAME"
+          sha256sum "$NAME" | tee "${NAME}.sha256"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: AAB'yi yükle
+        if: steps.keystore.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.aab.outputs.name }}
+          path: |
+            apps/mobile/android/app/build/outputs/bundle/release/${{ steps.aab.outputs.name }}
+            apps/mobile/android/app/build/outputs/bundle/release/${{ steps.aab.outputs.name }}.sha256
+          if-no-files-found: error
+          retention-days: 90

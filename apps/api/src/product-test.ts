@@ -199,6 +199,56 @@ async function main(): Promise<void> {
     points.body.walk.estimatedCalories
   );
 
+  const distanceAfterFirstBatch = points.body.walk.distanceMeters as number;
+
+  /**
+   * Bağlantı kesilip yeniden gönderim: istemci aynı toplu gönderimi (aynı
+   * `recordedAt` zaman damgaları) tekrar yollar. Sunucu bunları zaten kayıtlı
+   * saydığı için mesafe ikinci kez artmamalı ve tekrar sayısı bildirilmeli.
+   */
+  const resend = await req('POST', `/api/walks/${walkId}/points`, {
+    token: ali.token,
+    body: {
+      durationSeconds: 600,
+      points: [
+        { lat: 40.9800, lng: 29.0200, accuracy: 6, recordedAt: t0 },
+        { lat: 40.9810, lng: 29.0200, accuracy: 6, recordedAt: t0 + 120_000 },
+        { lat: 40.9820, lng: 29.0200, accuracy: 6, recordedAt: t0 + 240_000 },
+        { lat: 40.9830, lng: 29.0200, accuracy: 6, recordedAt: t0 + 360_000 },
+      ],
+    },
+  });
+  check('Tekrar gönderim kabul edilir (200)', resend.status === 200, resend.body);
+  check('Tekrar gönderimde mesafe artmaz', resend.body.walk.distanceMeters === distanceAfterFirstBatch, {
+    before: distanceAfterFirstBatch,
+    after: resend.body.walk.distanceMeters,
+  });
+  check('Tekrar gönderim sayısı bildirilir', resend.body.duplicate === 4, resend.body.duplicate);
+  check('Tekrar gönderimde yeni nokta kabul edilmez', resend.body.accepted === 0, resend.body.accepted);
+
+  const pointCount = await getDb().one<{ c: number }>(
+    'SELECT COUNT(*)::int AS c FROM walk_points WHERE walk_id = $1',
+    [walkId]
+  );
+  check('Veritabanında çift kayıt oluşmaz', pointCount?.c === 4, pointCount);
+
+  /**
+   * Kısmen üst küme yeniden gönderim: eski noktalar + gerçekten yeni bir
+   * nokta aynı istekte. Eskiler elenir, yalnız yeni nokta eklenir.
+   */
+  const mixedResend = await req('POST', `/api/walks/${walkId}/points`, {
+    token: ali.token,
+    body: {
+      durationSeconds: 600,
+      points: [
+        { lat: 40.9830, lng: 29.0200, accuracy: 6, recordedAt: t0 + 360_000 },
+        { lat: 40.9840, lng: 29.0200, accuracy: 6, recordedAt: t0 + 480_000 },
+      ],
+    },
+  });
+  check('Karışık toplu gönderimde yalnız yeni nokta kabul edilir', mixedResend.body.accepted === 1, mixedResend.body);
+  check('Karışık toplu gönderimde eski nokta tekrar sayılır', mixedResend.body.duplicate === 1, mixedResend.body);
+
   const inflated = await req('POST', `/api/walks/${walkId}/points`, {
     token: ali.token,
     body: {

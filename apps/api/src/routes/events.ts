@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { currentUser, requireAuth } from '../auth';
@@ -413,12 +414,27 @@ eventsRouter.patch(
       const updatedRow = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [
         req.params.id,
       ]);
+      /**
+       * Anahtar, *ne* değiştiğine göre üretilir (ne zaman değil): istemci
+       * aynı PATCH'i tekrar gönderirse (ör. yanıt kaybolduğunda retry) içerik
+       * birebir aynı kalır ve ikinci çağrı sessizce atlanır. Gerçekten farklı
+       * bir güncelleme farklı bir anahtar üretir ve normal şekilde bildirilir.
+       */
+      const updateDedupeKey = `event_update:${req.params.id}:${createHash('sha1')
+        .update(JSON.stringify(columns))
+        .digest('hex')}`;
       for (const participant of participants) {
-        await notifyUser(participant.user_id, 'events', {
-          title: 'Etkinlik güncellendi',
-          body: `"${updatedRow?.title ?? 'Etkinlik'}" bilgileri değişti. Detayları kontrol edin.`,
-          data: { type: 'event', eventId: req.params.id },
-        });
+        await notifyUser(
+          participant.user_id,
+          'events',
+          {
+            title: 'Etkinlik güncellendi',
+            body: `"${updatedRow?.title ?? 'Etkinlik'}" bilgileri değişti. Detayları kontrol edin.`,
+            data: { type: 'event', eventId: req.params.id },
+          },
+          db,
+          updateDedupeKey
+        );
       }
     }
 
@@ -445,12 +461,19 @@ eventsRouter.post(
       'SELECT user_id FROM event_participants WHERE event_id = $1 AND user_id != $2',
       [req.params.id, me.id]
     );
+    const cancelDedupeKey = `event_cancel:${req.params.id}`;
     for (const participant of participants) {
-      await notifyUser(participant.user_id, 'events', {
-        title: 'Etkinlik iptal edildi',
-        body: `"${existing.title}" etkinliği iptal edildi.`,
-        data: { type: 'event', eventId: req.params.id },
-      });
+      await notifyUser(
+        participant.user_id,
+        'events',
+        {
+          title: 'Etkinlik iptal edildi',
+          body: `"${existing.title}" etkinliği iptal edildi.`,
+          data: { type: 'event', eventId: req.params.id },
+        },
+        db,
+        cancelDedupeKey
+      );
     }
 
     const row = await db.one<EventRow>('SELECT * FROM events WHERE id = $1', [req.params.id]);

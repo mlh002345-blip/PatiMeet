@@ -1,3 +1,4 @@
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
@@ -9,6 +10,8 @@ import { formatShortDate } from '../../src/labels';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../../src/theme';
 import { useLoader } from '../../src/useLoader';
+
+type PendingUpload = { uri: string; mimeType: string; name: string };
 
 /**
  * Sağlık belgeleri.
@@ -24,8 +27,10 @@ export default function DocumentsScreen() {
   const [type, setType] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploadStage, setUploadStage] = useState<'idle' | 'uploading' | 'saving'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingUpload | null>(null);
 
   const loader = useLoader(() => api.documents(params.dogId), [params.dogId]);
 
@@ -36,13 +41,8 @@ export default function DocumentsScreen() {
       .catch(() => undefined);
   }, []);
 
-  async function pickAndUpload() {
+  async function pickImage() {
     setError(null);
-    if (!type) {
-      setError('Belge türü seçin.');
-      return;
-    }
-
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('İzin gerekli', 'Belge seçmek için galeri erişimi vermeniz gerekiyor.');
@@ -55,12 +55,49 @@ export default function DocumentsScreen() {
     });
     if (result.canceled || !result.assets?.[0]?.uri) return;
 
+    const asset = result.assets[0];
+    setPending({
+      uri: asset.uri,
+      mimeType: asset.mimeType || 'image/jpeg',
+      name: asset.fileName || 'belge.jpg',
+    });
+  }
+
+  async function pickPdf() {
+    setError(null);
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf',
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+
+    const asset = result.assets[0];
+    setPending({
+      uri: asset.uri,
+      mimeType: asset.mimeType || 'application/pdf',
+      name: asset.name || 'belge.pdf',
+    });
+  }
+
+  async function upload() {
+    setError(null);
+    if (!type) {
+      setError('Belge türü seçin.');
+      return;
+    }
+    if (!pending) {
+      setError('Önce bir fotoğraf veya PDF seçin.');
+      return;
+    }
+
     setBusy(true);
+    setUploadStage('uploading');
     try {
-      const asset = result.assets[0];
-      const response = await fetch(asset.uri);
+      const response = await fetch(pending.uri);
       const blob = await response.blob();
-      const uploaded = await api.uploadPhoto('document', blob, asset.mimeType || blob.type || 'image/jpeg');
+      const uploaded = await api.uploadPhoto('document', blob, pending.mimeType);
+      setUploadStage('saving');
       await api.addDocument({
         dogId: params.dogId,
         type,
@@ -68,18 +105,33 @@ export default function DocumentsScreen() {
         storageKey: uploaded.key,
       });
       setTitle('');
+      setPending(null);
       setMessage('Belge eklendi.');
       loader.reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Belge yüklenemedi.');
+      setError(err instanceof ApiError ? err.message : 'Belge yüklenemedi. Tekrar deneyin.');
     } finally {
       setBusy(false);
+      setUploadStage('idle');
     }
   }
 
-  async function remove(id: string) {
-    await api.deleteDocument(id).catch(() => undefined);
-    loader.reload();
+  function confirmRemove(id: string, label: string) {
+    Alert.alert('Belgeyi sil', `"${label}" belgesini silmek istediğinize emin misiniz?`, [
+      { text: 'Vazgeç', style: 'cancel' },
+      {
+        text: 'Sil',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.deleteDocument(id);
+            loader.reload();
+          } catch (err) {
+            setError(err instanceof ApiError ? err.message : 'Belge silinemedi. Tekrar deneyin.');
+          }
+        },
+      },
+    ]);
   }
 
   return (
@@ -99,7 +151,62 @@ export default function DocumentsScreen() {
           onChange={setType}
         />
         <Field label="Başlık" value={title} onChangeText={setTitle} placeholder="İsteğe bağlı" maxLength={120} />
-        <Button label="Belge ekle" onPress={pickAndUpload} loading={busy} />
+
+        <View style={s.pickRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fotoğraf/Görsel seç"
+            onPress={pickImage}
+            disabled={busy}
+            style={({ pressed }) => [s.pickButton, pressed && s.pickButtonPressed]}
+          >
+            <SymbolView
+              name={{ ios: 'photo', android: 'image', web: 'image' }}
+              size={18}
+              tintColor={colors.primary}
+            />
+            <AppText variant="label">Fotoğraf/Görsel seç</AppText>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="PDF seç"
+            onPress={pickPdf}
+            disabled={busy}
+            style={({ pressed }) => [s.pickButton, pressed && s.pickButtonPressed]}
+          >
+            <SymbolView
+              name={{ ios: 'doc.text', android: 'description', web: 'description' }}
+              size={18}
+              tintColor={colors.primary}
+            />
+            <AppText variant="label">PDF seç</AppText>
+          </Pressable>
+        </View>
+
+        {pending ? (
+          <View style={s.pendingRow}>
+            <SymbolView
+              name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }}
+              size={16}
+              tintColor={colors.success}
+            />
+            <AppText variant="caption" numberOfLines={1} style={{ flex: 1 }}>
+              {pending.name}
+            </AppText>
+          </View>
+        ) : null}
+
+        <Button
+          label={
+            uploadStage === 'uploading'
+              ? 'Yükleniyor…'
+              : uploadStage === 'saving'
+                ? 'Kaydediliyor…'
+                : 'Belge ekle'
+          }
+          onPress={upload}
+          loading={busy}
+        />
         <AppText variant="caption" color={colors.textMuted} style={{ marginTop: spacing.md }}>
           Belgelerin yalnızca sana açıktır. Bağlantılar süreli üretilir, herkese açık hale
           gelmez.
@@ -142,7 +249,7 @@ export default function DocumentsScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Belgeyi sil"
-                onPress={() => remove(doc.id)}
+                onPress={() => confirmRemove(doc.id, doc.title || doc.typeLabel)}
                 style={s.action}
               >
                 <SymbolView
@@ -172,4 +279,24 @@ const s = StyleSheet.create({
     backgroundColor: colors.primaryLight,
   },
   action: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  pickRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+  pickButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    minHeight: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  pickButtonPressed: { opacity: 0.7 },
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
 });

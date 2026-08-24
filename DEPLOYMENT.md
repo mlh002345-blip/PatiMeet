@@ -250,7 +250,13 @@ EXPO_ACCESS_TOKEN=      # Expo'da "Enhanced Security" açıksa zorunlu
 
 - Bildirim izni verilmezse uygulama normal çalışır
 - Jeton her açılışta yenilenir; sunucu aynı jetonu günceller
-- `DeviceNotRegistered` yanıtı gelen jeton otomatik iptal edilir
+- Gönderim anında `DeviceNotRegistered` dönen jeton hemen iptal edilir; bazı
+  kalıcı hatalar yalnızca **receipt** aşamasında ortaya çıkar — sunucu, süreç
+  içinde 15 dakikada bir bekleyen receipt'leri Expo'dan sorgulayıp aynı
+  şekilde iptal eder (`domain/push.ts#reconcilePushReceipts`)
+- Aynı olayı yeniden tetikleyen bir istek (ör. istemcinin bir güncellemeyi
+  tekrar göndermesi) kısa bir pencerede tekilleştirilir; katılımcıya iki kez
+  bildirim gitmez
 - Oturum kapatmada jeton silinir (bildirim eski hesaba gitmez)
 - Kullanıcı kategori tercihlerini uygulama içinden yönetir; güvenlik
   bildirimleri tercihten bağımsız gönderilir
@@ -373,32 +379,71 @@ olmalı; aksi halde uygulama `localhost` arar.
 Sürüm artırma: `app.json` içinde `version`, iOS için `ios.buildNumber`,
 Android için `android.versionCode`.
 
-### 8.1 EAS olmadan Android APK (GitHub Actions)
+### 8.1 EAS olmadan Android — GitHub Actions (`.github/workflows/android-apk.yml`)
 
 Ağ politikası EAS'a (`api.expo.dev`) veya Android SDK dağıtımına
-(`dl.google.com`) erişimi kapattığında APK, `.github/workflows/android-apk.yml`
-iş akışıyla GitHub çalıştırıcısında üretilir. Çalıştırıcıda Android SDK hazır
-geldiği için ek kimlik bilgisi veya bulut servisi gerekmez.
+(`dl.google.com`) erişimi kapattığında Android derlemesi GitHub
+çalıştırıcısında yapılır. Çalıştırıcıda Android SDK hazır geldiği için ek
+kimlik bilgisi veya bulut servisi gerekmez. İş akışı dört işten oluşur:
 
-Akış: `npm ci` → `expo prebuild --platform android` → `gradlew assembleRelease`.
-`android/` klasörü depoda tutulmaz, her derlemede yeniden üretilir.
+| İş | Ne zaman çalışır | Ne yapar |
+|---|---|---|
+| `checks` | her push, her pull request | API typecheck, `npm run test:all` (tüm API test paketleri), mobil typecheck, sürüm/versionCode tutarlılık kontrolü |
+| `e2e` | her push, her pull request (`checks` sonrası) | API'yi ve web hedefini arka planda başlatıp `e2e/` altındaki uçtan uca akışları çalıştırır |
+| `build-apk` | yalnız elle (`workflow_dispatch`) veya `android-v*` etiketiyle | iç test APK'sı — `checks` **ve** `e2e` başarılı olmadan çalışmaz |
+| `build-aab` | yalnız `android-v*` etiketiyle, yükleme anahtarı secrets'ta varsa | imzalı Play Store AAB'si |
 
-Tetikleme:
+**Önemli:** `checks` veya `e2e` başarısız olursa hiçbir derleme işi çalışmaz —
+testlerden biri kırmızıysa APK/AAB üretilmez. Sıradan bir dal push'u yalnızca
+testleri çalıştırır; APK/AAB üretmek için Actions sekmesinden iş akışını elle
+tetiklemek veya `android-v1.0.1` gibi bir etiket push etmek gerekir. Bu, her
+küçük commit'te gereksiz ~15 dakikalık Gradle derlemesi yapılmasını önler.
 
-- `apps/mobile/**` altında bir değişiklik push edildiğinde otomatik,
-- veya Actions sekmesinden `Android APK` iş akışını elle çalıştırarak.
+Akış (her iki derleme işi için): `npm ci` → `expo prebuild --platform android`
+→ `gradlew assembleRelease` / `bundleRelease`. `android/` klasörü depoda
+tutulmaz, her derlemede yeniden üretilir. Üretilen dosyanın yanına bir
+`.sha256` özet dosyası da eklenir; dosya adı sürüm ve commit SHA'sını taşır:
+`PatiMeet-<sürüm>-vc<versionCode>-<commit>.apk` (30 gün saklanır) veya
+`...aab` (90 gün saklanır).
 
-APK, çalışma sayfasındaki derleme çıktısı (artifact) olarak
-`PatiMeet-<sürüm>-vc<versionCode>-<commit>.apk` adıyla 30 gün saklanır.
+#### İç test APK'sı — mağaza sürümü değildir
 
-**Bu APK mağaza sürümü değildir.** React Native şablonu release yapılandırmasını
-debug anahtarıyla imzalar; yalnızca yan yükleme (sideload) ve iç test içindir:
+`build-apk` işi React Native şablonunun debug anahtarıyla imzalar; yalnızca
+yan yükleme (sideload) ve iç test içindir:
 
 - Cihazda farklı bir anahtarla imzalanmış eski bir PatiMeet varsa, imza
   uyuşmadığı için önce onu kaldırmak gerekir.
-- Google Play'e gönderim için ayrı bir yükleme anahtarı (upload keystore)
-  oluşturulup deponun Actions gizli anahtarlarında saklanması ve release
-  `signingConfig` kaydının ona bağlanması gerekir.
+
+#### Play Store AAB'si — imzalı, yalnız secrets varsa üretilir
+
+`build-aab` işi yalnızca aşağıdaki dört GitHub Actions secret'ı **hepsi**
+tanımlıysa çalışır; biri bile eksikse iş uyarı bırakıp atlanır — debug
+anahtarıyla mağaza paketi hiçbir koşulda üretilmez:
+
+| Secret adı | İçerik |
+|---|---|
+| `ANDROID_UPLOAD_KEYSTORE_BASE64` | Yükleme keystore dosyasının (`.jks`) base64 kodlanmış hâli (`base64 -w0 upload-keystore.jks`) |
+| `ANDROID_UPLOAD_STORE_PASSWORD` | Keystore parolası |
+| `ANDROID_UPLOAD_KEY_ALIAS` | Anahtar takma adı |
+| `ANDROID_UPLOAD_KEY_PASSWORD` | Anahtar parolası |
+
+Yükleme keystore'unu oluşturma (bir kez, yerel makinede):
+
+```bash
+keytool -genkeypair -v -storetype PKCS12 \
+  -keystore upload-keystore.jks -alias upload \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Bu dosyayı ve parolalarını güvenli bir yerde saklayın — kaybedilirse aynı
+uygulamaya güncelleme yayınlanamaz. Secrets, repo Settings → Secrets and
+variables → Actions altından eklenir; değerleri hiçbir zaman koda veya bu
+dokümana yazılmaz.
+
+`build.gradle` release imzasını yükleme anahtarına yönlendirme işlemi
+`apps/mobile/scripts/patch-android-release-signing.js` betiğiyle yapılır;
+beklenen Expo şablonu bulunamazsa (ör. Expo bir SDK sürümünde şablonu
+değiştirirse) betik sessizce geçmez, açık hata ile durur.
 
 ---
 

@@ -12,6 +12,9 @@ import { newId } from '../ids';
  */
 export type NotificationCategory = 'messages' | 'events' | 'safety' | 'care' | 'invites';
 
+/** Aynı (kullanıcı, kategori, anahtar) bu pencere içinde yalnız bir kez bildirim üretir. */
+const PUSH_DEDUPE_WINDOW_MS = 24 * 3600_000;
+
 export interface PushMessage {
   title: string;
   body: string;
@@ -27,6 +30,13 @@ export interface PushTicket {
   /** `DeviceNotRegistered` gibi kalıcı hatalarda token iptal edilir. */
   shouldRevoke: boolean;
   error?: string;
+  /**
+   * Expo "ticket" kimliği. Gönderim anında `ok` dönse bile teslimat asıl
+   * olarak bu kimlikle sorgulanan "receipt" ile doğrulanır — bazı kalıcı
+   * hatalar (ör. `DeviceNotRegistered`) yalnızca receipt aşamasında ortaya
+   * çıkar (bkz. `reconcilePushReceipts`).
+   */
+  receiptId?: string;
 }
 
 export interface PushSender {
@@ -106,7 +116,7 @@ export class ExpoPushSender implements PushSender {
     }
 
     const parsed = (await response.json().catch(() => null)) as {
-      data?: Array<{ status: string; message?: string; details?: { error?: string } }>;
+      data?: Array<{ id?: string; status: string; message?: string; details?: { error?: string } }>;
     } | null;
 
     const results = parsed?.data ?? [];
@@ -115,7 +125,7 @@ export class ExpoPushSender implements PushSender {
       const entry = results[index];
       if (!entry) return { token, ok: false, shouldRevoke: false, error: 'no_receipt' };
 
-      if (entry.status === 'ok') return { token, ok: true, shouldRevoke: false };
+      if (entry.status === 'ok') return { token, ok: true, shouldRevoke: false, receiptId: entry.id };
 
       // Cihaz uygulamayı kaldırmış veya token geçersiz → kalıcı olarak iptal et.
       const code = entry.details?.error;
@@ -124,6 +134,85 @@ export class ExpoPushSender implements PushSender {
       return { token, ok: false, shouldRevoke, error: code ?? entry.message ?? 'unknown' };
     });
   }
+}
+
+const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
+/** Expo bir bileti bu süre sonra receipt sorgusundan düşürür; daha uzun beklemenin anlamı yok. */
+const RECEIPT_MAX_AGE_MS = 20 * 3600_000;
+const RECEIPT_BATCH_SIZE = 300;
+
+/**
+ * Bekleyen "ticket" kimliklerinin gerçek teslimat sonucunu Expo'dan sorgular.
+ *
+ * `send()` anındaki `ok` yalnız Expo'nun bileti kabul ettiğini gösterir;
+ * cihazın uygulamayı kaldırmış olması gibi kalıcı hatalar çoğu zaman yalnızca
+ * bu ikinci aşamada (receipt) ortaya çıkar. Bu fonksiyon periyodik olarak
+ * çağrılmalı (bkz. `server.ts` içindeki zamanlayıcı); Expo push kapalıysa
+ * (`config.push.driver !== 'expo'`) çağıran taraf hiç tetiklememelidir.
+ */
+export async function reconcilePushReceipts(db: Db = getDb()): Promise<{
+  checked: number;
+  revoked: number;
+}> {
+  const now = nowMs();
+  // Expo'nun artık receipt döndürmeyeceği kadar eski bekleyen kayıtları temizle.
+  await db.exec('DELETE FROM push_receipts WHERE created_at < $1', [now - RECEIPT_MAX_AGE_MS]);
+
+  const pending = await db.query<{ receipt_id: string; token: string }>(
+    'SELECT receipt_id, token FROM push_receipts ORDER BY created_at ASC LIMIT $1',
+    [RECEIPT_BATCH_SIZE]
+  );
+  if (pending.length === 0) return { checked: 0, revoked: 0 };
+
+  let response: Response;
+  try {
+    response = await fetch(EXPO_RECEIPTS_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ ids: pending.map((row) => row.receipt_id) }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (error) {
+    logger.warn(
+      { err: error instanceof Error ? error.message : String(error) },
+      'push receipt sorgusu başarısız'
+    );
+    return { checked: 0, revoked: 0 };
+  }
+
+  if (!response.ok) {
+    logger.warn({ status: response.status }, 'push receipt servisi hata döndü');
+    return { checked: 0, revoked: 0 };
+  }
+
+  const parsed = (await response.json().catch(() => null)) as {
+    data?: Record<string, { status: string; details?: { error?: string } }>;
+  } | null;
+  const results = parsed?.data ?? {};
+
+  const toRevoke: string[] = [];
+  const resolvedIds: string[] = [];
+
+  for (const row of pending) {
+    const entry = results[row.receipt_id];
+    // Henüz hazır değilse (Expo bazen gecikmeli işler) bir sonraki turda tekrar denenir.
+    if (!entry) continue;
+
+    resolvedIds.push(row.receipt_id);
+    if (entry.status !== 'ok') {
+      const code = entry.details?.error;
+      if (code === 'DeviceNotRegistered' || code === 'InvalidCredentials') {
+        toRevoke.push(row.token);
+      }
+    }
+  }
+
+  if (toRevoke.length > 0) await revokeTokens(toRevoke, db);
+  if (resolvedIds.length > 0) {
+    await db.exec('DELETE FROM push_receipts WHERE receipt_id = ANY($1)', [resolvedIds]);
+  }
+
+  return { checked: resolvedIds.length, revoked: toRevoke.length };
 }
 
 let sender: PushSender | null = null;
@@ -238,9 +327,29 @@ export async function notifyUser(
   userId: string,
   category: NotificationCategory,
   message: PushMessage,
-  db: Db = getDb()
+  db: Db = getDb(),
+  /**
+   * İşlemi tekrar tetikleyebilecek çağrı yerleri (ör. bir güncellemeyi
+   * yeniden gönderen istemci) için isteğe bağlı tekilleştirme anahtarı.
+   * Aynı (kullanıcı, kategori, anahtar) kısa bir pencerede yalnız bir kez
+   * bildirim üretir; ikinci çağrı sessizce atlanır.
+   */
+  dedupeKey?: string
 ): Promise<{ sent: number; skipped: string | null }> {
   try {
+    if (dedupeKey) {
+      const ts = nowMs();
+      // Eski kayıtları küçük tutmak için önce süresi geçenleri temizle.
+      await db.exec('DELETE FROM push_dedupe WHERE created_at < $1', [ts - PUSH_DEDUPE_WINDOW_MS]);
+      const inserted = await db.exec(
+        `INSERT INTO push_dedupe (id, user_id, category, dedupe_key, created_at)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (user_id, category, dedupe_key) DO NOTHING`,
+        [newId(), userId, category, dedupeKey, ts]
+      );
+      if (inserted.rowCount === 0) return { sent: 0, skipped: 'duplicate' };
+    }
+
     if (category !== 'safety') {
       const prefs = await getPreferences(userId, db);
       if (!prefs[category]) return { sent: 0, skipped: 'preference_off' };
@@ -262,6 +371,19 @@ export async function notifyUser(
       tickets.filter((ticket) => ticket.shouldRevoke).map((ticket) => ticket.token),
       db
     );
+
+    const withReceipt = tickets.filter((ticket) => ticket.ok && ticket.receiptId);
+    if (withReceipt.length > 0) {
+      const ts = nowMs();
+      for (const ticket of withReceipt) {
+        await db.exec(
+          `INSERT INTO push_receipts (receipt_id, token, created_at)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (receipt_id) DO NOTHING`,
+          [ticket.receiptId, ticket.token, ts]
+        );
+      }
+    }
 
     return { sent: tickets.filter((ticket) => ticket.ok).length, skipped: null };
   } catch (error) {

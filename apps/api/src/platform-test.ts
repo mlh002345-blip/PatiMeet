@@ -82,6 +82,7 @@ pushDomain.setPushSender({
       ok: !deadTokens.has(token),
       shouldRevoke: deadTokens.has(token),
       error: deadTokens.has(token) ? 'DeviceNotRegistered' : undefined,
+      receiptId: deadTokens.has(token) ? undefined : `receipt-${token}-${sent.length}`,
     }));
   },
 });
@@ -749,6 +750,120 @@ async function main(): Promise<void> {
     sent.length === 0 && result.skipped === 'no_device',
     result
   );
+
+  // ---------------------------------------------------------------------
+  // Bildirim tekilleştirme (dedupeKey): işlemi yeniden tetikleyen bir
+  // isteğin (ör. istemci PATCH'i iki kez gönderirse) ikinci kez bildirim
+  // üretmemesi gerekir.
+  await req('POST', '/api/push/tokens', {
+    token: adaToken,
+    body: { token: 'ExponentPushToken[ada-dedupe]', platform: 'ios' },
+  });
+
+  sent.length = 0;
+  const firstSend = await pushDomain.notifyUser(
+    adaId,
+    'safety',
+    { title: 'Aynı olay', body: 'İlk gönderim' },
+    db,
+    'test-dedupe-key-1'
+  );
+  const secondSend = await pushDomain.notifyUser(
+    adaId,
+    'safety',
+    { title: 'Aynı olay', body: 'İkinci deneme (aynı anahtar)' },
+    db,
+    'test-dedupe-key-1'
+  );
+  check('Tekilleştirme anahtarıyla ilk gönderim başarılı', firstSend.sent === 1, firstSend);
+  check(
+    'Aynı anahtarla ikinci gönderim atlanır',
+    secondSend.sent === 0 && secondSend.skipped === 'duplicate',
+    secondSend
+  );
+  check('Tekilleştirmede yalnızca tek bildirim iletilir', sent.length === 1, sent.length);
+
+  const thirdSend = await pushDomain.notifyUser(
+    adaId,
+    'safety',
+    { title: 'Farklı olay', body: 'Farklı anahtar' },
+    db,
+    'test-dedupe-key-2'
+  );
+  check('Farklı anahtarla gönderim engellenmez', thirdSend.sent === 1, thirdSend);
+
+  // Aynı olay: bir etkinlik güncellemesi PATCH'i istemci tarafından tekrar
+  // gönderilirse (retry) katılımcıya iki kez bildirim gitmemeli.
+  await req('POST', '/api/push/tokens', {
+    token: otherToken,
+    body: { token: 'ExponentPushToken[bora-retry]', platform: 'android' },
+  });
+  const retryEvent = await req('POST', '/api/events', {
+    token: adaToken,
+    body: {
+      title: 'Tekrar denenen güncelleme testi',
+      type: 'yuruyus',
+      startsAt: Date.now() + 5 * 24 * 60 * 60 * 1000,
+      district: 'Kadıköy',
+      meetingPoint: 'Park girişi',
+      capacity: 5,
+    },
+  });
+  await req('POST', `/api/events/${retryEvent.body.event.id}/join`, { token: otherToken });
+
+  sent.length = 0;
+  const patchBody = { meetingPoint: 'Yeni buluşma noktası' };
+  await req('PATCH', `/api/events/${retryEvent.body.event.id}`, { token: adaToken, body: patchBody });
+  await req('PATCH', `/api/events/${retryEvent.body.event.id}`, { token: adaToken, body: patchBody });
+  check(
+    'Aynı güncellemenin tekrar gönderimi katılımcıya iki kez bildirim üretmez',
+    sent.length === 1,
+    sent.length
+  );
+
+  // ---------------------------------------------------------------------
+  // Push receipt uzlaştırması: gönderim anında "ok" dönen bir bilet, receipt
+  // aşamasında "DeviceNotRegistered" çıkarsa token kalıcı olarak iptal
+  // edilmeli. Gerçek Expo servisine çıkmadan `fetch`'i geçici olarak sahteler.
+  sent.length = 0;
+  await pushDomain.notifyUser(adaId, 'safety', { title: 'Receipt testi', body: 'Gövde' });
+  const pendingReceipt = await db.one<{ receipt_id: string; token: string }>(
+    `SELECT receipt_id, token FROM push_receipts WHERE token = 'ExponentPushToken[ada-dedupe]'
+      ORDER BY created_at DESC LIMIT 1`
+  );
+  check('Gönderim sonrası bekleyen receipt kaydedilir', Boolean(pendingReceipt), pendingReceipt);
+
+  const originalFetch = global.fetch;
+  global.fetch = (async (url: string | URL, init?: RequestInit) => {
+    const href = typeof url === 'string' ? url : url.toString();
+    if (href.includes('/getReceipts')) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { ids: string[] };
+      const data: Record<string, { status: string; details?: { error?: string } }> = {};
+      for (const id of body.ids) {
+        data[id] = { status: 'error', details: { error: 'DeviceNotRegistered' } };
+      }
+      return new Response(JSON.stringify({ data }), { status: 200 });
+    }
+    return originalFetch(url as never, init);
+  }) as typeof fetch;
+
+  const reconciled = await pushDomain.reconcilePushReceipts(db);
+  global.fetch = originalFetch;
+
+  check('Receipt uzlaştırması bekleyen kayıtları işler', reconciled.checked >= 1, reconciled);
+  check('DeviceNotRegistered receipt sonucu token\'ı iptal eder', reconciled.revoked >= 1, reconciled);
+  const revokedAfterReceipt = await db.one<{ status: string }>(
+    `SELECT status FROM push_tokens WHERE token = 'ExponentPushToken[ada-dedupe]'`
+  );
+  check(
+    'İptal edilen token veritabanında görünür',
+    revokedAfterReceipt?.status === 'revoked',
+    revokedAfterReceipt
+  );
+  const receiptsCleared = await db.one<{ c: number }>(
+    `SELECT COUNT(*)::int AS c FROM push_receipts WHERE token = 'ExponentPushToken[ada-dedupe]'`
+  );
+  check('İşlenen receipt kaydı temizlenir', receiptsCleared?.c === 0, receiptsCleared);
 
   // Token silme
   await req('POST', '/api/push/tokens', {

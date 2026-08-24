@@ -584,6 +584,60 @@ ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS care BOOLEAN NOT N
 ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS invites BOOLEAN NOT NULL DEFAULT TRUE;
 `,
   },
+  {
+    id: '0011_walk_point_idempotency_and_push_reliability',
+    sql: `
+-- ===========================================================================
+-- GPS nokta idempotency'si
+-- ===========================================================================
+--
+-- Bağlantı kesilip aynı toplu gönderimin (batch) tekrar gönderilmesi hâlinde
+-- aynı fiziksel noktanın iki kez kaydedilmesini engeller (bkz.
+-- domain/walks.ts#appendPoints). Cihaz saatindeki 'recorded_at', bir yürüyüş
+-- içinde her fiziksel noktayı doğal biçimde tekilleştirir.
+--
+-- Bu kısıt eklenmeden önce üretilmiş olabilecek kazara yinelenen satırları
+-- (eski uygulama sürümü, kısıt olmadan) düşük 'seq' değeri kalacak şekilde
+-- temizliyoruz; aksi hâlde tekil indeks oluşturma başarısız olabilir.
+DELETE FROM walk_points wp
+ WHERE EXISTS (
+   SELECT 1 FROM walk_points other
+    WHERE other.walk_id = wp.walk_id
+      AND other.recorded_at = wp.recorded_at
+      AND (other.seq < wp.seq OR (other.seq = wp.seq AND other.id < wp.id))
+ );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_walk_points_dedupe
+  ON walk_points(walk_id, recorded_at);
+
+-- ===========================================================================
+-- Push bildirimi güvenilirliği
+-- ===========================================================================
+--
+-- Aynı olayın (ör. bir güncellemeyi tekrar tetikleyen istemci) iki kez
+-- bildirim üretmesini önlemek için kısa ömürlü bir tekilleştirme kaydı.
+CREATE TABLE IF NOT EXISTS push_dedupe (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category   TEXT NOT NULL,
+  dedupe_key TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  UNIQUE(user_id, category, dedupe_key)
+);
+CREATE INDEX IF NOT EXISTS idx_push_dedupe_created ON push_dedupe(created_at);
+
+-- Expo "ticket" gönderiminde 'ok' yalnız kabul edildiğini gösterir; gerçek
+-- teslimat durumu (ör. cihaz uygulamayı kaldırmış) bu bekleyen kayıtlar
+-- üzerinden periyodik olarak "receipt" sorgusuyla doğrulanır (bkz.
+-- domain/push.ts#reconcilePushReceipts).
+CREATE TABLE IF NOT EXISTS push_receipts (
+  receipt_id TEXT PRIMARY KEY,
+  token      TEXT NOT NULL,
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_push_receipts_created ON push_receipts(created_at);
+`,
+  },
 ];
 
 export interface MigrationResult {
