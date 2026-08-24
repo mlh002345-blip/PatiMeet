@@ -124,6 +124,20 @@ jobs:
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
+      - name: Demo veriyi yükle
+        # PGlite dosya tabanlı ve tek süreçli erişim için tasarlanmıştır;
+        # sunucu ayakta iken aynı dizine ayrı bir süreçle yazmak (seed)
+        # çakışabilir. Bu yüzden veri, sunucu başlamadan önce, tek başına
+        # yükleniyor.
+        working-directory: apps/api
+        env:
+          JWT_SECRET: e2e-ci-secret
+          PGLITE_DATA_DIR: ./data/e2e-ci
+        run: |
+          mkdir -p ./data
+          rm -rf ./data/e2e-ci
+          npx tsx src/seed.ts
+
       - name: API sunucusunu başlat (arka planda)
         working-directory: apps/api
         env:
@@ -133,20 +147,12 @@ jobs:
           PUSH_DRIVER: none
           PORT: '4000'
         run: |
-          rm -rf ./data/e2e-ci
           nohup npx tsx src/server.ts > /tmp/api.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:4000/health > /dev/null && exit 0
             sleep 1
           done
           echo "API 30 saniyede ayağa kalkmadı"; cat /tmp/api.log; exit 1
-
-      - name: Demo veriyi yükle
-        working-directory: apps/api
-        env:
-          JWT_SECRET: e2e-ci-secret
-          PGLITE_DATA_DIR: ./data/e2e-ci
-        run: npx tsx src/seed.ts
 
       - name: Web hedefini başlat (arka planda)
         working-directory: apps/mobile
