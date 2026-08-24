@@ -132,12 +132,13 @@ async function main() {
   const saved = await page.textContent('body');
   check('Profil kaydedildi', saved.includes('Profilin güncellendi'), saved.slice(0, 250));
 
-  const profile = await go('/profile', 'Profil');
+  // Kullanıcının seçim etiketleri artık üye kartıyla birlikte /settings altında.
+  const settingsProfile = await go('/settings', 'Profil ve ayarlar');
   await shot(page, '53-profil');
   check(
-    'Profilde birden fazla seçim etiketi görünüyor',
-    profile.includes('Oyun buluşması') && profile.includes('Sosyalleşme'),
-    profile.slice(0, 400)
+    'Ayarlarda birden fazla seçim etiketi görünüyor',
+    settingsProfile.includes('Oyun buluşması') && settingsProfile.includes('Sosyalleşme'),
+    settingsProfile.slice(0, 400)
   );
 
   // --- Bildirim listesi ---

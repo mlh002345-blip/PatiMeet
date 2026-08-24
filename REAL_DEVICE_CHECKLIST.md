@@ -19,6 +19,32 @@ Her madde işaretlendiğinde tarih ve cihaz (model + OS sürümü) not düşün.
       sunucuda çift kayıt oluşmuyor (idempotency; bkz. migration `0011`)
 - [ ] Duraklat/devam et gerçek cihazda beklendiği gibi çalışıyor
 
+### 1.1 Gerçek harita (`react-native-maps`)
+
+Web E2E ve `expo export` bu maddelerin hiçbirini doğrulayamaz — yalnızca
+haritanın web'de derlemeye dahil OLMADIĞINI ve Android paketine dahil
+OLDUĞUNU doğrular (bkz. Bilinen sınır bölümü altında CI kanıtı).
+
+- [ ] Android'de `GOOGLE_MAPS_ANDROID_API_KEY` tanımlıyken gerçek Google Maps
+      karoları görünüyor (boş gri ızgara değil)
+- [ ] iOS'ta Apple Maps hiçbir ek yapılandırma olmadan çalışıyor
+- [ ] `GOOGLE_MAPS_ANDROID_API_KEY` tanımlı değilken Android'de "Harita
+      yapılandırılmadı" durumu görünüyor — boş veya sonsuza kadar yüklenen
+      ekran değil; mesafe/süre takibi bu durumda da çalışmaya devam ediyor
+- [ ] Yürüyüş sırasında rota çizgisi gerçek GPS noktalarından, bakır renkte
+      çiziliyor
+- [ ] Güncel konum/köpek işareti hareket ettikçe kamerayı otomatik takip
+      ediyor
+- [ ] Haritayı parmakla sürükleyince otomatik takip duruyor ve "Konumuma
+      dön" düğmesi beliriyor; düğmeye basınca takip yeniden başlıyor
+- [ ] Yürüyüş özet ekranında rota tam çerçeveye sığacak şekilde gösteriliyor
+- [ ] `hideEndpoints` açıkken özet haritasında başlangıç/bitiş bölümü
+      görünmüyor (ev konumu ele verilmiyor) — bkz. `walkTracker.ts#trimRouteEndpoints`
+- [ ] Zayıf/kesik ağ bağlantısında harita karoları yüklenemese bile GPS
+      kaydı ve yürüyüş verisi kaybolmuyor
+- [ ] Haritada beklenmeyen bir çalışma zamanı hatası olursa yalnızca harita
+      alanı "Harita yüklenemedi" gösteriyor, yürüyüş ekranının tamamı çökmüyor
+
 **Bilinen sınır — bu turda kapsam dışı bırakıldı:** Uygulama tamamen arka
 plandayken (ekran kapalı, uygulama askıya alınmış) GPS takibinin devam etmesi
 için `expo-task-manager` + Android foreground service + iOS arka plan konum
@@ -101,6 +127,31 @@ atabileceğinden bilinçli olarak ertelendi.
 - [ ] iOS ve Android'de güvenli alan (safe area) çentik/çentiksiz cihazlarda
       doğru
 
+## 7. Ana navigasyon — Bugün / Keşfet / Yürüyüş / Mahalle / Pati
+
+- [ ] Beş sekme de doğru sırada görünüyor, Yürüyüş ortada ve görsel olarak
+      diğerlerinden belirgin (dolu bakır daire)
+- [ ] Yürüyüş sekmesinin etiketi ve ikonu hiçbir cihazda (küçük Android dahil)
+      kesilmiyor
+- [ ] Mahalle sekmesinde yeni içerik olduğunda rozet görünüyor; sekmeyi
+      ziyaret edince kayboluyor
+- [ ] Eski `/neighbourhood`, `/community` gibi derin bağlantılar hâlâ doğru
+      ekranı açıyor (yönlendirme/aynı rota — bkz. commit mesajı)
+- [ ] Bir push bildirimine (mesaj, etkinlik, davet, bakım, güvenlik) dokununca
+      uygulama kapalıyken bile doğru ekran açılıyor
+- [ ] Pati sekmesinde köpek fotoğrafı, bugünkü bakım, son yürüyüş, haftalık
+      aktivite, kilo gelişimi, son anılar ve sağlık belgeleri gerçek
+      verilerle doluyor (uydurma bir "sağlık puanı" YOK)
+- [ ] Birden fazla köpek varsa Pati ekranındaki köpek seçici doğru çalışıyor
+- [ ] Pati ekranındaki dişli simgesi `/settings`'e gidiyor; kullanıcı
+      profili, köpek yönetimi, bildirim tercihleri, yasal metinler ve hesap
+      silme orada eksiksiz çalışıyor
+- [ ] Bugün ekranındaki "Pati'nin bugünkü bakımı" ve "Mahallende bugün"
+      kartları gerçek veriye göre değişiyor (kayıt/davet yoksa doğru boş
+      durum çağrısını gösteriyor)
+- [ ] Okunmamış mesaj rozeti (üstteki gelen kutusu simgesi) hâlâ doğru
+      sayıyı gösteriyor
+
 ## Bu turda uygulanmayan kapsamlar (bilinçli erteleme)
 
 Aşağıdakiler `CLAUDE_TASK...` isteğinde yer alıyordu ancak zaman ve risk
@@ -115,7 +166,8 @@ bozmamak önceliğiyle bilinçli olarak dışarıda bırakıldı:
   bozulmadan üç yeni alt özelliğin şema + API + mobil ekran tasarımını
   gerektiriyor; bu turda güvenle tamamlanamayacak kadar geniş kapsamlı
   olduğu için ayrı bir görev olarak bırakıldı.
-- **CI E2E işinin ilk canlı çalıştırması**: `.github/workflows/android-apk.yml`
-  içindeki `e2e` işi bu pakette eklendi ve mantığı yerel olarak gözden
-  geçirildi, ancak GitHub Actions çalıştırıcısında gerçek bir çalıştırması bu
-  oturumda henüz izlenmedi. İlk gerçek çalıştırmayı izlemek gerekir.
+- **Oyun grubu detay ekranı**: Mahalle sekmesinde gruplar listeleniyor,
+  katılınabiliyor ve yeni grup oluşturulabiliyor; ancak bir grubun kendi
+  etkinlik takvimini gösteren ayrı bir detay ekranı bu turda eklenmedi
+  (mevcut `api.groups()`/`joinGroup`/`leaveGroup` altyapısı kullanıldı, yeni
+  tablo yok).

@@ -133,9 +133,10 @@ async function main() {
 
   // --- Mahalle Akışı ---
   console.log('\n→ Mahalle Akışı');
-  const feed = await go('/neighbourhood', 'Mahalle akışı');
+  const feed = await go('/neighbourhood', 'Semtinde bugün');
   await shot(page, '66-mahalle-akisi');
-  check('Akış ekranı açılıyor', feed.includes('Mahalle akışı'), feed.slice(0, 200));
+  check('Akış ekranı açılıyor', feed.includes('Semtinde bugün'), feed.slice(0, 200));
+  check('Oyun grupları bölümü var', feed.includes('Oyun grupları'), feed.slice(0, 900));
   check('İçerik türü filtreleri var', feed.includes('Yürüyüş daveti') && feed.includes('Etkinlik') && feed.includes('Güvenli topluluk'), feed.slice(0, 700));
   check('Hızlı davet girişi var', feed.includes('Hızlı yürüyüş daveti aç'));
   check(
@@ -186,7 +187,7 @@ async function main() {
     await cancelBtn.click();
     await page.waitForTimeout(4000);
   }
-  const afterCancel = await go('/neighbourhood', 'Mahalle akışı');
+  const afterCancel = await go('/neighbourhood', 'Semtinde bugün');
   check(
     'İptal edilen davet akıştan düşüyor',
     !afterCancel.includes('Moda sahili civarı'),

@@ -4,20 +4,23 @@ import React, { useState } from 'react';
 import { Image, Pressable, Share, StyleSheet, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { AppText, Banner, Button, DetailHeader, ErrorState, LoadingState } from '../../src/components/ui';
-import { WalkRouteMap } from '../../src/components/WalkRouteMap';
+import { WalkMap } from '../../src/components/WalkMap';
 import { formatEventDate } from '../../src/labels';
 import { useSession } from '../../src/session';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../../src/theme';
 import { useLoader } from '../../src/useLoader';
-import { formatClock, formatDistance, formatPace } from '../../src/walkTracker';
+import { formatClock, formatDistance, formatPace, trimRouteEndpoints } from '../../src/walkTracker';
 
 /**
  * Yürüyüş özet kartı.
  *
- * Rota, kullanıcının gizlilik tercihine göre uçları kırpılmış olarak gelir;
- * bu ekran ham rotayı hiç istemez. Paylaşım cihazın kendi paylaşım
- * sayfasını açar — dışarıya otomatik gönderim yapılmaz.
+ * `/api/walks/:id/route` sahibine HAM rotayı döner (yalnızca sahip
+ * görebilir). Gizlilik tercihine göre başlangıç/bitiş bölümünün özet ve
+ * paylaşımdan çıkarılması — ev konumunu ele vermemek için — burada,
+ * istemci tarafında uygulanır (bkz. walkTracker.ts#trimRouteEndpoints).
+ * Paylaşım cihazın kendi paylaşım sayfasını açar — dışarıya otomatik
+ * gönderim yapılmaz.
  */
 export default function WalkSummaryScreen() {
   const insets = useSafeAreaInsets();
@@ -32,7 +35,7 @@ export default function WalkSummaryScreen() {
     const walk = res.walks.find((w) => w.id === params.id);
     if (!walk) throw new ApiError(404, 'not_found', 'Yürüyüş bulunamadı.');
     const route = await api.walkRoute(walk.id).catch(() => ({ points: [] }));
-    return { walk, route: route.points };
+    return { walk, route: trimRouteEndpoints(route.points, walk.hideEndpoints) };
   }, [params.id]);
 
   if (loader.loading) return <LoadingState label="Yürüyüş yükleniyor…" />;
@@ -107,7 +110,7 @@ export default function WalkSummaryScreen() {
         </AppText>
       </View>
 
-      <WalkRouteMap points={route} dogPhotoUrl={dog?.photoUrl ?? null} height={220} />
+      <WalkMap points={route} dogPhotoUrl={dog?.photoUrl ?? null} height={220} />
 
       {walk.hideEndpoints ? (
         <AppText

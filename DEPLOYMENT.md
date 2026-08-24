@@ -470,6 +470,41 @@ dokümana yazılmaz.
 beklenen Expo şablonu bulunamazsa (ör. Expo bir SDK sürümünde şablonu
 değiştirirse) betik sessizce geçmez, açık hata ile durur.
 
+### 8.2 Canlı Yürüyüş haritası — Google Maps (Android)
+
+Canlı Yürüyüş gerçek harita karoları kullanır (`react-native-maps`):
+iOS'ta Apple Maps herhangi bir anahtar gerektirmez; Android'de Google Maps
+bir API anahtarı ister. Anahtar koda veya `.env`'e **yazılmaz** — yalnızca
+derleme anında `GOOGLE_MAPS_ANDROID_API_KEY` GitHub Actions secret'ından
+okunur (bkz. `apps/mobile/app.config.ts`).
+
+**Anahtar eksikse ne olur?** Android'de harita "Harita yapılandırılmadı"
+durumunu gösterir; boş veya sonsuza kadar yüklenen bir ekran çıkmaz. Mesafe,
+süre ve GPS rota kaydı anahtar olmadan da normal çalışmaya devam eder —
+harita yalnızca görsel bir katmandır.
+
+#### Anahtar oluşturma (Google Cloud Console)
+
+1. [Google Cloud Console](https://console.cloud.google.com) → bir proje seç
+   veya oluştur.
+2. **APIs & Services → Library** → **Maps SDK for Android**'i etkinleştir.
+3. **APIs & Services → Credentials → Create credentials → API key**.
+4. Oluşan anahtarı **mutlaka kısıtla** (aksi hâlde başka biri anahtarınızı
+   kendi uygulamasında kullanabilir):
+   - **Application restrictions** → **Android apps** → paket adı
+     `com.patimeet.app` + imzalama sertifikasının SHA-1 parmak izi
+     (`keytool -list -v -keystore upload-keystore.jks -alias upload` ile
+     alınır; hem geliştirme/iç test hem mağaza imzası için ayrı SHA-1'ler
+     eklenmeli).
+   - **API restrictions** → yalnızca **Maps SDK for Android** işaretli
+     kalsın.
+5. Anahtarı GitHub reposunda **Settings → Secrets and variables → Actions**
+   altına `GOOGLE_MAPS_ANDROID_API_KEY` adıyla ekle.
+
+Yerel geliştirmede (`expo start`) haritayı denemek için anahtarı yalnızca
+kendi kabuğunuzda, dosyaya yazmadan geçici olarak dışa aktarabilirsiniz:
+`GOOGLE_MAPS_ANDROID_API_KEY=... npx expo prebuild --platform android`.
+
 ---
 
 ## 9. Mağaza gönderim kontrol listesi
@@ -546,3 +581,7 @@ iOS ve bir gerçek Android cihazda elle test edilmelidir:
 | Tarih-saat seçici | iOS ve Android yerel bileşenleri farklı davranır |
 | Klavye davranışı | Form ekranlarında alan kapanmaması |
 | Bildirim izni reddi | Sistem ayarlarına yönlendirmenin çalışması |
+| Canlı Yürüyüş haritası | Gerçek harita karoları, GPS ve `react-native-maps` yalnızca native derlemede çalışır — web'de ayrı, haritasız bir bileşen kullanılır |
+
+Daha ayrıntılı, işaretlenebilir bir liste için bkz. kök dizindeki
+`REAL_DEVICE_CHECKLIST.md` (Canlı Yürüyüş haritası dahil).

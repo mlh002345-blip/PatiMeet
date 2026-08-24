@@ -5,13 +5,19 @@ import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { StatusBar } from 'expo-status-bar';
 import { api } from '../../src/api';
 import { LoadingState } from '../../src/components/ui';
+import { getNeighbourhoodLastSeen } from '../../src/neighbourhoodBadge';
 import { useSession } from '../../src/session';
 import { usePushRegistration } from '../../src/push';
 import { colors } from '../../src/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
- * Alt menü (MVP 6. bölüm): Ana Sayfa, Keşfet, Etkinlikler, Mesajlar, Profil.
+ * Ana navigasyon: Bugün, Keşfet, Yürüyüş, Mahalle, Pati.
+ *
+ * Etkinlikler (`events`) ve Mesajlar (`messages`) artık alt menüde ayrı
+ * sekme değil — Mahalle/Keşfet içinden ve üstteki gelen kutusu/bildirim
+ * simgelerinden erişiliyor (`href: null` ile rota canlı kalır, deep link
+ * kırılmaz, yalnızca alt bar sekmesi gizlenir).
  *
  * Bu düzen aynı zamanda koruma katmanı: oturumu olmayan veya profili
  * tamamlanmamış kullanıcılar korumalı sekmelere erişemez.
@@ -21,6 +27,7 @@ export default function TabsLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [unread, setUnread] = useState(0);
+  const [neighbourhoodNew, setNeighbourhoodNew] = useState(0);
 
   /**
    * Cihazı bildirimlere kaydeder ve bildirime dokunulduğunda ilgili ekrana
@@ -38,7 +45,9 @@ export default function TabsLayout() {
     } else if (data.type === 'care') {
       router.push('/journal');
     } else if (data.type === 'safety') {
-      router.push('/(tabs)/profile');
+      // Güvenlik/moderasyon bildirimleri hesapla ilgilidir — Pati (köpek
+      // merkezi) değil, hesap ve güvenlik ayarlarının taşındığı /settings.
+      router.push('/settings');
     }
   });
 
@@ -51,14 +60,37 @@ export default function TabsLayout() {
       });
   }, []);
 
+  /**
+   * Mahalle sekmesindeki ölçülü "yeni içerik" göstergesi.
+   *
+   * Sahte bir sayı üretmez: gerçek akıştan (`api.feed`), kullanıcının son
+   * ziyaretinden (`neighbourhoodBadge.ts`) sonra eklenmiş kayıt sayısını
+   * sayar.
+   */
+  const loadNeighbourhoodBadge = useCallback(async () => {
+    try {
+      const [lastSeen, feed] = await Promise.all([
+        getNeighbourhoodLastSeen(),
+        api.feed({ district: user?.district ?? undefined }),
+      ]);
+      setNeighbourhoodNew(feed.items.filter((item) => item.sortAt > lastSeen).length);
+    } catch {
+      // Rozet kritik değil.
+    }
+  }, [user?.district]);
+
   useEffect(() => {
     if (!user) return;
     loadUnread();
-    // Okunmamış mesaj göstergesini düzenli olarak tazeler (MVP'de anlık
-    // bildirim yok, bu yüzden hafif bir yoklama yeterli).
-    const timer = setInterval(loadUnread, 20000);
+    loadNeighbourhoodBadge();
+    // Okunmamış mesaj ve mahalle göstergesini düzenli olarak tazeler (MVP'de
+    // anlık bildirim yok, bu yüzden hafif bir yoklama yeterli).
+    const timer = setInterval(() => {
+      loadUnread();
+      loadNeighbourhoodBadge();
+    }, 20000);
     return () => clearInterval(timer);
-  }, [user, loadUnread]);
+  }, [user, loadUnread, loadNeighbourhoodBadge]);
 
   if (initializing) return <LoadingState />;
   if (!user) return <Redirect href="/(auth)/sign-in" />;
@@ -102,7 +134,6 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          // Görsel etiket tasarım yönüne taşındı; route adı `home` olarak kaldı.
           title: 'Bugün',
           tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'house', android: 'home', web: 'home' }} focused={focused} />,
         }}
@@ -117,14 +148,30 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="live-walk"
         options={{
-          title: 'Canlı yürüyüş',
-          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' }} focused={focused} />,
+          title: 'Yürüyüş',
+          // Alt menünün ortasındaki bu sekme kasıtlı olarak öne çıkar:
+          // dolu bakır daire, diğer sekmelerden büyük ikon. Bu, "canlı
+          // yürüyüş" uygulamanın ana aksiyonu olduğu için tasarım kararı.
+          tabBarIcon: ({ focused }) => (
+            <PrimaryTabIcon name={{ ios: 'figure.walk', android: 'directions_walk', web: 'directions_walk' }} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="neighbourhood"
+        options={{
+          title: 'Mahalle',
+          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'person.2.fill', android: 'groups', web: 'groups' }} focused={focused} />,
+          tabBarBadge: neighbourhoodNew > 0 ? neighbourhoodNew : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.accent, fontSize: 10 },
         }}
       />
       <Tabs.Screen
         name="events"
         options={{
-          // Route adı `events`; yalnızca görünen etiket "Kulüp".
+          // Route adı `events`; alt menüde ayrı sekme değil — Mahalle ve
+          // Keşfet içinden erişilir. Deep link kırılmasın diye `href: null`
+          // ile rota canlı kalır, yalnızca alt bar öğesi gizlenir.
           title: 'Kulüp',
           href: null,
           tabBarIcon: ({ focused }) => (
@@ -138,6 +185,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="messages"
         options={{
+          // Alt menüde ayrı sekme değil — üstteki gelen kutusu simgesinden
+          // erişilir (bkz. home.tsx AppHeader). `href: null` ile eski deep
+          // link'ler ve okunmamış rozet mantığı bozulmadan kalır.
           href: null,
           title: 'Mesajlar',
           tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'bubble.left.and.bubble.right', android: 'chat_bubble', web: 'chat_bubble' }} focused={focused} />,
@@ -148,9 +198,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          // Route adı `profile`; görünen etiket "Pati".
+          // Route adı `profile`; görünen etiket "Pati" — köpeğin kişisel merkezi.
           title: 'Pati',
-          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'person', android: 'person', web: 'person' }} focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={{ ios: 'pawprint.fill', android: 'pets', web: 'pets' }} focused={focused} />,
         }}
       />
     </Tabs>
@@ -158,9 +208,6 @@ export default function TabsLayout() {
   );
 }
 
-/**
- * Expo'nun platformlar arası profesyonel çizgi sembolleri.
- */
 /**
  * Sekme ikonu.
  *
@@ -181,6 +228,32 @@ function TabIcon({ name, focused }: { name: SymbolViewProps['name']; focused: bo
       }}
     >
       <SymbolView name={name} size={21} tintColor={focused ? colors.copperPale : colors.textOnDarkMuted} />
+    </View>
+  );
+}
+
+/**
+ * Yürüyüş sekmesinin öne çıkan ikonu — dolu bakır daire.
+ *
+ * Boyut, sabit 56 yükseklikli sekme öğesinin (`tabBarItemStyle`) ve alt
+ * güvenli alanın içine sığacak şekilde ölçüldü; etiket hiçbir cihazda
+ * kesilmez (bkz. tabBarLabelStyle satır yüksekliği).
+ */
+function PrimaryTabIcon({ name, focused }: { name: SymbolViewProps['name']; focused: boolean }) {
+  return (
+    <View
+      style={{
+        width: 44,
+        height: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: focused ? colors.copperAction : colors.copperDeep,
+        borderWidth: 1,
+        borderColor: colors.copperPale,
+      }}
+    >
+      <SymbolView name={name} size={22} tintColor={colors.textOnDark} />
     </View>
   );
 }

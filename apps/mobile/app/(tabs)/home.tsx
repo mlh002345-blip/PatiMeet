@@ -19,7 +19,7 @@ export default function HomeScreen() {
   const { user } = useSession();
   const dog = user?.dogs?.[0];
   const loader = useLoader(async () => {
-    const [joined, nearby, discover, summary, reminders] = await Promise.all([
+    const [joined, nearby, discover, summary, reminders, neighbourhood] = await Promise.all([
       api.events({ scope: 'joined' }), api.events({ district: user?.district ?? undefined }),
       api.discover({ district: user?.district ?? undefined }).catch(() => ({ items: [], hasMore: false })),
       /**
@@ -28,6 +28,8 @@ export default function HomeScreen() {
        */
       api.walkSummary().catch(() => ({ weeklySeconds: 0, weeklyMeters: 0, weeklyWalks: 0, todaySeconds: 0 })),
       api.reminders().catch(() => ({ reminders: [] })),
+      // Mahalle kartı için gerçek davet/etkinlik sayısı — sahte bir sayı üretilmez.
+      api.feed({ district: user?.district ?? undefined }).catch(() => ({ items: [] })),
     ]);
     return {
       joined: joined.events,
@@ -35,6 +37,7 @@ export default function HomeScreen() {
       discover: discover.items,
       summary,
       reminders: reminders.reminders,
+      neighbourhoodCount: neighbourhood.items.length,
     };
   }, [user?.district]);
   const nextEvent = loader.data?.joined[0] ?? loader.data?.nearby[0] ?? null;
@@ -46,6 +49,7 @@ export default function HomeScreen() {
   const dueReminders = (loader.data?.reminders ?? []).filter(
     (r) => r.remindAt !== null && r.remindAt <= Date.now() + 24 * 60 * 60 * 1000
   );
+  const neighbourhoodCount = loader.data?.neighbourhoodCount ?? 0;
 
   return (
     <ScrollView style={s.screen} contentContainerStyle={{ paddingBottom: spacing.xxl }} refreshControl={<RefreshControl refreshing={loader.refreshing} onRefresh={loader.refresh} tintColor={colors.copperPale} />}>
@@ -70,16 +74,42 @@ export default function HomeScreen() {
           <QuickAction label={'Güvenli\ntopluluk'} icon={{ ios: 'shield.fill', android: 'shield', web: 'shield' }} tone="sage" onPress={() => router.push('/alerts')} />
         </View>
         <View style={s.goalCard}><View style={{ flex: 1 }}><AppText variant="label" color={colors.textOnDark}>Günlük hedefin</AppText><View style={s.goalTrack}><View style={[s.goalFill, { width: `${progress * 100}%` }]} /></View><AppText variant="caption" color={colors.textOnDarkMuted} style={{ marginTop: spacing.sm }}>{completedMinutes > 0 ? `Bugün ${completedMinutes} dk yürüdünüz` : 'Bugün henüz yürüyüş yok'} · hedef {goalMinutes} dk</AppText></View><View style={s.progressRing}><AppText variant="heading" color={colors.textOnDark}>%{Math.round(progress * 100)}</AppText><AppText variant="caption" color={colors.copperPale}>{completedMinutes} dk</AppText></View></View>
-        {dueReminders.length > 0 ? (
-          <Pressable onPress={() => router.push('/journal')} style={({ pressed }) => [s.reminderCard, pressed && s.pressed]}>
-            <View style={s.reminderIcon}><SymbolView name={{ ios: 'cross.case.fill', android: 'medical_services', web: 'medical_services' }} size={20} tintColor={colors.copperPale} /></View>
-            <View style={{ flex: 1 }}>
-              <AppText variant="bodyStrong" color={colors.textOnDark} numberOfLines={1}>{dueReminders[0].typeLabel}{dueReminders[0].dogName ? ` · ${dueReminders[0].dogName}` : ''}</AppText>
-              <AppText variant="caption" color={colors.textOnDarkMuted}>{dueReminders.length > 1 ? `${dueReminders.length} bakım hatırlatması bekliyor` : 'Bakım zamanı geldi'}</AppText>
-            </View>
-            <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={colors.textOnDarkMuted} />
-          </Pressable>
-        ) : null}
+        {/* Pati'nin bugünkü bakımı — gerçek en yakın bakım kaydı, sahte veri yok. */}
+        <Pressable
+          onPress={() => router.push(dueReminders.length > 0 ? '/journal' : '/journal/add')}
+          style={({ pressed }) => [s.reminderCard, pressed && s.pressed]}
+        >
+          <View style={s.reminderIcon}><SymbolView name={{ ios: 'cross.case.fill', android: 'medical_services', web: 'medical_services' }} size={20} tintColor={colors.copperPale} /></View>
+          <View style={{ flex: 1 }}>
+            {dueReminders.length > 0 ? (
+              <>
+                <AppText variant="bodyStrong" color={colors.textOnDark} numberOfLines={1}>{dueReminders[0].typeLabel}{dueReminders[0].dogName ? ` · ${dueReminders[0].dogName}` : ''}</AppText>
+                <AppText variant="caption" color={colors.textOnDarkMuted}>{dueReminders.length > 1 ? `${dueReminders.length} bakım hatırlatması bekliyor` : 'Bakım zamanı geldi'}</AppText>
+              </>
+            ) : (
+              <>
+                <AppText variant="bodyStrong" color={colors.textOnDark} numberOfLines={1}>Pati'nin bugünkü bakımı</AppText>
+                <AppText variant="caption" color={colors.textOnDarkMuted}>İlk bakım kaydını oluştur</AppText>
+              </>
+            )}
+          </View>
+          <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={colors.textOnDarkMuted} />
+        </Pressable>
+
+        {/* Mahallende bugün — semtteki gerçek davet/etkinlik sayısı, sahte sayı yok. */}
+        <Pressable
+          onPress={() => router.push('/(tabs)/neighbourhood')}
+          style={({ pressed }) => [s.reminderCard, pressed && s.pressed]}
+        >
+          <View style={s.reminderIcon}><SymbolView name={{ ios: 'person.2.fill', android: 'groups', web: 'groups' }} size={20} tintColor={colors.copperPale} /></View>
+          <View style={{ flex: 1 }}>
+            <AppText variant="bodyStrong" color={colors.textOnDark} numberOfLines={1}>Mahallende bugün</AppText>
+            <AppText variant="caption" color={colors.textOnDarkMuted}>
+              {neighbourhoodCount > 0 ? `${neighbourhoodCount} davet/etkinlik seni bekliyor` : 'İlk daveti sen aç'}
+            </AppText>
+          </View>
+          <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={colors.textOnDarkMuted} />
+        </Pressable>
         <SectionHead kicker="SIRADAKİ ETKİNLİK" title={nextEvent?.title ?? 'Birlikte yeni bir rota keşfedin'} action="Tümü" onAction={() => router.push('/(tabs)/events')} />
         <Pressable onPress={() => nextEvent ? router.push(`/event/${nextEvent.id}`) : router.push('/event/create')} style={({ pressed }) => [s.eventCard, pressed && s.pressed]}><View style={s.eventIcon}><SymbolView name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }} size={24} tintColor={colors.copperPale} /></View><View style={{ flex: 1 }}><AppText variant="bodyStrong" color={colors.textOnDark} numberOfLines={1}>{nextEvent?.title ?? 'Yürüyüşünü planla'}</AppText><AppText variant="caption" color={colors.textOnDarkMuted} style={{ marginTop: 3 }} numberOfLines={1}>{nextEvent ? `${formatEventDate(nextEvent.startsAt)} · ${nextEvent.district}` : `${user?.district ?? 'Semtin'} · uygun zamanı sen seç`}</AppText><AppText variant="caption" color={colors.copperPale} style={{ marginTop: spacing.sm }}>{nextEvent ? `${nextEvent.participantCount} kişi katılıyor` : 'İlk buluşmayı sen başlat'}</AppText></View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={20} tintColor={colors.textOnDarkMuted} /></Pressable>
         {loader.data?.discover.length ? <><SectionHead kicker="YAKININDAKİLER" title="Bugün kimler dışarıda?" action="Keşfet" onAction={() => router.push('/(tabs)/discover')} /><View style={s.peopleRow}>{loader.data.discover.slice(0, 5).map((item) => <Pressable key={item.dog.id} onPress={() => router.push(`/user/${item.owner.id}?dogId=${item.dog.id}`)} style={s.personWrap}><View style={s.personAvatar}>{item.dog.photoUrl ? <Image source={{ uri: item.dog.photoUrl }} style={s.fill} /> : <AppText variant="heading" color={colors.textOnDark}>{item.dog.name[0]}</AppText>}<View style={s.onlineDot} /></View><AppText variant="caption" color={colors.textOnDarkMuted} numberOfLines={1}>{item.dog.name}</AppText></Pressable>)}</View></> : null}

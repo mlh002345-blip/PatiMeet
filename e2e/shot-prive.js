@@ -10,8 +10,10 @@ const SCREENS = [
   ['kulup', '/events', 'Kulüp'],
   ['canli-yuruyus', '/live-walk', 'Canlı yürüyüş'],
   ['gunluk', '/journal', 'günlüğü'],
-  ['mahalle', '/neighbourhood', 'Mahalle akışı'],
+  ['mahalle', '/neighbourhood', 'Semtinde bugün'],
   ['davet', '/neighbourhood/create-invite', 'Ne zaman'],
+  ['pati', '/profile', 'Bugünkü bakım'],
+  ['ayarlar', '/settings', 'Profil ve ayarlar'],
 ];
 
 (async () => {

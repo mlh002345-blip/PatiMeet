@@ -242,6 +242,10 @@ jobs:
 
       - name: Native projeyi üret (expo prebuild)
         working-directory: apps/mobile
+        # Secret tanımlı değilse Android haritası "yapılandırılmadı" durumunu
+        # gösterir; mesafe/süre takibi buna rağmen çalışır (bkz. src/mapsConfig.ts).
+        env:
+          GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_API_KEY }}
         run: npx expo prebuild --platform android --no-install --clean
 
       - name: Gradle bellek ayarı
@@ -340,6 +344,8 @@ jobs:
       - name: Native projeyi üret (expo prebuild)
         if: steps.keystore.outputs.configured == 'true'
         working-directory: apps/mobile
+        env:
+          GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_API_KEY }}
         run: npx expo prebuild --platform android --no-install --clean
 
       - name: Yükleme anahtarını kur

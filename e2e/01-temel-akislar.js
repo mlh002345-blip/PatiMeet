@@ -60,7 +60,7 @@ async function main() {
     const results = [];
     for (const el of document.querySelectorAll('a,[role="tab"],[role="button"],[href]')) {
       const text = (el.textContent || '').trim();
-      if (['Bugün', 'Keşfet', 'Kulüp', 'Mesajlar', 'Pati'].includes(text)) {
+      if (['Bugün', 'Keşfet', 'Yürüyüş', 'Mahalle', 'Kulüp', 'Mesajlar', 'Pati'].includes(text)) {
         results.push({ tag: el.tagName, role: el.getAttribute('role'), href: el.getAttribute('href'), text });
       }
     }
@@ -75,9 +75,12 @@ async function main() {
   const TAB_URLS = {
     'Bugün': '/home',
     'Keşfet': '/discover',
+    'Yürüyüş': '/live-walk',
+    'Mahalle': '/neighbourhood',
     'Kulüp': '/events',
     'Mesajlar': '/messages',
     'Pati': '/profile',
+    'Ayarlar': '/settings',
   };
 
   async function goTab(label, expect) {
@@ -105,12 +108,19 @@ async function main() {
   await shot(page, '12-mesajlar');
   check('Konuşma listesi görünüyor', /Mert|Cumartesi|okunmamış/.test(messages), messages.slice(0, 250));
 
-  const profile = await goTab('Pati', 'Profil');
+  // Pati sekmesi artık köpeğin kişisel merkezi — kullanıcı ayarları değil.
+  const profile = await goTab('Pati', 'Bugünkü bakım');
   await shot(page, '13-profil');
-  check('Profilde kullanıcı adı var', profile.includes('Elif'));
-  check('Profilde köpek var', profile.includes('Pati'));
-  check('Yasal metin bağlantıları var', profile.includes('Kullanıcı Sözleşmesi'));
-  check('Hesap silme mevcut', profile.includes('Hesabımı sil'));
+  check('Pati ekranında bugünkü bakım bölümü var', profile.includes('Bugünkü bakım'));
+  check('Pati ekranında son yürüyüş bölümü var', profile.includes('Son yürüyüş'));
+  check('Pati ekranında günlüğe kayıt ekle eylemi var', profile.includes('Günlüğe kayıt ekle'));
+
+  // Kullanıcı profili, hesap ve yasal metinler artık /settings altında.
+  const settings = await goTab('Ayarlar', 'Profil ve ayarlar');
+  await shot(page, '13b-ayarlar');
+  check('Ayarlarda kullanıcı adı var', settings.includes('Elif'));
+  check('Yasal metin bağlantıları var', settings.includes('Kullanıcı Sözleşmesi'));
+  check('Hesap silme mevcut', settings.includes('Hesabımı sil'));
 
   // --- Sohbet akışı ---
   console.log('\n→ Sohbet akışı');
@@ -216,7 +226,7 @@ async function main() {
 
   // --- Yasal metin ---
   console.log('\n→ Yasal metinler');
-  await goTab('Pati', 'Profil');
+  await goTab('Ayarlar', 'Profil ve ayarlar');
   const terms = page.getByText('Kullanıcı Sözleşmesi', { exact: true }).first();
   if ((await terms.count()) > 0) {
     await terms.click();

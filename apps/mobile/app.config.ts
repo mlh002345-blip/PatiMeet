@@ -38,6 +38,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   const googleScheme = reversedClientIdScheme(iosClientId);
 
+  /**
+   * Android'de react-native-maps (Google Maps) bu anahtar olmadan boş bir
+   * karo ızgarası gösterir veya hiç yüklenmez. iOS'ta Apple Maps kullanılır
+   * ve herhangi bir anahtar gerekmez. Anahtar `.env`'e veya koda yazılmaz —
+   * yalnızca GitHub Actions secrets üzerinden derleme anında okunur (bkz.
+   * DEPLOYMENT.md §7.1). Anahtar boşsa Android manifest'ine hiçbir şey
+   * eklenmez; istemci bunu `extra.mapsConfigured.android` ile tespit edip
+   * "Harita yapılandırılmadı" durumunu gösterir (bkz. src/mapsConfig.ts).
+   */
+  const googleMapsAndroidApiKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY?.trim();
+
   return {
     ...config,
     name: config.name ?? 'PatiMeet',
@@ -47,6 +58,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // Yalnızca Google yapılandırıldığında ek şema tanımlanır.
       ...(googleScheme ? { scheme: [googleScheme] } : {}),
     },
+    android: {
+      ...config.android,
+      ...(googleMapsAndroidApiKey
+        ? {
+            config: {
+              ...config.android?.config,
+              googleMaps: { apiKey: googleMapsAndroidApiKey },
+            },
+          }
+        : {}),
+    },
     extra: {
       ...config.extra,
       /**
@@ -55,6 +77,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
        * kullanılmaz (PKCE ile çalışıyoruz).
        */
       google: definedOnly({ iosClientId, androidClientId, webClientId }),
+      /** Anahtarın kendisi değil, yalnızca yapılandırılıp yapılandırılmadığı. */
+      mapsConfigured: { android: Boolean(googleMapsAndroidApiKey) },
     },
   };
 };

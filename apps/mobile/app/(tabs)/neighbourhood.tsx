@@ -1,12 +1,12 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import React, { useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { api, type FeedItem } from '../../src/api';
-import { AppText, DetailHeader, ErrorState, LoadingState } from '../../src/components/ui';
-import { formatEventDate, formatRelative } from '../../src/labels';
+import React, { useCallback, useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { api, type FeedItem, type PlayGroup } from '../../src/api';
+import { AppHeader, AppText, ErrorState, LoadingState, ScrollScreen } from '../../src/components/ui';
+import { dogSizeLabels, formatEventDate, formatRelative, playStyleLabels } from '../../src/labels';
+import { markNeighbourhoodSeen } from '../../src/neighbourhoodBadge';
 import { useSession } from '../../src/session';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../../src/theme';
 import { useLoader } from '../../src/useLoader';
 
@@ -24,14 +24,18 @@ function kindIcon(kind: FeedItem['kind']): SymbolViewProps['name'] {
 }
 
 /**
- * Mahalle Akışı.
+ * Mahalle — ana navigasyonun 4. sekmesi.
  *
- * Semtteki etkinlikleri, hızlı yürüyüş davetlerini ve Güvenli Topluluk
- * bildirimlerini TEK listede gösterir. İçerikler kaynak kayıtlardan gelir;
- * ikinci bir kopya tutulmaz. Tam adres veya kesin konum hiçbir kartta yok.
+ * Semtteki etkinlikleri, hızlı yürüyüş davetlerini, Güvenli Topluluk
+ * bildirimlerini ve oyun gruplarını TEK ekranda gösterir. İçerikler kaynak
+ * kayıtlardan gelir; ikinci bir kopya tutulmaz. Tam adres veya kesin konum
+ * hiçbir kartta yok. Engellenen kullanıcıların içerikleri sunucu tarafında
+ * zaten filtrelenir (bkz. api/domain/neighbourhood.ts#hiddenUserIds).
+ *
+ * Bu ekran aynı zamanda eski `/neighbourhood` derin bağlantısının kanonik
+ * hedefidir — URL değişmedi, yalnızca ekran artık bir sekme.
  */
 export default function NeighbourhoodScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useSession();
   const [kind, setKind] = useState('');
@@ -46,7 +50,20 @@ export default function NeighbourhoodScreen() {
     [kind, onlyMyDistrict, user?.district]
   );
 
+  const groupsLoader = useLoader(
+    () => api.groups({ district: user?.district ?? undefined }),
+    [user?.district]
+  );
+
+  // Sekmeye her girişte "yeni içerik" göstergesi temizlenir.
+  useFocusEffect(
+    useCallback(() => {
+      void markNeighbourhoodSeen();
+    }, [])
+  );
+
   const items = loader.data?.items ?? [];
+  const groups = groupsLoader.data?.groups ?? [];
 
   function open(item: FeedItem) {
     if (item.kind === 'event') router.push(`/event/${item.id}`);
@@ -54,22 +71,24 @@ export default function NeighbourhoodScreen() {
     else router.push(`/neighbourhood/invite/${item.id}`);
   }
 
+  async function toggleGroup(group: PlayGroup) {
+    try {
+      if (group.isMember) await api.leaveGroup(group.id);
+      else await api.joinGroup(group.id);
+      groupsLoader.reload();
+    } catch {
+      // Sessizce geç; kullanıcı tekrar dokunabilir.
+    }
+  }
+
   return (
-    <ScrollView
-      style={s.screen}
-      contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: spacing.xxl }}
-      refreshControl={
-        <RefreshControl
-          refreshing={loader.refreshing}
-          onRefresh={loader.refresh}
-          tintColor={colors.copperPale}
-        />
-      }
-    >
-      <DetailHeader label="Mahalle akışı" onBack={() => router.back()} />
-      <View style={{ paddingHorizontal: spacing.lg }}>
-      <AppText variant="body" color={colors.textOnDarkMuted}>
-        Semtinde olup bitenler ve birlikte yürüme fırsatları.
+    <ScrollScreen refreshing={loader.refreshing || groupsLoader.refreshing} onRefresh={() => { loader.refresh(); groupsLoader.refresh(); }}>
+      <AppHeader onNotifications={() => router.push('/settings/notifications')} />
+      <AppText variant="kicker" color={colors.copper}>MAHALLE</AppText>
+      <AppText variant="title" style={{ marginTop: spacing.xs }}>Semtinde bugün</AppText>
+      <AppText variant="body" color={colors.textMuted} style={{ marginTop: spacing.sm, marginBottom: spacing.lg }}>
+        Yürüyüş davetleri, etkinlikler, Güvenli Topluluk bildirimleri ve oyun grupları — hepsi
+        burada.
       </AppText>
 
       <Pressable
@@ -87,7 +106,63 @@ export default function NeighbourhoodScreen() {
         </AppText>
       </Pressable>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: spacing.lg }}>
+      {/* Oyun grupları */}
+      <View style={s.sectionHead}>
+        <AppText variant="heading">Oyun grupları</AppText>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/neighbourhood/create-group')}>
+          <AppText variant="label" color={colors.copper}>+ Grup oluştur</AppText>
+        </Pressable>
+      </View>
+      {groupsLoader.loading ? (
+        <LoadingState label="Gruplar yükleniyor…" />
+      ) : groups.length === 0 ? (
+        <AppText variant="caption" color={colors.textMuted} style={{ marginBottom: spacing.lg }}>
+          Semtinde henüz bir oyun grubu yok — ilkini sen kur.
+        </AppText>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.lg }}>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {groups.map((group) => (
+              <View key={group.id} style={s.groupCard}>
+                {group.coverPhotoUrl ? (
+                  <Image source={{ uri: group.coverPhotoUrl }} style={s.groupCover} />
+                ) : (
+                  <View style={[s.groupCover, s.groupCoverFallback]}>
+                    <SymbolView
+                      name={{ ios: 'pawprint.fill', android: 'pets', web: 'pets' }}
+                      size={20}
+                      tintColor={colors.copperPale}
+                    />
+                  </View>
+                )}
+                <AppText variant="bodyStrong" color={colors.textOnDark} numberOfLines={1} style={{ marginTop: spacing.sm }}>
+                  {group.name}
+                </AppText>
+                <AppText variant="caption" color={colors.textOnDarkMuted} numberOfLines={1}>
+                  {dogSizeLabels[group.dogSize] ?? group.dogSize} ·{' '}
+                  {playStyleLabels[group.playStyle] ?? group.playStyle}
+                </AppText>
+                <AppText variant="caption" color={colors.textOnDarkMuted}>
+                  {group.memberCount} üye
+                </AppText>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: group.isMember }}
+                  onPress={() => toggleGroup(group)}
+                  style={[s.groupJoinBtn, group.isMember && s.groupJoinBtnActive]}
+                >
+                  <AppText variant="label" color={group.isMember ? colors.copperPale : colors.textOnDark}>
+                    {group.isMember ? 'Üyesin' : 'Katıl'}
+                  </AppText>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
+
+      {/* Akış filtreleri */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: spacing.md }}>
         <View style={s.filterRow}>
           {KIND_FILTERS.map((filter) => {
             const active = filter.value === kind;
@@ -99,10 +174,7 @@ export default function NeighbourhoodScreen() {
                 onPress={() => setKind(filter.value)}
                 style={[s.chip, active && s.chipActive]}
               >
-                <AppText
-                  variant="label"
-                  color={active ? colors.textOnDark : colors.textOnDarkMuted}
-                >
+                <AppText variant="label" color={active ? colors.textOnDark : colors.textOnDarkMuted}>
                   {filter.label}
                 </AppText>
               </Pressable>
@@ -115,10 +187,7 @@ export default function NeighbourhoodScreen() {
               onPress={() => setOnlyMyDistrict((v) => !v)}
               style={[s.chip, onlyMyDistrict && s.chipActive]}
             >
-              <AppText
-                variant="label"
-                color={onlyMyDistrict ? colors.textOnDark : colors.textOnDarkMuted}
-              >
+              <AppText variant="label" color={onlyMyDistrict ? colors.textOnDark : colors.textOnDarkMuted}>
                 {user.district}
               </AppText>
             </Pressable>
@@ -189,15 +258,13 @@ export default function NeighbourhoodScreen() {
           </Pressable>
         ))
       )}
-      </View>
-    </ScrollView>
+    </ScrollScreen>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.primaryDark },
   cta: {
-    marginTop: spacing.lg,
+    marginTop: spacing.sm,
     minHeight: 56,
     borderRadius: radius.lg,
     flexDirection: 'row',
@@ -206,6 +273,32 @@ const s = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: colors.copperAction,
   },
+  sectionHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+  },
+  groupCard: {
+    width: 148,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.obsidianSoft,
+    borderWidth: 1,
+    borderColor: colors.borderOnDark,
+  },
+  groupCover: { width: '100%', height: 72, borderRadius: radius.md, backgroundColor: colors.forestSoft },
+  groupCoverFallback: { alignItems: 'center', justifyContent: 'center' },
+  groupJoinBtn: {
+    marginTop: spacing.sm,
+    minHeight: 36,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.copperAction,
+  },
+  groupJoinBtnActive: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.copperPale },
   filterRow: { flexDirection: 'row', gap: spacing.sm, paddingBottom: spacing.md },
   chip: {
     minHeight: 44,

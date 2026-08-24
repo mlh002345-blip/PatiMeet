@@ -110,3 +110,21 @@ export function formatPace(secondsPerKm: number | null): string {
   const s = Math.round(secondsPerKm % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
 }
+
+/** Sunucudaki `domain/walks.ts#trimRoute` ile birebir aynı oran. */
+const ENDPOINT_TRIM_RATIO = 0.12;
+
+/**
+ * Paylaşılan/görüntülenen özetlerde başlangıç ve bitişi gizler.
+ *
+ * `GET /api/walks/:id/route` sahibine HAM rotayı döner (ownerRoute
+ * kurtarma ve canlı takip için gerekli); ancak bir özeti görüntülerken veya
+ * paylaşırken ev konumunu ele verecek uç bölümler istemci tarafında da
+ * kırpılır — sunucudaki `trimRoute` ile aynı mantık, aynı oran.
+ */
+export function trimRouteEndpoints<T>(points: T[], hideEndpoints: boolean): T[] {
+  if (!hideEndpoints) return points;
+  if (points.length < 8) return [];
+  const cut = Math.max(1, Math.floor(points.length * ENDPOINT_TRIM_RATIO));
+  return points.slice(cut, points.length - cut);
+}

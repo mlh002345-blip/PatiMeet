@@ -6,19 +6,22 @@ import { colors, radius, spacing } from '../theme';
 import { AppText } from './ui';
 
 /**
- * Rota çizimi.
+ * Rota çizimi — web sürümü.
  *
- * Gerçek GPS noktalarını kendi koordinat kutusuna göre ölçekleyip çizer —
- * arkada bir harita karosu YOKTUR. Bu bilinçli: harita karosu servisi ek
- * bağımlılık, API anahtarı ve her açılışta dış istek demek; rotanın kendisi
- * mesafeyi ve şekli göstermek için yeterli. Sahte sokak çizgisi de çizilmez.
+ * `react-native-maps` yerel bir modüldür ve web'de derlenmez (bkz.
+ * `WalkMap.tsx` üst yorumu). Web için gerçek harita karosu yerine gerçek GPS
+ * noktalarını kendi koordinat kutusuna göre ölçekleyip çizen güvenli bir
+ * şema kullanılır — sahte sokak veya sahte harita çizilmez. Mobil uygulama
+ * bu dosyayı hiç kullanmaz.
  */
-export function WalkRouteMap({
+export function WalkMap({
   points,
   dogPhotoUrl,
   height = 260,
 }: {
   points: WalkPoint[];
+  /** Web şemasında otomatik takip/"konumuma dön" yok; prop kabul edilir, yoksayılır. */
+  live?: boolean;
   dogPhotoUrl?: string | null;
   height?: number;
 }) {

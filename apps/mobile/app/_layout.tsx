@@ -38,13 +38,14 @@ export default function RootLayout() {
           <Stack.Screen name="journal/documents" options={{ headerShown: false }} />
           <Stack.Screen name="journal/document/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="journal/emergency" options={{ headerShown: false }} />
-          <Stack.Screen name="neighbourhood/index" options={{ headerShown: false }} />
           <Stack.Screen name="neighbourhood/create-invite" options={{ headerShown: false }} />
+          <Stack.Screen name="neighbourhood/create-group" options={{ headerShown: false }} />
           <Stack.Screen name="neighbourhood/invite/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="alerts/index" options={{ headerShown: false }} />
           <Stack.Screen name="alerts/create" options={{ headerShown: false }} />
           <Stack.Screen name="alerts/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="legal/[slug]" options={{ headerShown: false }} />
+          <Stack.Screen name="settings/index" options={{ headerShown: false }} />
           <Stack.Screen name="settings/blocked" options={{ headerShown: false }} />
           <Stack.Screen name="settings/notifications" options={{ headerShown: false }} />
           <Stack.Screen name="settings/edit-profile" options={{ headerShown: false }} />

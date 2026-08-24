@@ -21,6 +21,13 @@ export const sociabilityLabels: Record<string, string> = {
   sosyal: 'Sosyal',
 };
 
+/** Oyun grubu oyun tarzı — köpek enerji seviyesinden ayrı bir sunucu enum'u. */
+export const playStyleLabels: Record<string, string> = {
+  sakin: 'Sakin',
+  dengeli: 'Dengeli',
+  hareketli: 'Hareketli',
+};
+
 /**
  * "Ne arıyorsun?" etiketleri.
  *

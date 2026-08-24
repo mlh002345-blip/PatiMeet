@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, ApiError, type Walk, type WalkPoint } from '../../src/api';
 import { AppText } from '../../src/components/ui';
-import { WalkRouteMap } from '../../src/components/WalkRouteMap';
+import { WalkMap } from '../../src/components/WalkMap';
 import { useSession } from '../../src/session';
 import { colors, radius, spacing } from '../../src/theme';
 import {
@@ -350,7 +350,7 @@ export default function LiveWalkScreen() {
             description="Canlı yürüyüş gerçek GPS gerektirir; web önizlemesinde çalışmaz. Telefon uygulamasında kullanabilirsin."
           />
         ) : running ? (
-          <WalkRouteMap points={route} dogPhotoUrl={dog?.photoUrl ?? null} />
+          <WalkMap points={route} live dogPhotoUrl={dog?.photoUrl ?? null} />
         ) : (
           <PermissionNotice
             title="Yürüyüşe hazır"
