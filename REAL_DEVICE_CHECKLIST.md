@@ -52,6 +52,27 @@ atabileceğinden bilinçli olarak ertelendi.
 - [ ] Büyük bir PDF (birkaç MB) yüklenirken makul sürede tamamlanıyor veya
       anlaşılır bir hata veriyor
 
+### 3.1 Belge önizleme (uygulama içi, `/journal/document/[id]`)
+
+- [ ] Belge kartına dokununca tarayıcıya veya başka bir uygulamaya
+      çıkılmadan uygulama içinde açılıyor
+- [ ] Görsel belge (JPEG/PNG/WebP/HEIC) yakınlaştırılıp kaydırılabiliyor;
+      çift dokunuşla yakınlaştırma/eski hâline dönüş çalışıyor
+- [ ] PDF belge sayfa sayfa görüntüleniyor; sayfa ileri/geri düğmeleri ve
+      "Sayfa X / Y" göstergesi doğru
+- [ ] PDF içinde de sıkıştırma (pinch) ile yakınlaştırma çalışıyor
+- [ ] Büyük bir PDF açılırken "Belge indiriliyor…" durumu görünüyor, sonra
+      görüntüleyiciye geçiyor
+- [ ] Uçak modunda belge açmayı denemek anlaşılır bir hata veriyor (deponun
+      adı/uç bilgisi görünmüyor)
+- [ ] Ekrandan geri çıkıldığında indirilen PDF cihazdan siliniyor — bir dosya
+      yöneticisiyle uygulamanın önbellek dizini kontrol edilerek doğrulanabilir
+- [ ] Art arda birden fazla farklı PDF belge açılıp kapatıldığında cihazda
+      belge biriktirmiyor (yalnızca en son açılanın geçici kopyası kalıyor)
+- [ ] Belgenin süreli adresi ağ isteklerinde (ör. bir proxy/inceleme aracıyla)
+      yalnızca PatiMeet API'sine ve doğrudan depo sağlayıcısına gidiyor; Google
+      Docs Viewer gibi üçüncü bir servise hiçbir istek gitmiyor
+
 ## 4. Google / Apple ile giriş
 
 - [ ] Gerçek bir Google hesabıyla giriş tamamlanıyor (iOS + Android)

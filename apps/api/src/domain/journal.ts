@@ -321,6 +321,44 @@ export async function listDocuments(userId: string, dogId: string, db: Db = getD
   );
 }
 
+/**
+ * Tek bir belgenin uygulama içi önizleme için gereken tüm bilgisini döner.
+ *
+ * `contentType`, istemcinin görsel mi PDF mi göstereceğine karar vermesi
+ * içindir — dosya uzantısına değil, yüklemede doğrulanmış gerçek MIME
+ * türüne (bkz. domain/media.ts#validateImage) dayanır.
+ */
+export async function getDocument(userId: string, documentId: string, db: Db = getDb()) {
+  const row = await db.one<{
+    id: string;
+    owner_id: string;
+    type: string;
+    title: string;
+    storage_key: string;
+    created_at: number;
+    content_type: string | null;
+  }>(
+    `SELECT d.id, d.owner_id, d.type, d.title, d.storage_key, d.created_at,
+            m.content_type
+       FROM dog_documents d
+       LEFT JOIN media_objects m ON m.storage_key = d.storage_key AND m.status = 'active'
+      WHERE d.id = $1`,
+    [documentId]
+  );
+  if (!row) throw notFound('Belge bulunamadı.');
+  if (row.owner_id !== userId) throw forbidden('Bu belgeyi görüntüleme yetkiniz yok.');
+
+  return {
+    id: row.id,
+    type: row.type,
+    typeLabel: DOCUMENT_TYPES.find((t) => t.value === row.type)?.label ?? row.type,
+    title: row.title,
+    contentType: row.content_type,
+    url: await resolveMediaUrl(row.storage_key),
+    createdAt: row.created_at,
+  };
+}
+
 export async function deleteDocument(userId: string, documentId: string, db: Db = getDb()) {
   const row = await db.one<{ owner_id: string; storage_key: string }>(
     'SELECT owner_id, storage_key FROM dog_documents WHERE id = $1',

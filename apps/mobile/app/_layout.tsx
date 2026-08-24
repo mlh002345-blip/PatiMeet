@@ -36,6 +36,7 @@ export default function RootLayout() {
           <Stack.Screen name="journal/index" options={{ headerShown: false }} />
           <Stack.Screen name="journal/add" options={{ headerShown: false }} />
           <Stack.Screen name="journal/documents" options={{ headerShown: false }} />
+          <Stack.Screen name="journal/document/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="journal/emergency" options={{ headerShown: false }} />
           <Stack.Screen name="neighbourhood/index" options={{ headerShown: false }} />
           <Stack.Screen name="neighbourhood/create-invite" options={{ headerShown: false }} />

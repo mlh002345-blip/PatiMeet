@@ -11,6 +11,7 @@ import {
   deleteDocument,
   deleteJournalEntry,
   DOCUMENT_TYPES,
+  getDocument,
   getEmergencyCard,
   journalOverview,
   JOURNAL_TYPES,
@@ -163,6 +164,15 @@ journalRouter.get(
   asyncRoute(async (req, res) => {
     const me = currentUser(req);
     res.json({ documents: await listDocuments(me.id, req.params.dogId) });
+  })
+);
+
+journalRouter.get(
+  '/documents/:id',
+  requireAuth,
+  asyncRoute(async (req, res) => {
+    const me = currentUser(req);
+    res.json({ document: await getDocument(me.id, req.params.id) });
   })
 );
 

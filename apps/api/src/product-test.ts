@@ -483,6 +483,30 @@ async function main(): Promise<void> {
   const foreignDocs = await req('GET', `/api/journal/${ali.dogId}/documents`, { token: beren.token });
   check('Başkası sağlık belgelerini göremez', foreignDocs.status === 404, foreignDocs.body);
 
+  // Uygulama içi belge önizlemesi (bkz. journal/document/[id].tsx) için tekil belge ucu.
+  const docDetail = await req('GET', `/api/journal/documents/${doc.body.id}`, { token: ali.token });
+  check('Tekil belge görüntülenebilir', docDetail.status === 200, docDetail.body);
+  check(
+    'Tekil belge içerik türünü taşır',
+    docDetail.body.document?.contentType === 'application/pdf',
+    docDetail.body.document
+  );
+  check(
+    'Tekil belgenin süreli adresi vardır',
+    typeof docDetail.body.document?.url === 'string' && docDetail.body.document.url.length > 0,
+    docDetail.body.document?.url
+  );
+
+  const foreignDocDetail = await req('GET', `/api/journal/documents/${doc.body.id}`, {
+    token: beren.token,
+  });
+  check('Başkası tekil belgeyi göremez', foreignDocDetail.status === 403, foreignDocDetail.body);
+
+  const missingDocDetail = await req('GET', '/api/journal/documents/olmayan-id', {
+    token: ali.token,
+  });
+  check('Var olmayan belge 404 döner', missingDocDetail.status === 404, missingDocDetail.body);
+
   // Belge silinince hem kayıt hem depodaki dosya kaldırılmalı.
   const docBeforeDelete = await req('GET', `/api/journal/${ali.dogId}/documents`, {
     token: ali.token,
@@ -522,6 +546,21 @@ async function main(): Promise<void> {
     token: beren.token,
   });
   check('Var olmayan/başkasının belgesi silinemez', foreignDelete.status === 404, foreignDelete.body);
+
+  // Görsel belgede de doğru içerik türü dönmeli (önizleme ekranı görsel/PDF ayrımını buna göre yapar).
+  const imageDoc = await upload(ali.token, 'document', JPEG, 'image/jpeg');
+  const imageDocSaved = await req('POST', '/api/journal/documents', {
+    token: ali.token,
+    body: { dogId: ali.dogId, type: 'tahlil', storageKey: imageDoc.body.key },
+  });
+  const imageDocDetail = await req('GET', `/api/journal/documents/${imageDocSaved.body.id}`, {
+    token: ali.token,
+  });
+  check(
+    'Görsel belgede içerik türü image/* olarak döner',
+    imageDocDetail.body.document?.contentType === 'image/jpeg',
+    imageDocDetail.body.document
+  );
 
   const berenFile = await upload(beren.token, 'document', PDF, 'application/pdf');
   const stolenDoc = await req('POST', '/api/journal/documents', {

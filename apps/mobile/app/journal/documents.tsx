@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import React, { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { api, ApiError } from '../../src/api';
 import { AppText, Banner, Button, Card, ChoiceGroup, DetailHeader, Field, LoadingState } from '../../src/components/ui';
 import { readFileBytes } from '../../src/fileBytes';
@@ -219,33 +219,26 @@ export default function DocumentsScreen() {
         (loader.data?.documents ?? []).map((doc) => (
           <Card key={doc.id} style={{ marginBottom: spacing.sm }}>
             <View style={s.row}>
-              <View style={s.icon}>
-                <SymbolView
-                  name={{ ios: 'doc.text', android: 'description', web: 'description' }}
-                  size={20}
-                  tintColor={colors.primary}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <AppText variant="bodyStrong">{doc.title || doc.typeLabel}</AppText>
-                <AppText variant="caption" color={colors.textMuted}>
-                  {doc.typeLabel} · {formatShortDate(doc.createdAt)}
-                </AppText>
-              </View>
-              {doc.url ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Belgeyi aç"
-                  onPress={() => void Linking.openURL(doc.url as string)}
-                  style={s.action}
-                >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${doc.title || doc.typeLabel} belgesini aç`}
+                onPress={() => router.push(`/journal/document/${doc.id}`)}
+                style={s.rowMain}
+              >
+                <View style={s.icon}>
                   <SymbolView
-                    name={{ ios: 'arrow.up.right', android: 'open_in_new', web: 'open_in_new' }}
-                    size={18}
+                    name={{ ios: 'doc.text', android: 'description', web: 'description' }}
+                    size={20}
                     tintColor={colors.primary}
                   />
-                </Pressable>
-              ) : null}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="bodyStrong">{doc.title || doc.typeLabel}</AppText>
+                  <AppText variant="caption" color={colors.textMuted}>
+                    {doc.typeLabel} · {formatShortDate(doc.createdAt)}
+                  </AppText>
+                </View>
+              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Belgeyi sil"
@@ -270,6 +263,7 @@ export default function DocumentsScreen() {
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   icon: {
     width: 40,
     height: 40,

@@ -414,6 +414,11 @@ export interface DogDocument {
   createdAt: number;
 }
 
+export interface DogDocumentDetail extends DogDocument {
+  /** Yüklemede doğrulanan gerçek MIME türü — uzantıya değil buna güvenilir. */
+  contentType: string | null;
+}
+
 export interface DogMemory {
   id: string;
   photoUrl: string | null;
@@ -864,6 +869,10 @@ export const api = {
 
   documents: (dogId: string) =>
     apiRequest<{ documents: DogDocument[] }>(`/api/journal/${dogId}/documents`),
+
+  /** Uygulama içi belge önizlemesi için tür ve süreli adres dahil tam bilgi. */
+  document: (id: string) =>
+    apiRequest<{ document: DogDocumentDetail }>(`/api/journal/documents/${id}`),
 
   addDocument: (body: { dogId: string; type: string; title?: string; storageKey: string }) =>
     apiRequest<{ id: string; ok: boolean }>('/api/journal/documents', { method: 'POST', body }),
