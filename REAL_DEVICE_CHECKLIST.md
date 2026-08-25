@@ -42,8 +42,17 @@ OLDUĞUNU doğrular (bkz. Bilinen sınır bölümü altında CI kanıtı).
       görünmüyor (ev konumu ele verilmiyor) — bkz. `walkTracker.ts#trimRouteEndpoints`
 - [ ] Zayıf/kesik ağ bağlantısında harita karoları yüklenemese bile GPS
       kaydı ve yürüyüş verisi kaybolmuyor
-- [ ] Haritada beklenmeyen bir çalışma zamanı hatası olursa yalnızca harita
-      alanı "Harita yüklenemedi" gösteriyor, yürüyüş ekranının tamamı çökmüyor
+- [ ] Haritada beklenmeyen bir çalışma zamanı hatası veya 9 saniyede
+      hazır olmama durumunda yalnızca harita alanı "Harita şu anda
+      kullanılamıyor" + "Tekrar dene" düğmesi gösteriyor (boş alan değil),
+      yürüyüş ekranının tamamı çökmüyor; "Tekrar dene" haritayı yeniden
+      başlatıyor
+- [ ] Anahtar tanımlı ama Google Cloud tarafında SHA-1/paket/faturalandırma
+      kısıtlaması eksik/yanlışsa (Logcat'te "Google Maps Platform rejected
+      your request…"): harita sessizce boş/gri kalabilir — bu JS'ten
+      yakalanamaz, yalnızca gerçek cihazın Logcat çıktısıyla doğrulanabilir
+      (bkz. DEPLOYMENT.md §8.2 "Harita anahtar yapılandırıldığı hâlde yine
+      de yüklenmiyorsa")
 
 **Bilinen sınır — bu turda kapsam dışı bırakıldı:** Uygulama tamamen arka
 plandayken (ekran kapalı, uygulama askıya alınmış) GPS takibinin devam etmesi

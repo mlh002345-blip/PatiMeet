@@ -492,18 +492,54 @@ harita yalnızca görsel bir katmandır.
 4. Oluşan anahtarı **mutlaka kısıtla** (aksi hâlde başka biri anahtarınızı
    kendi uygulamasında kullanabilir):
    - **Application restrictions** → **Android apps** → paket adı
-     `com.patimeet.app` + imzalama sertifikasının SHA-1 parmak izi
-     (`keytool -list -v -keystore upload-keystore.jks -alias upload` ile
-     alınır; hem geliştirme/iç test hem mağaza imzası için ayrı SHA-1'ler
-     eklenmeli).
+     `com.patimeet.app` + imzalama sertifikasının SHA-1 parmak izi. **İki
+     ayrı SHA-1 eklemen gerekir** (ikisi de eklenmeden yalnızca biri
+     çalışan yürüyüş haritası gösterir, diğeri "yetkisiz" hatası alır):
+     - **CI'daki iç test APK'sı** (`android-apk.yml` → `İç test APK'sı
+       derle`): bu iş özel bir imzalama anahtarı kurmuyor, `expo prebuild`
+       tarafından üretilen standart Android debug sertifikasını kullanıyor.
+       Bu sertifikanın SHA-1'i **her derlemede aynıdır** (Expo/Android'in
+       sabit varsayılan debug keystore'u), şu an için:
+       `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
+       Bu değer bir sır değildir (özel anahtarı değil, sertifikanın genel
+       parmak izini taşır) — yine de kendi ortamında doğrulamak istersen:
+       ```
+       cd apps/mobile && npx expo prebuild --platform android --no-install
+       keytool -list -v -keystore android/app/debug.keystore \
+         -alias androiddebugkey -storepass android -keypass android | grep SHA1
+       rm -rf android   # üretilen native dizini committe'lemeyin
+       ```
+     - **Play Store AAB'si** (`android-apk.yml` → `Play Store AAB'si derle`,
+       yalnız `ANDROID_UPLOAD_KEYSTORE_BASE64` secret'ı tanımlıysa çalışır):
+       kendi yükleme anahtarınızın SHA-1'i —
+       `keytool -list -v -keystore upload-keystore.jks -alias upload`.
    - **API restrictions** → yalnızca **Maps SDK for Android** işaretli
      kalsın.
 5. Anahtarı GitHub reposunda **Settings → Secrets and variables → Actions**
    altına `GOOGLE_MAPS_ANDROID_API_KEY` adıyla ekle.
+6. **Faturalandırma:** Google Cloud projesinde bir faturalandırma hesabı
+   bağlı olmalı (Maps SDK ücretsiz kotası faturalandırma etkinleştirilmeden
+   çalışmaz) — **Billing** menüsünden kontrol et.
 
 Yerel geliştirmede (`expo start`) haritayı denemek için anahtarı yalnızca
 kendi kabuğunuzda, dosyaya yazmadan geçici olarak dışa aktarabilirsiniz:
 `GOOGLE_MAPS_ANDROID_API_KEY=... npx expo prebuild --platform android`.
+
+#### Harita anahtar yapılandırıldığı hâlde yine de yüklenmiyorsa
+
+CI'da `İç test APK'sı derle` işinin "Native projeyi üret (expo prebuild)"
+adımı, anahtarın **secret olarak tanımlı olup olmadığını** (değerini asla
+göstermeden) build log'una yazar. Anahtar tanımlıysa ama harita hâlâ
+yüklenmiyorsa, sırasıyla kontrol et: (1) yukarıdaki iki SHA-1'in ikisi de
+kısıtlamaya eklenmiş mi, (2) **Application restrictions**'ta paket adı tam
+olarak `com.patimeet.app`, (3) **API restrictions**'ta Maps SDK for Android
+işaretli mi, (4) projede faturalandırma etkin mi. Google'ın "yetkisiz
+istek" reddi genelde bir JS hatası fırlatmaz — harita sessizce boş/gri
+kalır ve gerçek neden yalnızca cihazın Logcat çıktısında ("Google Maps
+Platform rejected your request…") görünür; bu nedenle uygulama içi hata
+ekranı yalnızca haritanın hiç hazır olmadığı durumları (zaman aşımı, JS
+çökmesi) yakalayabilir — yetkilendirme reddini kesin ayırt etmenin tek
+yolu gerçek cihazda Logcat'e bakmaktır.
 
 ---
 

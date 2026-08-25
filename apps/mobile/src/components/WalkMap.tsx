@@ -58,10 +58,28 @@ function ConfiguredWalkMap({
   const [following, setFollowing] = useState(true);
   const [ready, setReady] = useState(false);
   const [mapError, setMapError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const hasFitOnce = useRef(false);
 
   const last = points[points.length - 1] ?? null;
   const first = points[0] ?? null;
+
+  // `onMapReady` normalde native görünüm oluşur oluşmaz tetiklenir; Google
+  // Maps anahtarı geçersiz/kısıtlanmışsa bile bu genelde çalışır (harita yalnızca
+  // boş/gri karo gösterir). Yine de gerçek bir başlatma sorununda kullanıcıyı
+  // sonsuza dek boş alanla baş başa bırakmamak için bir zaman aşımı var.
+  useEffect(() => {
+    if (ready || mapError) return;
+    const timeout = setTimeout(() => setMapError(true), 9000);
+    return () => clearTimeout(timeout);
+  }, [ready, mapError, attempt]);
+
+  function retry() {
+    setMapError(false);
+    setReady(false);
+    hasFitOnce.current = false;
+    setAttempt((n) => n + 1);
+  }
 
   // Canlı modda yeni nokta geldikçe, kullanıcı haritayı elle oynatmadığı
   // sürece kamerayı güncel konuma kaydır.
@@ -101,16 +119,34 @@ function ConfiguredWalkMap({
           size={26}
           tintColor={colors.copperPale}
         />
-        <AppText variant="caption" color={colors.textOnDarkMuted} center style={{ marginTop: spacing.sm }}>
-          Harita yüklenemedi. Yürüyüş kaydı buna rağmen devam ediyor.
+        <AppText variant="bodyStrong" color={colors.textOnDark} center style={{ marginTop: spacing.sm }}>
+          Harita şu anda kullanılamıyor
         </AppText>
+        <AppText
+          variant="caption"
+          color={colors.textOnDarkMuted}
+          center
+          style={{ marginTop: spacing.xs, paddingHorizontal: spacing.lg }}
+        >
+          Yürüyüş kaydı buna rağmen devam ediyor.
+        </AppText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Tekrar dene"
+          onPress={retry}
+          style={({ pressed }) => [styles.retryButton, pressed && { opacity: 0.85 }]}
+        >
+          <AppText variant="bodyStrong" color={colors.textOnDark}>
+            Tekrar dene
+          </AppText>
+        </Pressable>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { height }]}>
-      <MapErrorBoundary onError={() => setMapError(true)}>
+      <MapErrorBoundary key={attempt} onError={() => setMapError(true)}>
         <MapView
           ref={mapRef}
           provider={PROVIDER_DEFAULT}
@@ -264,6 +300,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.forestSoft,
     borderWidth: 3,
     borderColor: colors.copperPale,
+  },
+  retryButton: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.copperAction,
   },
   recenterButton: {
     position: 'absolute',
